@@ -533,6 +533,93 @@ class TestCooperativeSocketBudgets(unittest.TestCase):
         self.assertTrue(bytes(client.written).startswith(b"HTTP/1.1 200 OK\r\n"))
         self.assertIn(b"Connection: close\r\n", client.written)
 
+    def test_queued_and_progressing_writer_keeps_the_next_turn(self):
+        clock = Clock(0)
+        operations = []
+        application = FakeApplication(
+            Response(body={"payload": "x" * 700})
+        )
+        client = FakeClientSocket(
+            [get_request()], name="target", operation_log=operations
+        )
+        listener = FakeListener(
+            [client], operation_log=operations
+        )
+        fixture = ServerFixture(
+            application=application,
+            clock=clock,
+            listener=listener,
+            write_idle_timeout_ms=4,
+            write_absolute_timeout_ms=20,
+        ).start()
+
+        fixture.server.step()  # accept
+        fixture.server.step()  # receive and queue the response
+        clock.now = 3
+        fixture.server.step()  # first bounded send
+        clock.now = 4
+        fixture.server.step()  # positive partial progress keeps priority
+
+        self.assertEqual(
+            operations[:4],
+            [
+                ("listener", "accept"),
+                ("target", "recv"),
+                ("target", "send"),
+                ("target", "send"),
+            ],
+        )
+        snapshot = fixture.server.snapshot()
+        self.assertEqual(snapshot["accept_actions"], 1)
+        self.assertEqual(snapshot["recv_actions"], 1)
+        self.assertEqual(snapshot["send_actions"], 2)
+        self.assertEqual(snapshot["timeouts"], 0)
+        self.assertEqual(snapshot["client_phases"], ["write"])
+
+    def test_would_block_writer_yields_to_the_other_client(self):
+        operations = []
+        first = FakeClientSocket(
+            [OSError(11), get_request()],
+            send_events=[128, OSError(11)],
+            name="first",
+            operation_log=operations,
+        )
+        second = FakeClientSocket(
+            [get_request("/second")],
+            name="second",
+            operation_log=operations,
+        )
+        listener = FakeListener(
+            [first, second], operation_log=operations
+        )
+        fixture = ServerFixture(
+            listener=listener,
+            application=FakeApplication(
+                Response(body={"payload": "x" * 700})
+            ),
+        ).start()
+
+        fixture.server.step()  # accept first
+        fixture.server.step()  # first receive would block
+        fixture.server.step()  # accept second
+        fixture.server.step()  # first receive queues its response
+        fixture.server.step()  # prioritized first writer makes progress
+        fixture.server.step()  # same writer would block and loses priority
+        fixture.server.step()  # fairness advances to second client
+
+        self.assertEqual(
+            operations[-3:],
+            [
+                ("first", "send"),
+                ("first", "send"),
+                ("second", "recv"),
+            ],
+        )
+        snapshot = fixture.server.snapshot()
+        self.assertEqual(snapshot["send_actions"], 2)
+        self.assertEqual(snapshot["socket_errors"], 0)
+        self.assertEqual(snapshot["client_count"], 2)
+
     def test_send_zero_bool_negative_and_oversize_are_contract_failures(self):
         for sent in (0, True, -1, SEND_BUDGET_BYTES + 1):
             with self.subTest(sent=sent):
@@ -770,7 +857,10 @@ class TestDeadlines(unittest.TestCase):
         write_clock.now = 45
         write_fixture.server.step()
         self.assertTrue(write_client.closed)
-        self.assertEqual(write_fixture.server.snapshot()["completed"], 0)
+        write_snapshot = write_fixture.server.snapshot()
+        self.assertEqual(write_snapshot["completed"], 0)
+        self.assertEqual(write_snapshot["send_actions"], 0)
+        self.assertEqual(write_client.send_sizes, [])
 
     def test_slow_handler_and_encoder_get_fresh_write_deadline(self):
         for slow_stage in ("handler", "encoder"):

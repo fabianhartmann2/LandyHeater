@@ -1202,6 +1202,21 @@ class MicroPythonHTTPServer:
                         actor + 1
                     ) % (MAX_CLIENTS + 1)
                     result = self._perform_actor(actor, now_ms)
+                    # A receive which queued a response, or a send which made
+                    # positive partial progress, should keep that writer for
+                    # the next cooperative turn.  This avoids inserting an
+                    # unrelated listener poll between bounded response
+                    # chunks.  Would-block returns False and therefore keeps
+                    # the normal round-robin position selected above.
+                    if (
+                        result is True
+                        and actor != 0
+                        and not self.__operation_reentered
+                        and not self.__closed
+                    ):
+                        client = self.__clients[actor - 1]
+                        if client is not None and client.phase == "write":
+                            self.__next_actor = actor
                     break
         except MemoryError:
             out_of_memory = True
