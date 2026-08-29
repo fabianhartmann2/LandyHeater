@@ -849,6 +849,97 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
                 )
 
         secret_text = "accept-diagnostic-secret-" + _TEST_PASSWORD
+        fake = _fake_network()
+        _script_ap_clients(fake, (0, 1, 1, 1))
+        probe = FakeClientSocket(recv_events=[_request(
+            smoke.IP_CHECK_PATH, smoke.AP_IP + ":8080"
+        )])
+        status = FakeClientSocket(recv_events=[_request(
+            smoke.STATUS_PATH, smoke.AP_IP
+        )])
+        listener = FakeListener(
+            accept_events=[OSError(113, secret_text), status]
+        )
+        seam_proxy = CapturingSeam()
+        result, error, output, _, _ = self._execute(
+            fake,
+            FakeListener(accept_events=[probe]),
+            listener,
+            seam_loader=lambda: seam_proxy,
+        )
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+        self.assertEqual(
+            output.splitlines()[-1], smoke.FULL_REST_PHONE_PASS_TOKEN
+        )
+        self.assertNotIn(smoke.FULL_REST_PHONE_FAIL_TOKEN, output)
+        self.assertNotIn(secret_text, output)
+        self.assertEqual(
+            seam_proxy.states[0].socket_factory.listener_errno, 113
+        )
+
+        fake = _fake_network()
+        _script_ap_clients(fake, (0, 1, 1, 1))
+        probe = FakeClientSocket(recv_events=[_request(
+            smoke.IP_CHECK_PATH, smoke.AP_IP + ":8080"
+        )])
+        listener = FakeListener(accept_events=[
+            OSError(113, secret_text),
+            OSError(12, secret_text),
+        ])
+        seam_proxy = CapturingSeam()
+        result, error, output, _, _ = self._execute(
+            fake,
+            FakeListener(accept_events=[probe]),
+            listener,
+            seam_loader=lambda: seam_proxy,
+        )
+        self.assertIsNone(result)
+        self.assertIsInstance(error, RuntimeError)
+        self.assertIn(smoke.FULL_REST_PHONE_FAIL_TOKEN, output)
+        self.assertNotIn(smoke.FULL_REST_PHONE_PASS_TOKEN, output)
+        self.assertNotIn(secret_text, output + repr(error))
+        diagnostics = _failure_diagnostics(output)
+        self.assertEqual(diagnostics["http_last_error"], "accept_failed")
+        self.assertEqual(diagnostics["listener_errno"], "12")
+        self.assertEqual(
+            seam_proxy.states[0].socket_factory.listener_errno, 12
+        )
+
+        fake = _fake_network()
+        _script_ap_clients(fake, (0, 1, 1, 1))
+        probe = FakeClientSocket(recv_events=[_request(
+            smoke.IP_CHECK_PATH, smoke.AP_IP + ":8080"
+        )])
+        listener = FakeListener(
+            accept_events=[OSError(113, secret_text)] * 3000
+        )
+        filesystem = _MemoryFileSystem()
+        seam_proxy = CapturingSeam()
+        result, error, output, _, filesystem = self._execute(
+            fake,
+            FakeListener(accept_events=[probe]),
+            listener,
+            filesystem=filesystem,
+            seam_loader=lambda: seam_proxy,
+        )
+        self.assertIsNone(result)
+        self.assertIsInstance(error, RuntimeError)
+        self.assertIn(smoke.FULL_REST_PHONE_FAIL_TOKEN, output)
+        self.assertNotIn(smoke.FULL_REST_PHONE_PASS_TOKEN, output)
+        self.assertNotIn(secret_text, output + repr(error))
+        diagnostics = _failure_diagnostics(output)
+        self.assertEqual(diagnostics["stage"], "observe_timeout")
+        self.assertEqual(diagnostics["http_accepted"], "0")
+        self.assertEqual(diagnostics["http_completed"], "0")
+        self.assertEqual(diagnostics["http_socket_errors"], "0")
+        self.assertEqual(diagnostics["listener_errno"], "113")
+        self.assertTrue(listener.closed)
+        self.assertIs(wifi_module._WIFI_LEASED, False)
+        self.assertIs(board_config.WIFI_RADIO_APPROVED, False)
+        for path in stage2._storage_paths():
+            self.assertNotIn(path, filesystem.files)
+
         cases = (
             ("numeric_12", OSError(12, secret_text), "accept_failed", 12),
             ("numeric_23", OSError(23, secret_text), "accept_failed", 23),
@@ -1272,6 +1363,67 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
                     wrapped.accept()
                 self.assertIs(raised.exception, event)
                 self.assertEqual(owner.accept_errno, -1)
+
+        raw = FakeListener(accept_events=[
+            OSError(113, secret),
+            OSError(12, secret),
+        ])
+        owner = types.SimpleNamespace(accept_errno=-1)
+        wrapped = stage1._DiagnosticListener(raw, owner)
+        with self.assertRaises(OSError):
+            wrapped.accept()
+        self.assertEqual(owner.accept_errno, 113)
+        with self.assertRaises(OSError):
+            wrapped.accept()
+        self.assertEqual(owner.accept_errno, 12)
+
+        fake = _fake_network()
+        _script_ap_clients(fake, (0, 1, 1, 1))
+        probe = FakeClientSocket(recv_events=[_request(
+            smoke.IP_CHECK_PATH, smoke.AP_IP + ":8080"
+        )])
+        status = FakeClientSocket(recv_events=[_request(
+            smoke.STATUS_PATH, smoke.AP_IP
+        )])
+        result, error, output, _, _ = self._execute(
+            fake,
+            FakeListener(accept_events=[OSError(113, secret), probe]),
+            FakeListener(accept_events=[status]),
+        )
+        self.assertIsNone(error)
+        self.assertIsNotNone(result)
+        self.assertEqual(
+            output.splitlines()[-1], smoke.FULL_REST_PHONE_PASS_TOKEN
+        )
+        self.assertNotIn(secret, output)
+
+        fake = _fake_network()
+        _script_ap_clients(fake, (0, 1, 1))
+        listener = FakeListener(
+            accept_events=[OSError(11)] * 40
+            + [OSError(113, secret), OSError(12, secret)]
+        )
+        filesystem = _MemoryFileSystem()
+        result, error, output, _, filesystem = self._execute(
+            fake,
+            listener,
+            FakeListener(),
+            filesystem=filesystem,
+        )
+        diagnostics = self._assert_stage1_failure_is_clean(
+            result,
+            error,
+            output,
+            fake,
+            listener,
+            filesystem,
+            secret,
+        )
+        self.assertIn(smoke.FULL_REST_PHONE_CLIENT_TOKEN, output)
+        self.assertEqual(
+            diagnostics["stage"], "stage1_observe_http_transport"
+        )
+        self.assertEqual(diagnostics["stage1_accept_errno"], "12")
 
         post_client_cases = (
             ("post_client_errno_103", OSError(103, secret), "accept_failed", 103),

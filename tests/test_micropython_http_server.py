@@ -417,6 +417,70 @@ class TestConstructionAndLifecycle(unittest.TestCase):
 
 
 class TestCooperativeSocketBudgets(unittest.TestCase):
+    def test_aborted_pending_accept_is_transient_only_on_listener(self):
+        secret = "aborted-accept-secret"
+        client = FakeClientSocket([get_request()])
+        listener = FakeListener([
+            OSError(113, secret),
+            OSError(113, secret),
+            client,
+        ])
+        fixture = ServerFixture(listener=listener).start()
+
+        fixture.server.step()
+        after_abort = fixture.server.snapshot()
+        self.assertEqual(after_abort["accept_actions"], 1)
+        self.assertEqual(after_abort["accepted"], 0)
+        self.assertEqual(after_abort["client_count"], 0)
+        self.assertEqual(after_abort["socket_errors"], 0)
+        self.assertIsNone(after_abort["last_error"])
+        self.assertNotIn(secret, repr(after_abort))
+
+        fixture.server.step()
+        repeated_abort = fixture.server.snapshot()
+        self.assertEqual(repeated_abort["accept_actions"], 2)
+        self.assertEqual(repeated_abort["accepted"], 0)
+        self.assertEqual(repeated_abort["socket_errors"], 0)
+
+        fixture.pump(lambda: client.closed)
+        completed = fixture.server.snapshot()
+        self.assertEqual(completed["accepted"], 1)
+        self.assertEqual(completed["completed"], 1)
+        self.assertEqual(completed["socket_errors"], 0)
+
+        for errno in (12, 23, 103, 118):
+            with self.subTest(non_transient_accept_errno=errno):
+                listener = FakeListener([OSError(errno, secret)])
+                failed = ServerFixture(listener=listener).start()
+                failed.server.step()
+                snapshot = failed.server.snapshot()
+                self.assertEqual(snapshot["accepted"], 0)
+                self.assertEqual(snapshot["socket_errors"], 1)
+                self.assertEqual(snapshot["last_error"], "accept_failed")
+                self.assertNotIn(secret, repr(snapshot))
+
+        recv_client = FakeClientSocket([OSError(113, secret)])
+        recv_fixture = ServerFixture([recv_client]).start()
+        recv_fixture.server.step()
+        recv_fixture.server.step()
+        recv_snapshot = recv_fixture.server.snapshot()
+        self.assertTrue(recv_client.closed)
+        self.assertEqual(recv_snapshot["socket_errors"], 1)
+        self.assertEqual(recv_snapshot["last_error"], "client_recv_failed")
+        self.assertNotIn(secret, repr(recv_snapshot))
+
+        send_client = FakeClientSocket(
+            [get_request()], send_events=[OSError(113, secret)]
+        )
+        send_fixture = ServerFixture([send_client]).start()
+        send_fixture.pump(lambda: send_client.closed)
+        send_snapshot = send_fixture.server.snapshot()
+        self.assertTrue(send_client.closed)
+        self.assertEqual(send_snapshot["completed"], 0)
+        self.assertEqual(send_snapshot["socket_errors"], 1)
+        self.assertEqual(send_snapshot["last_error"], "client_send_failed")
+        self.assertNotIn(secret, repr(send_snapshot))
+
     def test_each_step_performs_at_most_one_accept_recv_or_send(self):
         first = FakeClientSocket([get_request()])
         second = FakeClientSocket([get_request("/second")])

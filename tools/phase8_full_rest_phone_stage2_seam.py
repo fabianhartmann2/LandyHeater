@@ -16,6 +16,7 @@ MINIMUM_FREE_HEAP_BYTES = 32 * 1024
 MINIMUM_PRE_BIND_HEAP_BYTES = 40 * 1024
 _PROOF_MODULE = "tools.phase8_full_rest_phone_stage2"
 _DIAGNOSTIC_ERRNO_LIMIT = 65535
+_ABORTED_ACCEPT_ERRNO = 113
 _OWNED_FILES = tuple(
     base + suffix
     for base in (
@@ -295,7 +296,14 @@ class LateListenerSocket:
                 accepted = self._port.accept()
             except OSError as error:
                 code = _bounded_os_errno(error)
-                if code != 11 and code != 35 and code != 10035:
+                if (
+                    code == _ABORTED_ACCEPT_ERRNO
+                    and not self._factory._listener_failure_recorded
+                ):
+                    # Preserve a transient abort for a successful run, but do
+                    # not make it sticky: a later fatal accept error must win.
+                    self._factory.listener_errno = code
+                elif code != 11 and code != 35 and code != 10035:
                     self._factory._record_listener_failure(error)
                 raise
             if type(accepted) not in (tuple, list):

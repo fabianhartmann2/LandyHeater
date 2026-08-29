@@ -49,6 +49,13 @@ DEFAULT_WRITE_ABSOLUTE_TIMEOUT_MS = 10000
 MAX_TIMEOUT_MS = 60000
 
 _WOULD_BLOCK_ERRNOS = (11, 35, 10035)
+# ESP-IDF/newlib reports an incoming TCP connection which was aborted before
+# ``accept()`` completed as ECONNABORTED=113.  ESP-lwIP can also produce this
+# result when allocating the pending connection's PCB or netconn fails.  Both
+# cases are local to that pending connection; the listening socket remains
+# valid and must stay available for the next client.  Do not apply this
+# exception to recv/send paths.
+_ABORTED_ACCEPT_ERRNOS = (113,)
 _INCOMPLETE_HEADER_CODE = "incomplete_headers"
 _INCOMPLETE_BODY_CODE = "incomplete_body"
 _SAFE_PARSE_ERROR_CODES = (
@@ -186,6 +193,15 @@ def _accepted_peer_ip(address):
 def _would_block(error):
     args = getattr(error, "args", ())
     return bool(args) and args[0] in _WOULD_BLOCK_ERRNOS
+
+
+def _aborted_accept(error):
+    args = getattr(error, "args", ())
+    return (
+        bool(args)
+        and type(args[0]) is int
+        and args[0] in _ABORTED_ACCEPT_ERRNOS
+    )
 
 
 def _make_nonblocking(port):
@@ -697,7 +713,7 @@ class MicroPythonHTTPServer:
         except MemoryError:
             raise MemoryError() from None
         except OSError as error:
-            if _would_block(error):
+            if _would_block(error) or _aborted_accept(error):
                 return False
             self.__socket_errors += 1
             self.__last_error = "accept_failed"

@@ -35,6 +35,7 @@ _HTTP_FROZEN_ORIGINS = (
     ("services.strict_json", "services/strict_json.py"),
 )
 _WOULD_BLOCK_ERRNOS = (11, 35, 10035)
+_ABORTED_ACCEPT_ERRNO = 113
 
 
 def _bounded_accept_errno(error):
@@ -76,7 +77,16 @@ class _DiagnosticListener:
         except OSError as error:
             try:
                 errno = _bounded_accept_errno(error)
-                if errno >= 0 and self._factory.accept_errno < 0:
+                if (
+                    errno >= 0
+                    and (
+                        self._factory.accept_errno < 0
+                        or (
+                            self._factory.accept_errno == _ABORTED_ACCEPT_ERRNO
+                            and errno != _ABORTED_ACCEPT_ERRNO
+                        )
+                    )
+                ):
                     self._factory.accept_errno = errno
             except BaseException:
                 pass
