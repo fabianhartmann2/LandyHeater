@@ -1,0 +1,3584 @@
+[
+    {
+        "id": "a82d4c4d0e42d1fb",
+        "type": "tab",
+        "label": "Planar Heater",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "578c795100eb6957",
+        "type": "tab",
+        "label": "Settings",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "f1ef7c8efe71047d",
+        "type": "tab",
+        "label": "Votronic Shunt",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "0035bbf4acef0a7b",
+        "type": "group",
+        "z": "a82d4c4d0e42d1fb",
+        "style": {
+            "stroke": "#999999",
+            "stroke-opacity": "1",
+            "fill": "none",
+            "fill-opacity": "1",
+            "label": true,
+            "label-position": "nw",
+            "color": "#a4a4a4"
+        },
+        "nodes": [
+            "5ec5fe2b20f65935",
+            "f2229868c1cb42cc",
+            "39799f3b110c3879",
+            "b4f327a0165737ed",
+            "88e089724981bd7d",
+            "353b864ee9465735",
+            "198871c9516647a2",
+            "e7925a3fc5e894fe",
+            "52f464b39083279e",
+            "936c532eed155f80",
+            "dd4b93b3abb1b5d5",
+            "3306b83739096f72",
+            "4894516fb94687a3",
+            "0a3ebffe0cb1f3b0",
+            "a54ab6d10099ea56",
+            "95f4590150b96c54"
+        ],
+        "x": 34,
+        "y": 1459,
+        "w": 2052,
+        "h": 622
+    },
+    {
+        "id": "d52a507be92ff876",
+        "type": "group",
+        "z": "a82d4c4d0e42d1fb",
+        "style": {
+            "stroke": "#999999",
+            "stroke-opacity": "1",
+            "fill": "none",
+            "fill-opacity": "1",
+            "label": true,
+            "label-position": "nw",
+            "color": "#a4a4a4"
+        },
+        "nodes": [
+            "57c2f5eb0bf17a50",
+            "02ec2c84858d09cf",
+            "08ac76519062f93e",
+            "e657905ae50d0485",
+            "5b4e716812d94d49",
+            "424d5c781b2cd494",
+            "5aec9bf14a96d527",
+            "81db9160303944a7",
+            "e8c0757cbacd4ff0",
+            "7c34fe6f8b4a135c",
+            "db349e9bcb07c2e1"
+        ],
+        "x": 54,
+        "y": 679,
+        "w": 1652,
+        "h": 442
+    },
+    {
+        "id": "04d806c420a5414e",
+        "type": "tasmota-mqtt-broker",
+        "name": "MQTTBroker",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "usetls": false,
+        "keepalive": "60",
+        "cleansession": true
+    },
+    {
+        "id": "3412668b18654e0a",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "c83b35fcfc00f797",
+        "type": "serial-port",
+        "serialport": "/dev/ttyAMA1",
+        "serialbaud": "9600",
+        "databits": "8",
+        "parity": "none",
+        "stopbits": "1",
+        "waitfor": "",
+        "dtr": "none",
+        "rts": "none",
+        "cts": "none",
+        "dsr": "none",
+        "newline": "200",
+        "bin": "bin",
+        "out": "interbyte",
+        "addchar": "",
+        "responsetimeout": "10000"
+    },
+    {
+        "id": "bf83623dffc250c2",
+        "type": "serial-port",
+        "serialport": "/dev/ttyAMA3",
+        "serialbaud": "9600",
+        "databits": "8",
+        "parity": "none",
+        "stopbits": "1",
+        "waitfor": "",
+        "dtr": "none",
+        "rts": "none",
+        "cts": "none",
+        "dsr": "none",
+        "newline": "200",
+        "bin": "bin",
+        "out": "interbyte",
+        "addchar": "",
+        "responsetimeout": "10000"
+    },
+    {
+        "id": "bd0a9d54f9ed475e",
+        "type": "serial-port",
+        "serialport": "/dev/ttyAMA2",
+        "serialbaud": "9600",
+        "databits": "8",
+        "parity": "none",
+        "stopbits": "1",
+        "waitfor": "",
+        "dtr": "none",
+        "rts": "none",
+        "cts": "none",
+        "dsr": "none",
+        "newline": "200",
+        "bin": "bin",
+        "out": "interbyte",
+        "addchar": "",
+        "responsetimeout": "10000"
+    },
+    {
+        "id": "b0f1d2ffd29cc76d",
+        "type": "ui_base",
+        "theme": {
+            "name": "theme-dark",
+            "lightTheme": {
+                "default": "#0094CE",
+                "baseColor": "#0094CE",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif",
+                "edited": true,
+                "reset": false
+            },
+            "darkTheme": {
+                "default": "#097479",
+                "baseColor": "#097479",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif",
+                "edited": true,
+                "reset": false
+            },
+            "customTheme": {
+                "name": "Untitled Theme 1",
+                "default": "#4B7930",
+                "baseColor": "#4B7930",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif",
+                "reset": false
+            },
+            "themeState": {
+                "base-color": {
+                    "default": "#097479",
+                    "value": "#097479",
+                    "edited": false
+                },
+                "page-titlebar-backgroundColor": {
+                    "value": "#097479",
+                    "edited": false
+                },
+                "page-backgroundColor": {
+                    "value": "#111111",
+                    "edited": false
+                },
+                "page-sidebar-backgroundColor": {
+                    "value": "#333333",
+                    "edited": false
+                },
+                "group-textColor": {
+                    "value": "#0eb8c0",
+                    "edited": false
+                },
+                "group-borderColor": {
+                    "value": "#555555",
+                    "edited": false
+                },
+                "group-backgroundColor": {
+                    "value": "#333333",
+                    "edited": false
+                },
+                "widget-textColor": {
+                    "value": "#eeeeee",
+                    "edited": false
+                },
+                "widget-backgroundColor": {
+                    "value": "#097479",
+                    "edited": false
+                },
+                "widget-borderColor": {
+                    "value": "#333333",
+                    "edited": false
+                },
+                "base-font": {
+                    "value": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif"
+                }
+            },
+            "angularTheme": {
+                "primary": "indigo",
+                "accents": "blue",
+                "warn": "red",
+                "background": "grey",
+                "palette": "light"
+            }
+        },
+        "site": {
+            "name": "Landy",
+            "hideToolbar": "false",
+            "allowSwipe": "false",
+            "lockMenu": "false",
+            "allowTempTheme": "true",
+            "dateFormat": "DD/MM/YYYY",
+            "sizes": {
+                "sx": 48,
+                "sy": 48,
+                "gx": 6,
+                "gy": 6,
+                "cx": 6,
+                "cy": 6,
+                "px": 0,
+                "py": 0
+            }
+        }
+    },
+    {
+        "id": "eeed5ec3dbd029e2",
+        "type": "ui_tab",
+        "name": "Heater",
+        "icon": "dashboard",
+        "order": 1,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "d5b966fe9e313d94",
+        "type": "ui_tab",
+        "name": "Controller",
+        "icon": "dashboard",
+        "order": 2,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "c57728468cb69879",
+        "type": "ui_tab",
+        "name": "Battery",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "ac2c8e97.2a413",
+        "type": "ui_group",
+        "name": "test",
+        "tab": "",
+        "order": 3,
+        "disp": true,
+        "width": "7",
+        "collapse": true
+    },
+    {
+        "id": "5664dfc2909d8c09",
+        "type": "ui_group",
+        "name": "Manual Control",
+        "tab": "eeed5ec3dbd029e2",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "be6b315cf968f72f",
+        "type": "ui_group",
+        "name": "Timer",
+        "tab": "eeed5ec3dbd029e2",
+        "order": 2,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "f8bf0eeba72b4f20",
+        "type": "ui_group",
+        "name": "Status",
+        "tab": "eeed5ec3dbd029e2",
+        "order": 3,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "165e1e1a.e752fa",
+        "type": "ui_group",
+        "name": "Default",
+        "tab": "",
+        "order": 1,
+        "disp": true,
+        "width": "12",
+        "collapse": false
+    },
+    {
+        "id": "d406046e1c78985a",
+        "type": "ui_group",
+        "name": "Controller",
+        "tab": "d5b966fe9e313d94",
+        "order": 2,
+        "disp": false,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "88d19a09c73b47ae",
+        "type": "ui_group",
+        "name": "Connection",
+        "tab": "d5b966fe9e313d94",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "890778c.fdea288",
+        "type": "ui_group",
+        "name": "Default",
+        "tab": "",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false
+    },
+    {
+        "id": "c982fbb8.1deb38",
+        "type": "ui_group",
+        "name": "hidden_group",
+        "tab": "",
+        "order": 1,
+        "disp": false,
+        "width": "6",
+        "collapse": false
+    },
+    {
+        "id": "64795bfb3d207821",
+        "type": "ui_group",
+        "name": "Group 2",
+        "tab": "",
+        "order": 2,
+        "disp": true,
+        "width": 6
+    },
+    {
+        "id": "d45edbfada3192c1",
+        "type": "ui_group",
+        "name": "Overview",
+        "tab": "c57728468cb69879",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "9e562377b8aacf17",
+        "type": "ui_group",
+        "name": "Starter Battery",
+        "tab": "c57728468cb69879",
+        "order": 2,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "be8c898d553d3573",
+        "type": "ui_group",
+        "name": "Auillary Battery",
+        "tab": "c57728468cb69879",
+        "order": 3,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "c7a43587.2944e8",
+        "type": "ui_group",
+        "name": "Default",
+        "tab": "fbd536a.22bf9c8",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false
+    },
+    {
+        "id": "fbd536a.22bf9c8",
+        "type": "ui_tab",
+        "name": "Home",
+        "icon": "dashboard"
+    },
+    {
+        "id": "2d20a9fb2cfb2fc5",
+        "type": "ui_group",
+        "name": "Network",
+        "tab": "d5b966fe9e313d94",
+        "order": 3,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "7e1e886c54b3947f",
+        "type": "ui_group",
+        "name": "Heater Settings",
+        "tab": "d5b966fe9e313d94",
+        "order": 4,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "fe762942.fd8b08",
+        "type": "ui_group",
+        "name": "Default",
+        "tab": "3e55b58e.55d1e2",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false
+    },
+    {
+        "id": "3e55b58e.55d1e2",
+        "type": "ui_tab",
+        "name": "Home",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "57c2f5eb0bf17a50",
+        "type": "debug",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "Input Diagnostics",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 510,
+        "y": 720,
+        "wires": []
+    },
+    {
+        "id": "02ec2c84858d09cf",
+        "type": "serial in",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "Heater RX",
+        "serial": "c83b35fcfc00f797",
+        "x": 140,
+        "y": 840,
+        "wires": [
+            [
+                "57c2f5eb0bf17a50",
+                "e657905ae50d0485"
+            ]
+        ]
+    },
+    {
+        "id": "c186010b81e7daf0",
+        "type": "serial out",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "Heater TX (/dev/ttyAMA1)",
+        "serial": "c83b35fcfc00f797",
+        "x": 2370,
+        "y": 1360,
+        "wires": []
+    },
+    {
+        "id": "df5495c3eadd0e59",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar Heater.Power",
+        "rules": [
+            {
+                "t": "set",
+                "p": "heater.power",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2310,
+        "y": 120,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c557f11cdcecbf22",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar Heater.targettemp",
+        "rules": [
+            {
+                "t": "set",
+                "p": "heater.targettemp",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2300,
+        "y": 180,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "461080adf97a008b",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar heater.powerlevel",
+        "rules": [
+            {
+                "t": "set",
+                "p": "heater.powerlevel",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2300,
+        "y": 300,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5ec5fe2b20f65935",
+        "type": "inject",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "1 seccond heartbeat",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "1",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payloadType": "date",
+        "x": 180,
+        "y": 1620,
+        "wires": [
+            [
+                "f2229868c1cb42cc"
+            ]
+        ]
+    },
+    {
+        "id": "7f0fb8ad81e5ca27",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar ControlMode",
+        "rules": [
+            {
+                "t": "set",
+                "p": "heater.mode",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2290,
+        "y": 240,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "2c9d12d3600b1a0b",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar Heater.Ventilation",
+        "rules": [
+            {
+                "t": "set",
+                "p": "heater.ventilation",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2300,
+        "y": 360,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "08ac76519062f93e",
+        "type": "switch",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "Command Type",
+        "property": "payload[4]",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "0x02",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "0x01",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "0x03",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "0x04",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "0x11",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "0x0F",
+                "vt": "str"
+            }
+        ],
+        "checkall": "false",
+        "repair": false,
+        "outputs": 6,
+        "x": 900,
+        "y": 900,
+        "wires": [
+            [],
+            [],
+            [],
+            [
+                "5b4e716812d94d49"
+            ],
+            [],
+            [
+                "424d5c781b2cd494",
+                "e8c0757cbacd4ff0"
+            ]
+        ]
+    },
+    {
+        "id": "e657905ae50d0485",
+        "type": "switch",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "Filter Message from Heater",
+        "property": "payload[1]",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "0x4",
+                "vt": "str"
+            }
+        ],
+        "checkall": "false",
+        "repair": false,
+        "outputs": 1,
+        "x": 540,
+        "y": 840,
+        "wires": [
+            [
+                "08ac76519062f93e",
+                "db349e9bcb07c2e1"
+            ]
+        ]
+    },
+    {
+        "id": "f2229868c1cb42cc",
+        "type": "switch",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "Check Init Completed",
+        "property": "heater.initcompleted",
+        "propertyType": "global",
+        "rules": [
+            {
+                "t": "true"
+            },
+            {
+                "t": "false"
+            },
+            {
+                "t": "null"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 3,
+        "x": 420,
+        "y": 1640,
+        "wires": [
+            [
+                "b4f327a0165737ed",
+                "353b864ee9465735"
+            ],
+            [
+                "39799f3b110c3879"
+            ],
+            [
+                "39799f3b110c3879"
+            ]
+        ]
+    },
+    {
+        "id": "5b4e716812d94d49",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "GlobalVar Heater.InitCompleted",
+        "rules": [
+            {
+                "t": "set",
+                "p": "heater.initcompleted",
+                "pt": "global",
+                "to": "true",
+                "tot": "bool"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1290,
+        "y": 820,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c8f7cdd71fb94510",
+        "type": "inject",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "Init after boot",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 120,
+        "y": 40,
+        "wires": [
+            [
+                "ec554fa8fd61c798",
+                "de850ab807ec293f",
+                "e8278a6f44970c3b",
+                "fba9444bcb08dc5d",
+                "5375e0275013fcf1"
+            ]
+        ]
+    },
+    {
+        "id": "ec554fa8fd61c798",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar Heater.InitCompleted",
+        "rules": [
+            {
+                "t": "set",
+                "p": "heater.initcompleted",
+                "pt": "global",
+                "to": "false",
+                "tot": "bool"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 510,
+        "y": 40,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "39799f3b110c3879",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "Compose Init Message",
+        "func": "msg.payload = Buffer.from(\"aa03000004\", \"hex\");\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 750,
+        "y": 1640,
+        "wires": [
+            [
+                "88e089724981bd7d"
+            ]
+        ]
+    },
+    {
+        "id": "b4f327a0165737ed",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "Compose Status Request Message",
+        "func": "msg.payload = Buffer.from(\"aa0300000f\", \"hex\");\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 740,
+        "y": 1520,
+        "wires": [
+            [
+                "88e089724981bd7d"
+            ]
+        ]
+    },
+    {
+        "id": "88e089724981bd7d",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "calculate CRC",
+        "func": "const crc16ibm = (buffer) => {\n\n    const table = [\n        0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241,\n        0xC601, 0x06C0, 0x0780, 0xC741, 0x0500, 0xC5C1, 0xC481, 0x0440,\n        0xCC01, 0x0CC0, 0x0D80, 0xCD41, 0x0F00, 0xCFC1, 0xCE81, 0x0E40,\n        0x0A00, 0xCAC1, 0xCB81, 0x0B40, 0xC901, 0x09C0, 0x0880, 0xC841,\n        0xD801, 0x18C0, 0x1980, 0xD941, 0x1B00, 0xDBC1, 0xDA81, 0x1A40,\n        0x1E00, 0xDEC1, 0xDF81, 0x1F40, 0xDD01, 0x1DC0, 0x1C80, 0xDC41,\n        0x1400, 0xD4C1, 0xD581, 0x1540, 0xD701, 0x17C0, 0x1680, 0xD641,\n        0xD201, 0x12C0, 0x1380, 0xD341, 0x1100, 0xD1C1, 0xD081, 0x1040,\n        0xF001, 0x30C0, 0x3180, 0xF141, 0x3300, 0xF3C1, 0xF281, 0x3240,\n        0x3600, 0xF6C1, 0xF781, 0x3740, 0xF501, 0x35C0, 0x3480, 0xF441,\n        0x3C00, 0xFCC1, 0xFD81, 0x3D40, 0xFF01, 0x3FC0, 0x3E80, 0xFE41,\n        0xFA01, 0x3AC0, 0x3B80, 0xFB41, 0x3900, 0xF9C1, 0xF881, 0x3840,\n        0x2800, 0xE8C1, 0xE981, 0x2940, 0xEB01, 0x2BC0, 0x2A80, 0xEA41,\n        0xEE01, 0x2EC0, 0x2F80, 0xEF41, 0x2D00, 0xEDC1, 0xEC81, 0x2C40,\n        0xE401, 0x24C0, 0x2580, 0xE541, 0x2700, 0xE7C1, 0xE681, 0x2640,\n        0x2200, 0xE2C1, 0xE381, 0x2340, 0xE101, 0x21C0, 0x2080, 0xE041,\n        0xA001, 0x60C0, 0x6180, 0xA141, 0x6300, 0xA3C1, 0xA281, 0x6240,\n        0x6600, 0xA6C1, 0xA781, 0x6740, 0xA501, 0x65C0, 0x6480, 0xA441,\n        0x6C00, 0xACC1, 0xAD81, 0x6D40, 0xAF01, 0x6FC0, 0x6E80, 0xAE41,\n        0xAA01, 0x6AC0, 0x6B80, 0xAB41, 0x6900, 0xA9C1, 0xA881, 0x6840,\n        0x7800, 0xB8C1, 0xB981, 0x7940, 0xBB01, 0x7BC0, 0x7A80, 0xBA41,\n        0xBE01, 0x7EC0, 0x7F80, 0xBF41, 0x7D00, 0xBDC1, 0xBC81, 0x7C40,\n        0xB401, 0x74C0, 0x7580, 0xB541, 0x7700, 0xB7C1, 0xB681, 0x7640,\n        0x7200, 0xB2C1, 0xB381, 0x7340, 0xB101, 0x71C0, 0x7080, 0xB041,\n        0x5000, 0x90C1, 0x9181, 0x5140, 0x9301, 0x53C0, 0x5280, 0x9241,\n        0x9601, 0x56C0, 0x5780, 0x9741, 0x5500, 0x95C1, 0x9481, 0x5440,\n        0x9C01, 0x5CC0, 0x5D80, 0x9D41, 0x5F00, 0x9FC1, 0x9E81, 0x5E40,\n        0x5A00, 0x9AC1, 0x9B81, 0x5B40, 0x9901, 0x59C0, 0x5880, 0x9841,\n        0x8801, 0x48C0, 0x4980, 0x8941, 0x4B00, 0x8BC1, 0x8A81, 0x4A40,\n        0x4E00, 0x8EC1, 0x8F81, 0x4F40, 0x8D01, 0x4DC0, 0x4C80, 0x8C41,\n        0x4400, 0x84C1, 0x8581, 0x4540, 0x8701, 0x47C0, 0x4680, 0x8641,\n        0x8201, 0x42C0, 0x4380, 0x8341, 0x4100, 0x81C1, 0x8081, 0x4040\n    ];\n\n    let crc = 0x0ffff;\n    for( const byte of buffer ){\n        crc = crc >>> 8 ^ table[ ( crc ^ byte ) & 0xff ];\n    }\n    return crc;\n};\n\nvar crc = crc16ibm(msg.payload);\ncrcbuffer = Buffer.from(crc.toString(16),\"hex\");\n\nvar D = [\n    msg.payload,\n    crcbuffer\n]\n\nmsg.payload = Buffer.concat(D);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1980,
+        "y": 1500,
+        "wires": [
+            [
+                "c186010b81e7daf0",
+                "560c8639e0b91cb7"
+            ]
+        ]
+    },
+    {
+        "id": "424d5c781b2cd494",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "Interpret and Save Status Messages",
+        "func": "HeaterVoltage = msg.payload[11]\nHeaterStatus = msg.payload[14]\nHeaterVent = msg.payload[19]\nHeaterGlowPlug = msg.payload[13]\n\nglobal.set('heater.status.voltage', HeaterVoltage);\nglobal.set('heater.status.mode', HeaterStatus);\nglobal.set('heater.status.vent', HeaterVent);\nglobal.set('heater.status.glowplug', HeaterGlowPlug);\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1310,
+        "y": 940,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5aec9bf14a96d527",
+        "type": "comment",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "Command Type Values",
+        "info": "# Command Types\n\n0x01 = Start heater\n0x02 = Get/Set settings\n0x03 = Shutdown\n0x04 = Initialization\n0x11 = Report panel temperature\n0x0F = Status",
+        "x": 900,
+        "y": 840,
+        "wires": []
+    },
+    {
+        "id": "353b864ee9465735",
+        "type": "delay",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "200",
+        "timeoutUnits": "milliseconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 630,
+        "y": 1760,
+        "wires": [
+            [
+                "936c532eed155f80"
+            ]
+        ]
+    },
+    {
+        "id": "0d41d3c64d0b2ce3",
+        "type": "inject",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "2",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payloadType": "date",
+        "x": 1910,
+        "y": 900,
+        "wires": [
+            [
+                "e3ef2d53ec69bbbd",
+                "825d4480dbe255f5",
+                "17d4b4beebd7db3d",
+                "528142263f0d6ce8",
+                "2fb56e4e21f85dc8",
+                "1fb7425d32ddb13d",
+                "28ff532fbe43ef39"
+            ]
+        ]
+    },
+    {
+        "id": "e3ef2d53ec69bbbd",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "ReadVar Heater Voltage",
+        "rules": [
+            {
+                "t": "move",
+                "p": "heater.status.voltage",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2170,
+        "y": 860,
+        "wires": [
+            [
+                "c448a763de77da8e"
+            ]
+        ]
+    },
+    {
+        "id": "825d4480dbe255f5",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "ReadVar Heater Mode",
+        "rules": [
+            {
+                "t": "move",
+                "p": "heater.status.mode",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2160,
+        "y": 900,
+        "wires": [
+            [
+                "975391c48329f124"
+            ]
+        ]
+    },
+    {
+        "id": "17d4b4beebd7db3d",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "ReadVar Heater Vent",
+        "rules": [
+            {
+                "t": "move",
+                "p": "heater.status.vent",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2160,
+        "y": 940,
+        "wires": [
+            [
+                "fdf6123f7fdd10a5"
+            ]
+        ]
+    },
+    {
+        "id": "975391c48329f124",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "InterpretHeaterStatus",
+        "func": "switch(msg.payload)\n{\n    case 0:\n        msg.payload = \"Heater Off\";\n        break;\n    case 1:\n        msg.payload = \"Starting\";\n        break;\n    case 4:\n        msg.payload = \"Running\";\n        break;  \n    case 5:\n        msg.payload = \"Shutting down\";\n        break; \n    case 6:\n        msg.payload = \"Temp Monitoring\";\n        break; \n    default:\n        msg.payload = \"UNKNOWN STATUS\";\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2420,
+        "y": 900,
+        "wires": [
+            [
+                "75a17aeeefc616fe"
+            ]
+        ]
+    },
+    {
+        "id": "c448a763de77da8e",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "InterpretHeaverVoltage",
+        "func": "msg.payload = (msg.payload/10) +\" V\";\n\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2420,
+        "y": 860,
+        "wires": [
+            [
+                "0bdb9a454effdf6f"
+            ]
+        ]
+    },
+    {
+        "id": "198871c9516647a2",
+        "type": "switch",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "Temperature Modes",
+        "property": "heater.mode",
+        "propertyType": "global",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "21",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "22",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1080,
+        "y": 1720,
+        "wires": [
+            [
+                "e7925a3fc5e894fe"
+            ],
+            [
+                "52f464b39083279e"
+            ]
+        ]
+    },
+    {
+        "id": "e7925a3fc5e894fe",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "Compose SendCurrentTemp Message (Dachzelt)",
+        "func": "var currenttemp = Math.ceil(global.get('temp.dachzelt'));\n// aa = planar, 03=message panel, 01=payloadlength, 00, 11=Command\nvar prefix = \"aa03010011\";\nvar currenttemphex = Number(currenttemp).toString(16);\n\nwhile (currenttemphex.length < 2) {\n        currenttemphex = \"0\" + currenttemphex;\n    }\n    \nvar string = prefix + String(currenttemphex);\n//msg.payload = string;\nmsg.payload = Buffer.from(string, \"hex\");\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1430,
+        "y": 1740,
+        "wires": [
+            [
+                "88e089724981bd7d",
+                "bd37d34651c386f4"
+            ]
+        ]
+    },
+    {
+        "id": "52f464b39083279e",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "Compose SendCurrentTemp Message (Innenraum)",
+        "func": "var currenttemp = Math.ceil(global.get('temp.innenraum'));\n// aa = planar, 03=message panel, 01=payloadlength, 00, 11=Command\nvar prefix = \"aa03010011\";\nvar currenttemphex = Number(currenttemp).toString(16);\n\nwhile (currenttemphex.length < 2) {\n        currenttemphex = \"0\" + currenttemphex;\n    }\n    \nvar string = prefix + String(currenttemphex);\n//msg.payload = string;\nmsg.payload = Buffer.from(string, \"hex\");\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1430,
+        "y": 1780,
+        "wires": [
+            [
+                "88e089724981bd7d",
+                "bd37d34651c386f4"
+            ]
+        ]
+    },
+    {
+        "id": "936c532eed155f80",
+        "type": "switch",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "Heater Status",
+        "property": "heater.status.mode",
+        "propertyType": "global",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "1",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "4",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "0",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "5",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "6",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 5,
+        "x": 820,
+        "y": 1760,
+        "wires": [
+            [
+                "198871c9516647a2"
+            ],
+            [
+                "198871c9516647a2",
+                "95f4590150b96c54"
+            ],
+            [
+                "a54ab6d10099ea56"
+            ],
+            [
+                "198871c9516647a2"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "dd4b93b3abb1b5d5",
+        "type": "switch",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "heater Target On",
+        "property": "heater.power",
+        "propertyType": "global",
+        "rules": [
+            {
+                "t": "true"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 1190,
+        "y": 1880,
+        "wires": [
+            [
+                "4894516fb94687a3"
+            ]
+        ]
+    },
+    {
+        "id": "3306b83739096f72",
+        "type": "switch",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "heater Target Off",
+        "property": "heater.power",
+        "propertyType": "global",
+        "rules": [
+            {
+                "t": "false"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 1110,
+        "y": 2040,
+        "wires": [
+            [
+                "0a3ebffe0cb1f3b0"
+            ]
+        ]
+    },
+    {
+        "id": "4894516fb94687a3",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "Compose Start Message",
+        "func": "var powerlevel = global.get('heater.powerlevel');\nvar controlmode = global.get('heater.mode');\nvar targettemp = global.get('heater.targettemp');\n\n// Prefix defines message sender 160=aa\nconst prefix = ['170','03'];\n// Payload requires 2x HEX: FF which is Dec: 255\nconst payload = ['255','255'];\n\nif (controlmode === \"04\") {\n    // Add Mode value\n   payload.push(\"04\");\n    // Add target Temp which is irelevant (dec 255 = Hex FF)\n   payload.push(\"255\");\n    // Turn on Vent\n   payload.push(\"01\");\n\n   // Convert Powerlevel to Hex\n   var powerlevelhex = Number(powerlevel).toString(16);\n   // add trailing 0 if to short..\n   while (powerlevelhex.length < 2) {\n        powerlevelhex = \"0\" + powerlevelhex;\n    }\n    // add value to array\n   payload.push(powerlevelhex);\n   \n   var payloadlength = (payload.length).toString(16);\n   while (payloadlength.length < 2) {\n        payloadlength = \"0\" + payloadlength;\n    }\n    \n    var finalcommand = prefix.concat(payloadlength,'00','01',payload);\n    //msg.payload = finalcommand;\n    msg.payload = Buffer.from(finalcommand, \"hex\");\n  }\n  \nif ((controlmode === \"21\") || (controlmode === \"22\")) {\n    // Add Mode value, as we have temperature, we need 02\n   payload.push(\"02\");\n    // Add target Temp which is irelevant (dec 255 = Hex FF)\n    // Convert target Temp  to Hex\n    //var targettemphex = Number(targettemp).toString(16);\n    // add trailing 0 if to short..\n    //while (targettemphex.length < 2) {\n    //     targettemphex = \"0\" + targettemphex;\n    // }\n     // add value to array\n    payload.push(targettemp);\n  \n    // Turn on Vent\n   payload.push(\"01\");\n   // Add powerlevel ahrdcoded this might be changed by the heater\n   payload.push(\"03\");\n   \n   var payloadlength = (payload.length).toString(16);\n   while (payloadlength.length < 2) {\n        payloadlength = \"0\" + payloadlength;\n    }\n    \n    var finalcommand = prefix.concat(payloadlength,'00','01',payload);\n    //msg.payload = finalcommand;\n    msg.payload = Buffer.from(finalcommand, \"hex\");\n  }\n  \nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1450,
+        "y": 1880,
+        "wires": [
+            [
+                "88e089724981bd7d"
+            ]
+        ]
+    },
+    {
+        "id": "0a3ebffe0cb1f3b0",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "Compose Shutdown Message",
+        "func": "msg.payload = Buffer.from(\"aa03000003\", \"hex\");\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1370,
+        "y": 2040,
+        "wires": [
+            [
+                "88e089724981bd7d"
+            ]
+        ]
+    },
+    {
+        "id": "81db9160303944a7",
+        "type": "file",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "",
+        "filename": "statuslog.txt",
+        "appendNewline": true,
+        "createDir": false,
+        "overwriteFile": "false",
+        "encoding": "none",
+        "x": 1590,
+        "y": 1080,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "e8c0757cbacd4ff0",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "Convert Buffer to HexString",
+        "func": "\n//msg.payload = msg.payload.toString()\nmsg.payload = msg.payload.toString('Hex');\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1300,
+        "y": 1040,
+        "wires": [
+            [
+                "7c34fe6f8b4a135c"
+            ]
+        ]
+    },
+    {
+        "id": "7c34fe6f8b4a135c",
+        "type": "debug",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1590,
+        "y": 1040,
+        "wires": []
+    },
+    {
+        "id": "528142263f0d6ce8",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "ReadVar Heater Glow",
+        "rules": [
+            {
+                "t": "move",
+                "p": "heater.status.glowplug",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2160,
+        "y": 980,
+        "wires": [
+            [
+                "90734d9a09ef9d6d"
+            ]
+        ]
+    },
+    {
+        "id": "a54ab6d10099ea56",
+        "type": "delay",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "200",
+        "timeoutUnits": "milliseconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1070,
+        "y": 1820,
+        "wires": [
+            [
+                "dd4b93b3abb1b5d5"
+            ]
+        ]
+    },
+    {
+        "id": "95f4590150b96c54",
+        "type": "delay",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "0035bbf4acef0a7b",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "200",
+        "timeoutUnits": "milliseconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1090,
+        "y": 1960,
+        "wires": [
+            [
+                "3306b83739096f72"
+            ]
+        ]
+    },
+    {
+        "id": "790b060fdd0f8a9e",
+        "type": "file",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "Write Heater Timers",
+        "filename": "./landy/heatertimers.json",
+        "filenameType": "str",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "true",
+        "encoding": "none",
+        "x": 1040,
+        "y": 180,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "de850ab807ec293f",
+        "type": "file in",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "Read Heater Timers",
+        "filename": "./landy/heatertimers.json",
+        "filenameType": "str",
+        "format": "utf8",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "none",
+        "allProps": false,
+        "x": 400,
+        "y": 420,
+        "wires": [
+            [
+                "d33aed4136a8c6e4"
+            ]
+        ]
+    },
+    {
+        "id": "6a4a6dee19d083fc",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "Set Mode (my Power)",
+        "func": "msg.payload = \"04\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1520,
+        "y": 380,
+        "wires": [
+            [
+                "def1f294248aebb1"
+            ]
+        ]
+    },
+    {
+        "id": "8c7d724337e71bbe",
+        "type": "switch",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            },
+            {
+                "t": "false"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1030,
+        "y": 260,
+        "wires": [
+            [
+                "6a4a6dee19d083fc",
+                "0387ed32a32483f3",
+                "788d51fd78871792"
+            ],
+            [
+                "3c56e87b4e1d3f01"
+            ]
+        ]
+    },
+    {
+        "id": "8b9e559b7307ece9",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "Set Mode (Dachzelt)",
+        "func": "msg.payload = \"21\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1520,
+        "y": 440,
+        "wires": [
+            [
+                "def1f294248aebb1"
+            ]
+        ]
+    },
+    {
+        "id": "28a9660e86a83cdd",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "Set Mode (Innenraum)",
+        "func": "msg.payload = \"22\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1520,
+        "y": 500,
+        "wires": [
+            [
+                "def1f294248aebb1"
+            ]
+        ]
+    },
+    {
+        "id": "841f1d9b1545358e",
+        "type": "switch",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            },
+            {
+                "t": "false"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1030,
+        "y": 400,
+        "wires": [
+            [
+                "8b9e559b7307ece9",
+                "8769afba85957aee",
+                "788d51fd78871792"
+            ],
+            [
+                "3c56e87b4e1d3f01"
+            ]
+        ]
+    },
+    {
+        "id": "29b02e90dd608edf",
+        "type": "switch",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            },
+            {
+                "t": "false"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1030,
+        "y": 560,
+        "wires": [
+            [
+                "28a9660e86a83cdd",
+                "8769afba85957aee",
+                "788d51fd78871792"
+            ],
+            [
+                "3c56e87b4e1d3f01"
+            ]
+        ]
+    },
+    {
+        "id": "8769afba85957aee",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "ReadVar Heater TargetTempPreset",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "heater.targettemppreset",
+                "tot": "global"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1700,
+        "y": 640,
+        "wires": [
+            [
+                "d530f2bed9e219cd",
+                "9af88d551d71a46a"
+            ]
+        ]
+    },
+    {
+        "id": "9af88d551d71a46a",
+        "type": "debug",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1930,
+        "y": 780,
+        "wires": []
+    },
+    {
+        "id": "0387ed32a32483f3",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "ReadVar Heater TargetPowerPreset",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "heater.targetpowerpreset",
+                "tot": "global"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1720,
+        "y": 60,
+        "wires": [
+            [
+                "ef4eb55c40b02aa2"
+            ]
+        ]
+    },
+    {
+        "id": "788d51fd78871792",
+        "type": "delay",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "delay power On",
+        "pauseType": "delay",
+        "timeout": "2",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1720,
+        "y": 220,
+        "wires": [
+            [
+                "05402bcc59c14e32"
+            ]
+        ]
+    },
+    {
+        "id": "3c56e87b4e1d3f01",
+        "type": "delay",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "delay power Off",
+        "pauseType": "delay",
+        "timeout": "2",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1720,
+        "y": 160,
+        "wires": [
+            [
+                "05402bcc59c14e32"
+            ]
+        ]
+    },
+    {
+        "id": "2fb56e4e21f85dc8",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "ReadVar Temp Dachzelt",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "temp.dachzelt",
+                "tot": "global"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2170,
+        "y": 1020,
+        "wires": [
+            [
+                "2a57efed9e74319d"
+            ]
+        ]
+    },
+    {
+        "id": "1fb7425d32ddb13d",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "ReadVar Temp Innenraum",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "temp.innenraum",
+                "tot": "global"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2170,
+        "y": 1060,
+        "wires": [
+            [
+                "de2c9999e296150d"
+            ]
+        ]
+    },
+    {
+        "id": "28ff532fbe43ef39",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "ReadVar Temp Aussen",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "temp.outside",
+                "tot": "global"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 2160,
+        "y": 1100,
+        "wires": [
+            [
+                "52427b5e9a67cca7"
+            ]
+        ]
+    },
+    {
+        "id": "2a57efed9e74319d",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "InterpretTempValue",
+        "func": "msg.payload = (msg.payload.toFixed(1)) +\" °C\";\n\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2410,
+        "y": 1020,
+        "wires": [
+            [
+                "d8566ed8b53dda24"
+            ]
+        ]
+    },
+    {
+        "id": "de2c9999e296150d",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "InterpretTempValue",
+        "func": "msg.payload = (msg.payload.toFixed(1)) +\" °C\";\n\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2410,
+        "y": 1060,
+        "wires": [
+            [
+                "60feb1935083fa86"
+            ]
+        ]
+    },
+    {
+        "id": "52427b5e9a67cca7",
+        "type": "function",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "InterpretTempValue",
+        "func": "msg.payload = (msg.payload.toFixed(1)) +\" °C\";\n\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2410,
+        "y": 1100,
+        "wires": [
+            [
+                "6981c62d86d9ebf7"
+            ]
+        ]
+    },
+    {
+        "id": "560c8639e0b91cb7",
+        "type": "debug",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "CRC Output",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 2510,
+        "y": 1500,
+        "wires": []
+    },
+    {
+        "id": "db349e9bcb07c2e1",
+        "type": "debug",
+        "z": "a82d4c4d0e42d1fb",
+        "g": "d52a507be92ff876",
+        "name": "HEATER Diagnostics",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 880,
+        "y": 740,
+        "wires": []
+    },
+    {
+        "id": "60d12f89b77bb71d",
+        "type": "inject",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "5",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 720,
+        "y": 2220,
+        "wires": [
+            [
+                "1af2b03436c8eb09",
+                "dec421926d90cf61",
+                "a755806a4691ae1b"
+            ]
+        ]
+    },
+    {
+        "id": "62e230d8a114ae8c",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar Temp Dachzelt",
+        "rules": [
+            {
+                "t": "set",
+                "p": "temp.dachzelt",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1210,
+        "y": 2220,
+        "wires": [
+            [
+                "3134ed7e2d711449"
+            ]
+        ]
+    },
+    {
+        "id": "4dfedd20f0856501",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar Temp Aussen",
+        "rules": [
+            {
+                "t": "set",
+                "p": "temp.outside",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1210,
+        "y": 2280,
+        "wires": [
+            [
+                "3134ed7e2d711449"
+            ]
+        ]
+    },
+    {
+        "id": "703e8afb51dcd917",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar Temp Innenraum",
+        "rules": [
+            {
+                "t": "set",
+                "p": "temp.innenraum",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1220,
+        "y": 2340,
+        "wires": [
+            [
+                "3134ed7e2d711449"
+            ]
+        ]
+    },
+    {
+        "id": "bd37d34651c386f4",
+        "type": "debug",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2200,
+        "y": 1800,
+        "wires": []
+    },
+    {
+        "id": "e8278a6f44970c3b",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar Temp Dachzelt",
+        "rules": [
+            {
+                "t": "set",
+                "p": "temp.dachzelt",
+                "pt": "global",
+                "to": "0",
+                "tot": "num"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 490,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "fba9444bcb08dc5d",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar Temp Aussen",
+        "rules": [
+            {
+                "t": "set",
+                "p": "temp.outside",
+                "pt": "global",
+                "to": "0",
+                "tot": "num"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 490,
+        "y": 160,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5375e0275013fcf1",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "GlobalVar Temp Innenraum",
+        "rules": [
+            {
+                "t": "set",
+                "p": "temp.innenraum",
+                "pt": "global",
+                "to": "0",
+                "tot": "num"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 500,
+        "y": 220,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "fb7a0d98fca2126d",
+        "type": "file in",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "Read hostapd.conf",
+        "filename": "/etc/hostapd/hostapd.conf",
+        "filenameType": "str",
+        "format": "utf8",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "none",
+        "allProps": false,
+        "x": 2980,
+        "y": 500,
+        "wires": [
+            [
+                "ccaf2a079b1495c5"
+            ]
+        ]
+    },
+    {
+        "id": "1bb3ef739be56506",
+        "type": "inject",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 2730,
+        "y": 520,
+        "wires": [
+            [
+                "fb7a0d98fca2126d"
+            ]
+        ]
+    },
+    {
+        "id": "271fc31d36204087",
+        "type": "debug",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 3530,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "ccaf2a079b1495c5",
+        "type": "change",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "rules": [
+            {
+                "t": "change",
+                "p": "payload",
+                "pt": "msg",
+                "from": "^(wpa_passphrase=).*$",
+                "fromt": "str",
+                "to": "$1",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 3210,
+        "y": 500,
+        "wires": [
+            [
+                "271fc31d36204087"
+            ]
+        ]
+    },
+    {
+        "id": "def1f294248aebb1",
+        "type": "ui_dropdown",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "label": "ControlMode",
+        "tooltip": "",
+        "place": "Select option",
+        "group": "5664dfc2909d8c09",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "multiple": false,
+        "options": [
+            {
+                "label": "Dachzelt",
+                "value": "21",
+                "type": "str"
+            },
+            {
+                "label": "Innenraum",
+                "value": "22",
+                "type": "str"
+            },
+            {
+                "label": "By Power",
+                "value": "04",
+                "type": "str"
+            }
+        ],
+        "payload": "",
+        "topic": "topic",
+        "topicType": "msg",
+        "className": "",
+        "x": 2070,
+        "y": 240,
+        "wires": [
+            [
+                "7f0fb8ad81e5ca27"
+            ]
+        ]
+    },
+    {
+        "id": "8866019032a66e77",
+        "type": "ui_switch",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "label": "Ventilation",
+        "tooltip": "",
+        "group": "5664dfc2909d8c09",
+        "order": 5,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "decouple": "false",
+        "topic": "topic",
+        "topicType": "msg",
+        "style": "",
+        "onvalue": "true",
+        "onvalueType": "str",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "02",
+        "offvalueType": "num",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 2050,
+        "y": 360,
+        "wires": [
+            [
+                "2c9d12d3600b1a0b"
+            ]
+        ]
+    },
+    {
+        "id": "05402bcc59c14e32",
+        "type": "ui_switch",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "label": "Heater",
+        "tooltip": "",
+        "group": "5664dfc2909d8c09",
+        "order": 4,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "decouple": "false",
+        "topic": "topic",
+        "topicType": "msg",
+        "style": "",
+        "onvalue": "true",
+        "onvalueType": "bool",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "false",
+        "offvalueType": "bool",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 2050,
+        "y": 120,
+        "wires": [
+            [
+                "df5495c3eadd0e59"
+            ]
+        ]
+    },
+    {
+        "id": "d530f2bed9e219cd",
+        "type": "ui_slider",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "label": "Target Temp",
+        "tooltip": "",
+        "group": "5664dfc2909d8c09",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "outs": "end",
+        "topic": "topic",
+        "topicType": "msg",
+        "min": "0",
+        "max": "30",
+        "step": 1,
+        "className": "",
+        "x": 2070,
+        "y": 180,
+        "wires": [
+            [
+                "c557f11cdcecbf22"
+            ]
+        ]
+    },
+    {
+        "id": "ef4eb55c40b02aa2",
+        "type": "ui_slider",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "",
+        "label": "Power",
+        "tooltip": "",
+        "group": "5664dfc2909d8c09",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "outs": "end",
+        "topic": "topic",
+        "topicType": "msg",
+        "min": 0,
+        "max": "9",
+        "step": 1,
+        "className": "",
+        "x": 2050,
+        "y": 300,
+        "wires": [
+            [
+                "461080adf97a008b"
+            ]
+        ]
+    },
+    {
+        "id": "0bdb9a454effdf6f",
+        "type": "ui_text",
+        "z": "a82d4c4d0e42d1fb",
+        "group": "f8bf0eeba72b4f20",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Voltage",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 2620,
+        "y": 860,
+        "wires": []
+    },
+    {
+        "id": "75a17aeeefc616fe",
+        "type": "ui_text",
+        "z": "a82d4c4d0e42d1fb",
+        "group": "f8bf0eeba72b4f20",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Mode",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 2610,
+        "y": 900,
+        "wires": []
+    },
+    {
+        "id": "90734d9a09ef9d6d",
+        "type": "ui_text",
+        "z": "a82d4c4d0e42d1fb",
+        "group": "f8bf0eeba72b4f20",
+        "order": 4,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "GlowPlug",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 2620,
+        "y": 980,
+        "wires": []
+    },
+    {
+        "id": "fdf6123f7fdd10a5",
+        "type": "ui_text",
+        "z": "a82d4c4d0e42d1fb",
+        "group": "f8bf0eeba72b4f20",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Vent",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 2610,
+        "y": 940,
+        "wires": []
+    },
+    {
+        "id": "d8566ed8b53dda24",
+        "type": "ui_text",
+        "z": "a82d4c4d0e42d1fb",
+        "group": "f8bf0eeba72b4f20",
+        "order": 4,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Dachzelt Tmp",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 2640,
+        "y": 1020,
+        "wires": []
+    },
+    {
+        "id": "60feb1935083fa86",
+        "type": "ui_text",
+        "z": "a82d4c4d0e42d1fb",
+        "group": "f8bf0eeba72b4f20",
+        "order": 4,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Innen Tmp",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 2630,
+        "y": 1060,
+        "wires": []
+    },
+    {
+        "id": "6981c62d86d9ebf7",
+        "type": "ui_text",
+        "z": "a82d4c4d0e42d1fb",
+        "group": "f8bf0eeba72b4f20",
+        "order": 4,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Out Tmp",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 2620,
+        "y": 1100,
+        "wires": []
+    },
+    {
+        "id": "46c79bdc727d17ce",
+        "type": "ui_template",
+        "z": "a82d4c4d0e42d1fb",
+        "group": "c982fbb8.1deb38",
+        "name": "Clock Toolbar",
+        "order": 2,
+        "width": "0",
+        "height": "0",
+        "format": "<script id=\"titleScript\" type=\"text/javascript\">\n\n$(function() {\n    if($('.md-toolbar-tools').length != 0){\n        loadClock();\n    }else setTimeout(loadClock, 500)\n});\n\nfunction loadClock(){\n    $('#clock').remove();\n    var toolbar = $('.md-toolbar-tools');\n    \n    var div = $('<div/>');\n    var p = $('<p/ id=\"clock\">');\n    \n    div.append(p);\n    div[0].style.margin = '5px 5px 5px auto';\n    toolbar.append(div);\n\n    function displayTitle(lh) {\n        p.text(lh); \n    }\n    \n    function upTime() {\n        var d = new Date();\n        p.text(d.toLocaleString());\n    }\n\n    if(document.clockInterval){ \n            clearInterval(document.clockInterval);\n            document.clockInterval = null;\n    }\n        \n    document.clockInterval = setInterval(upTime,1000);\n}\n\n</script>",
+        "storeOutMessages": false,
+        "fwdInMessages": false,
+        "resendOnRefresh": false,
+        "templateScope": "global",
+        "className": "",
+        "x": 2320,
+        "y": 420,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d33aed4136a8c6e4",
+        "type": "ui_time_scheduler",
+        "z": "a82d4c4d0e42d1fb",
+        "group": "be6b315cf968f72f",
+        "name": "Heater Timer",
+        "startDay": "1",
+        "refresh": 60,
+        "devices": [
+            "Power Mode",
+            "Dachzelt",
+            "Innenraum"
+        ],
+        "singleOff": false,
+        "onlySendChange": true,
+        "customPayload": false,
+        "eventMode": false,
+        "eventOptions": [],
+        "sendTopic": false,
+        "lat": "",
+        "lon": "",
+        "customContextStore": "",
+        "outputs": 4,
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "x": 670,
+        "y": 420,
+        "wires": [
+            [
+                "790b060fdd0f8a9e"
+            ],
+            [
+                "8c7d724337e71bbe"
+            ],
+            [
+                "841f1d9b1545358e"
+            ],
+            [
+                "29b02e90dd608edf"
+            ]
+        ]
+    },
+    {
+        "id": "1af2b03436c8eb09",
+        "type": "1-Wire",
+        "z": "a82d4c4d0e42d1fb",
+        "identifier": "28-00000d275f87",
+        "name": "TMP Dachzelt",
+        "format": "1",
+        "x": 950,
+        "y": 2220,
+        "wires": [
+            [
+                "62e230d8a114ae8c"
+            ]
+        ]
+    },
+    {
+        "id": "dec421926d90cf61",
+        "type": "1-Wire",
+        "z": "a82d4c4d0e42d1fb",
+        "identifier": "28-00000d279f15",
+        "name": "TMP Outside",
+        "format": "1",
+        "x": 950,
+        "y": 2280,
+        "wires": [
+            [
+                "4dfedd20f0856501"
+            ]
+        ]
+    },
+    {
+        "id": "dd4cf118afc60992",
+        "type": "ui_template",
+        "z": "a82d4c4d0e42d1fb",
+        "group": "fe762942.fd8b08",
+        "name": "",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "format": "<script>\n    (function(scope) {\n        scope.$watch('msg', function(data) {\n\n                elem.className = global.temp.dachzelt;\n                elem.innerHTML = global.temp.dachzelt;\n        });\n    })(scope);\n</script>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": false,
+        "templateScope": "global",
+        "className": "",
+        "x": 2240,
+        "y": 540,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "3134ed7e2d711449",
+        "type": "debug",
+        "z": "a82d4c4d0e42d1fb",
+        "name": "debug 1",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1560,
+        "y": 2240,
+        "wires": []
+    },
+    {
+        "id": "a755806a4691ae1b",
+        "type": "1-Wire",
+        "z": "a82d4c4d0e42d1fb",
+        "identifier": "28-00000d275f87",
+        "name": "TMP Inside",
+        "format": "1",
+        "x": 950,
+        "y": 2340,
+        "wires": [
+            [
+                "703e8afb51dcd917"
+            ]
+        ]
+    },
+    {
+        "id": "e71a6ca7c5d6c0df",
+        "type": "function",
+        "z": "578c795100eb6957",
+        "name": "InterpretTempValue",
+        "func": "msg.payload = (Math.floor(Math.floor(msg.payload.uptime)/60/24)) +\" h\";\n\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1130,
+        "y": 180,
+        "wires": [
+            [
+                "0aad98772c41bf6a"
+            ]
+        ]
+    },
+    {
+        "id": "725254ed05d5e911",
+        "type": "debug",
+        "z": "578c795100eb6957",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1530,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "807b88e242e206ee",
+        "type": "switch",
+        "z": "578c795100eb6957",
+        "name": "",
+        "property": "payload.networkInterfaces.eth1",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "nnull"
+            },
+            {
+                "t": "null"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1190,
+        "y": 440,
+        "wires": [
+            [
+                "725254ed05d5e911",
+                "4c5f33b93d6a8968"
+            ],
+            [
+                "cf502ea5575bd750"
+            ]
+        ]
+    },
+    {
+        "id": "4c5f33b93d6a8968",
+        "type": "change",
+        "z": "578c795100eb6957",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "ACTIVE",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1600,
+        "y": 400,
+        "wires": [
+            [
+                "3dcf934128f4ec6b"
+            ]
+        ]
+    },
+    {
+        "id": "cf502ea5575bd750",
+        "type": "change",
+        "z": "578c795100eb6957",
+        "name": "",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "INACTIVE",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 1500,
+        "y": 480,
+        "wires": [
+            [
+                "3dcf934128f4ec6b"
+            ]
+        ]
+    },
+    {
+        "id": "0aad98772c41bf6a",
+        "type": "ui_text",
+        "z": "578c795100eb6957",
+        "group": "d406046e1c78985a",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Uptime",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 1300,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "13d8977e81792fd8",
+        "type": "ui_text",
+        "z": "578c795100eb6957",
+        "group": "d406046e1c78985a",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "OS",
+        "format": "{{msg.payload.platform}} {{msg.payload.release}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 1290,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "1625ee9dbbb2462f",
+        "type": "ui_text",
+        "z": "578c795100eb6957",
+        "group": "d406046e1c78985a",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Memory",
+        "format": "{{msg.payload.memusage}} %",
+        "layout": "row-spread",
+        "className": "",
+        "x": 1300,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "1349d6e756990c6b",
+        "type": "ui_text",
+        "z": "578c795100eb6957",
+        "group": "d406046e1c78985a",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Disk",
+        "format": "{{msg.payload[0].capacity}} %",
+        "layout": "row-spread",
+        "className": "",
+        "x": 1290,
+        "y": 360,
+        "wires": []
+    },
+    {
+        "id": "3dcf934128f4ec6b",
+        "type": "ui_text",
+        "z": "578c795100eb6957",
+        "group": "2d20a9fb2cfb2fc5",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "USB Tethering",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 1760,
+        "y": 540,
+        "wires": []
+    },
+    {
+        "id": "7ec96c78b1abf311",
+        "type": "OS",
+        "z": "578c795100eb6957",
+        "name": "",
+        "x": 950,
+        "y": 240,
+        "wires": [
+            [
+                "13d8977e81792fd8"
+            ]
+        ]
+    },
+    {
+        "id": "76f4f5ebf1a15bba",
+        "type": "Drives",
+        "z": "578c795100eb6957",
+        "name": "",
+        "x": 950,
+        "y": 360,
+        "wires": [
+            [
+                "1349d6e756990c6b"
+            ]
+        ]
+    },
+    {
+        "id": "4b17a7d7eb8a6631",
+        "type": "Uptime",
+        "z": "578c795100eb6957",
+        "name": "",
+        "x": 900,
+        "y": 180,
+        "wires": [
+            [
+                "e71a6ca7c5d6c0df"
+            ]
+        ]
+    },
+    {
+        "id": "80bd68fbed88fcb9",
+        "type": "Memory",
+        "z": "578c795100eb6957",
+        "name": "",
+        "scale": "Byte",
+        "x": 960,
+        "y": 320,
+        "wires": [
+            [
+                "1625ee9dbbb2462f"
+            ]
+        ]
+    },
+    {
+        "id": "efba9275d55d7830",
+        "type": "NetworkIntf",
+        "z": "578c795100eb6957",
+        "name": "",
+        "x": 980,
+        "y": 440,
+        "wires": [
+            [
+                "807b88e242e206ee"
+            ]
+        ]
+    },
+    {
+        "id": "d7dadf92678a6215",
+        "type": "switch",
+        "z": "578c795100eb6957",
+        "name": "UI Tab",
+        "property": "name",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "Controller",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "Heater",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 590,
+        "y": 240,
+        "wires": [
+            [
+                "4b17a7d7eb8a6631",
+                "7ec96c78b1abf311",
+                "80bd68fbed88fcb9",
+                "76f4f5ebf1a15bba",
+                "efba9275d55d7830",
+                "bd5756fe40118d4d",
+                "4b6c3d7f5f2825a3",
+                "f58b3e10a497a3f9"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "d722b140c23bbcbe",
+        "type": "ui_ui_control",
+        "z": "578c795100eb6957",
+        "name": "",
+        "events": "change",
+        "x": 60,
+        "y": 280,
+        "wires": [
+            [
+                "d7dadf92678a6215"
+            ]
+        ]
+    },
+    {
+        "id": "1e2fa5a339d2f2ac",
+        "type": "ui_button",
+        "z": "578c795100eb6957",
+        "name": "",
+        "group": "d406046e1c78985a",
+        "order": 5,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Shutdown",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 250,
+        "y": 480,
+        "wires": [
+            [
+                "6c80f0801b333a30"
+            ]
+        ]
+    },
+    {
+        "id": "4cd4b8e05debe186",
+        "type": "ui_button",
+        "z": "578c795100eb6957",
+        "name": "",
+        "group": "d406046e1c78985a",
+        "order": 6,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Restart",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 240,
+        "y": 520,
+        "wires": [
+            [
+                "7b71826c0c50ab90"
+            ]
+        ]
+    },
+    {
+        "id": "6c80f0801b333a30",
+        "type": "shutdown",
+        "z": "578c795100eb6957",
+        "name": "",
+        "x": 540,
+        "y": 480,
+        "wires": []
+    },
+    {
+        "id": "7b71826c0c50ab90",
+        "type": "restart",
+        "z": "578c795100eb6957",
+        "name": "",
+        "x": 520,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "07e905efa73f33b5",
+        "type": "qrcode-generator",
+        "z": "578c795100eb6957",
+        "name": "",
+        "qrtype": "wifi2qr",
+        "text2qrText": "",
+        "ssid": "",
+        "hiddenssid": false,
+        "wifitype": "",
+        "phonenum": "",
+        "smsphonenum": "",
+        "smstext": "",
+        "mailto": "",
+        "mailsubject": "",
+        "mailbody": "",
+        "latitude": "",
+        "longitude": "",
+        "colorlight": "#ffffff",
+        "colordark": "#000000",
+        "printstatus": false,
+        "x": 1230,
+        "y": 520,
+        "wires": [
+            [
+                "9e6ed9dc.f64ba8"
+            ]
+        ]
+    },
+    {
+        "id": "bd5756fe40118d4d",
+        "type": "function",
+        "z": "578c795100eb6957",
+        "name": "Concatenate Wi-Fi details",
+        "func": "var ssid = global.get('hotspot.ssid');\nvar pw = global.get('hotspot.pw')\nmsg.qrcodeinput = \"WIFI:T:WPA;S:\" + ssid + \";P:\" + pw + \";;\";\nmsg.payload = \"WIFI:T:WPA;S:\" + ssid + \";P:\" + pw + \";;\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1010,
+        "y": 520,
+        "wires": [
+            [
+                "07e905efa73f33b5"
+            ]
+        ]
+    },
+    {
+        "id": "1eea1d93bed5cba0",
+        "type": "exec",
+        "z": "578c795100eb6957",
+        "command": "cat /etc/hostapd/hostapd.conf | grep ssid | sed 's/ssid=//' | sed -z \"s/\\n//g\"",
+        "addpay": "",
+        "append": "",
+        "useSpawn": "false",
+        "timer": "",
+        "winHide": false,
+        "oldrc": false,
+        "name": "Get Wi-Fi SSID",
+        "x": 380,
+        "y": 80,
+        "wires": [
+            [
+                "75b95c966bbc653e"
+            ],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "90412d054186cf64",
+        "type": "inject",
+        "z": "578c795100eb6957",
+        "name": "Init after boot",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "0.2",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 160,
+        "y": 100,
+        "wires": [
+            [
+                "1eea1d93bed5cba0",
+                "56146fcdaa4a3dd2"
+            ]
+        ]
+    },
+    {
+        "id": "56146fcdaa4a3dd2",
+        "type": "exec",
+        "z": "578c795100eb6957",
+        "command": "cat /etc/hostapd/hostapd.conf | grep wpa_passphrase | sed 's/wpa_passphrase=//' | sed -z \"s/\\n//g\"",
+        "addpay": "",
+        "append": "",
+        "useSpawn": "false",
+        "timer": "",
+        "winHide": false,
+        "oldrc": false,
+        "name": "Get Wi-Fi PW",
+        "x": 380,
+        "y": 160,
+        "wires": [
+            [
+                "31b9a36d9e98bced"
+            ],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "75b95c966bbc653e",
+        "type": "change",
+        "z": "578c795100eb6957",
+        "name": "GlobalVar HotSpot.SSID",
+        "rules": [
+            {
+                "t": "set",
+                "p": "hotspot.ssid",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 630,
+        "y": 80,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "31b9a36d9e98bced",
+        "type": "change",
+        "z": "578c795100eb6957",
+        "name": "GlobalVar HotSpot.PW",
+        "rules": [
+            {
+                "t": "set",
+                "p": "hotspot.pw",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 620,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "9e6ed9dc.f64ba8",
+        "type": "template",
+        "z": "578c795100eb6957",
+        "name": "",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "<img width=\"200px\" src=\"{{{payload}}}\">",
+        "output": "str",
+        "x": 1400,
+        "y": 520,
+        "wires": [
+            [
+                "28439a97.39e7a6"
+            ]
+        ]
+    },
+    {
+        "id": "28439a97.39e7a6",
+        "type": "ui_template",
+        "z": "578c795100eb6957",
+        "group": "2d20a9fb2cfb2fc5",
+        "name": "HotSpot QR-Code",
+        "order": 0,
+        "width": "6",
+        "height": "5",
+        "format": "<div ng-bind-html=\"msg.payload\"></div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": false,
+        "templateScope": "local",
+        "className": "",
+        "x": 1570,
+        "y": 580,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "1f4e63a6dbab6fb7",
+        "type": "ui_text",
+        "z": "578c795100eb6957",
+        "group": "2d20a9fb2cfb2fc5",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "SSID",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 1190,
+        "y": 640,
+        "wires": []
+    },
+    {
+        "id": "4b6c3d7f5f2825a3",
+        "type": "change",
+        "z": "578c795100eb6957",
+        "name": "ReadVar HotSpot.SSID",
+        "rules": [
+            {
+                "t": "move",
+                "p": "hotspot.ssid",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 950,
+        "y": 680,
+        "wires": [
+            [
+                "1f4e63a6dbab6fb7"
+            ]
+        ]
+    },
+    {
+        "id": "f58b3e10a497a3f9",
+        "type": "change",
+        "z": "578c795100eb6957",
+        "name": "ReadVar HotSpot.pw",
+        "rules": [
+            {
+                "t": "move",
+                "p": "hotspot.pw",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 940,
+        "y": 720,
+        "wires": [
+            [
+                "76b97587d3a4c2f7"
+            ]
+        ]
+    },
+    {
+        "id": "76b97587d3a4c2f7",
+        "type": "ui_text",
+        "z": "578c795100eb6957",
+        "group": "2d20a9fb2cfb2fc5",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "PW",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 1190,
+        "y": 700,
+        "wires": []
+    },
+    {
+        "id": "cad8c50a2ec7b2d4",
+        "type": "change",
+        "z": "578c795100eb6957",
+        "name": "GlobalVar heater.targettemppreset",
+        "rules": [
+            {
+                "t": "set",
+                "p": "heater.targettemppreset",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 420,
+        "y": 680,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ecee52c1a2fb1699",
+        "type": "change",
+        "z": "578c795100eb6957",
+        "name": "GlobalVar heater.targetpowerpreset",
+        "rules": [
+            {
+                "t": "set",
+                "p": "heater.targetpowerpreset",
+                "pt": "global",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 420,
+        "y": 740,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "6815b3a1a32793c5",
+        "type": "ui_numeric",
+        "z": "578c795100eb6957",
+        "name": "Timer Temperature",
+        "label": "Preset Temperature",
+        "tooltip": "",
+        "group": "7e1e886c54b3947f",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "wrap": false,
+        "passthru": false,
+        "topic": "topic",
+        "topicType": "msg",
+        "format": "{{value}}",
+        "min": 0,
+        "max": "30",
+        "step": 1,
+        "className": "",
+        "x": 170,
+        "y": 680,
+        "wires": [
+            [
+                "cad8c50a2ec7b2d4"
+            ]
+        ]
+    },
+    {
+        "id": "080c7273cb1f6dfc",
+        "type": "ui_numeric",
+        "z": "578c795100eb6957",
+        "name": "Timer Power",
+        "label": "Preset Power",
+        "tooltip": "",
+        "group": "7e1e886c54b3947f",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "wrap": false,
+        "passthru": false,
+        "topic": "topic",
+        "topicType": "msg",
+        "format": "{{value}}",
+        "min": "1",
+        "max": "9",
+        "step": 1,
+        "className": "",
+        "x": 150,
+        "y": 740,
+        "wires": [
+            [
+                "ecee52c1a2fb1699"
+            ]
+        ]
+    },
+    {
+        "id": "abc163897f83f2dc",
+        "type": "ui_text",
+        "z": "f1ef7c8efe71047d",
+        "group": "9e562377b8aacf17",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Voltage",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 800,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "e8ec587a094968ad",
+        "type": "ui_text",
+        "z": "f1ef7c8efe71047d",
+        "group": "be8c898d553d3573",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Voltage",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 2000,
+        "y": 140,
+        "wires": []
+    }
+]
