@@ -1491,19 +1491,10 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
 
     def test_stage1_factory_retains_raw_listener_until_confirmed_close(self):
         class PublishFaultFactory(stage1._DiagnosticSocketFactory):
-            __slots__ = ("_publish_fault",)
-
-            def __init__(self):
-                self._publish_fault = True
-                super().__init__()
+            __slots__ = ()
 
             def __setattr__(self, name, value):
-                if (
-                    name == "_orphan_port"
-                    and value is not None
-                    and getattr(self, "_publish_fault", False)
-                ):
-                    super().__setattr__("_publish_fault", False)
+                if name == "_orphan_port" and value is not None:
                     raise MemoryError()
                 return super().__setattr__(name, value)
 
@@ -1519,10 +1510,66 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
         with mock.patch.dict(sys.modules, {"socket": publish_socket_module}):
             with self.assertRaises(MemoryError):
                 publish_factory()
-        self.assertIs(publish_factory._orphan_port, publish_raw)
+        self.assertIsNone(publish_factory._orphan_port)
+        self.assertIs(publish_factory._raw_owner[0], publish_raw)
         self.assertIs(publish_factory.close_retained(), True)
+        self.assertIsNone(publish_factory._raw_owner[0])
         self.assertTrue(publish_raw.closed)
         self.assertEqual(publish_raw.close_calls, 2)
+
+        interrupt_raw = FakeListener(
+            close_events=[
+                RuntimeError("interrupt-close-secret"),
+                "bad-close-contract",
+                None,
+            ]
+        )
+        interrupt_socket_module = types.SimpleNamespace(
+            AF_INET=2,
+            SOCK_STREAM=1,
+            socket=lambda family, kind: interrupt_raw,
+        )
+        interrupt_factory = stage1._DiagnosticSocketFactory()
+        source_lines, start_line = inspect.getsourcelines(
+            stage1._DiagnosticSocketFactory.__call__
+        )
+        publish_line = next(
+            start_line + index
+            for index, line in enumerate(source_lines)
+            if line.strip() == "owner[0] = raw"
+        )
+        interrupted = {"raised": False}
+
+        def interrupt_before_publish(frame, event, argument):
+            if (
+                event == "line"
+                and frame.f_code
+                is stage1._DiagnosticSocketFactory.__call__.__code__
+                and frame.f_lineno == publish_line
+                and not interrupted["raised"]
+            ):
+                interrupted["raised"] = True
+                raise KeyboardInterrupt()
+            return interrupt_before_publish
+
+        previous_trace = sys.gettrace()
+        try:
+            with mock.patch.dict(
+                sys.modules, {"socket": interrupt_socket_module}
+            ):
+                sys.settrace(interrupt_before_publish)
+                with self.assertRaises(KeyboardInterrupt):
+                    interrupt_factory()
+        finally:
+            sys.settrace(previous_trace)
+        self.assertIs(interrupted["raised"], True)
+        self.assertIs(interrupt_factory._raw_owner[0], interrupt_raw)
+        self.assertFalse(interrupt_raw.closed)
+        self.assertEqual(interrupt_raw.close_calls, 2)
+        self.assertIs(interrupt_factory.close_retained(), True)
+        self.assertIsNone(interrupt_factory._raw_owner[0])
+        self.assertTrue(interrupt_raw.closed)
+        self.assertEqual(interrupt_raw.close_calls, 3)
 
         raw = FakeListener(
             close_events=[
@@ -1550,7 +1597,7 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
                     ):
                 with self.assertRaises(MemoryError):
                     factory()
-            self.assertIs(factory._orphan_port, raw)
+            self.assertIs(factory._raw_owner[0], raw)
             self.assertFalse(raw.closed)
 
             capsule = smoke._OwnershipCapsule()
@@ -1561,13 +1608,14 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
                 factory,
             )
             self.assertIs(capsule.stage1_cleanup_confirmed, False)
-            self.assertIs(factory._orphan_port, raw)
+            self.assertIs(factory._raw_owner[0], raw)
 
             self.assertIs(
                 smoke._recover_retained_stage1_socket_factory(),
                 True,
             )
             self.assertIsNone(smoke._RETAINED_STAGE1_SOCKET_FACTORY)
+            self.assertIsNone(factory._raw_owner[0])
             self.assertIsNone(factory._orphan_port)
             self.assertTrue(raw.closed)
             self.assertEqual(raw.close_calls, 5)

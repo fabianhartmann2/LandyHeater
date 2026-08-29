@@ -97,14 +97,20 @@ class _DiagnosticListener:
 class _DiagnosticSocketFactory:
     """Open the production listener without retaining request data."""
 
-    __slots__ = ("accept_errno", "_orphan_port", "_listener")
+    __slots__ = (
+        "accept_errno", "_raw_owner", "_orphan_port", "_listener"
+    )
 
     def __init__(self):
         self.accept_errno = -1
+        self._raw_owner = [None]
         self._orphan_port = None
         self._listener = None
 
     def _release(self, port):
+        owner = self._raw_owner
+        if type(owner) is list and len(owner) == 1 and owner[0] is port:
+            owner[0] = None
         if self._orphan_port is port:
             self._orphan_port = None
 
@@ -118,7 +124,10 @@ class _DiagnosticSocketFactory:
             if result is not None:
                 return False
             self._listener = None
-        port = self._orphan_port
+        owner = self._raw_owner
+        if type(owner) is not list or len(owner) != 1:
+            return False
+        port = owner[0]
         if port is None:
             return True
         try:
@@ -127,7 +136,9 @@ class _DiagnosticSocketFactory:
             return False
         if result is not None:
             return False
-        self._orphan_port = None
+        owner[0] = None
+        if self._orphan_port is port:
+            self._orphan_port = None
         return True
 
     def __call__(self):
@@ -135,21 +146,48 @@ class _DiagnosticSocketFactory:
 
         raw = None
         try:
+            owner = self._raw_owner
+            if (
+                type(owner) is not list
+                or len(owner) != 1
+                or owner[0] is not None
+            ):
+                raise RuntimeError("Stage-1 raw listener owner is invalid")
             raw = socket_module.socket(
                 socket_module.AF_INET,
                 socket_module.SOCK_STREAM,
             )
+            owner[0] = raw
             self._orphan_port = raw
             listener = _DiagnosticListener(raw, self)
             self._listener = listener
             return listener
         except BaseException:
+            owned = False
             try:
-                if self._orphan_port is None and raw is not None:
-                    self._orphan_port = raw
-                self.close_retained()
+                owned = raw is not None and self._raw_owner[0] is raw
             except BaseException:
                 pass
+            if owned:
+                try:
+                    self.close_retained()
+                except BaseException:
+                    pass
+            elif raw is not None:
+                closed = False
+                try:
+                    closed = raw.close() is None
+                except BaseException:
+                    pass
+                if not closed:
+                    try:
+                        self._raw_owner[0] = raw
+                    except BaseException:
+                        pass
+                    try:
+                        self.close_retained()
+                    except BaseException:
+                        pass
             raise
 
 
