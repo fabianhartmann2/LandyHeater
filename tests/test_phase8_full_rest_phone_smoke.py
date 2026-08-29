@@ -247,10 +247,11 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
     @staticmethod
     def _probe_builder(listener):
         def build(handler, address, **keywords):
+            if "socket_factory" not in keywords:
+                keywords["socket_factory"] = Factory(listener)
             return MicroPythonHTTPServer(
                 handler,
                 address,
-                socket_factory=Factory(listener),
                 **keywords
             )
         return build
@@ -310,11 +311,19 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
         stage2_memory = tuple(stage2_memory)
         if len(stage2_memory) != 7:
             raise ValueError("stage2_memory must contain seven checkpoints")
+        probe_socket_module = types.SimpleNamespace(
+            AF_INET=2,
+            SOCK_STREAM=1,
+            socket=lambda family, kind: probe_listener,
+        )
         output = io.StringIO()
         result = None
         error = None
         patches = (
-            mock.patch.dict(sys.modules, {"network": fake}),
+            mock.patch.dict(
+                sys.modules,
+                {"network": fake, "socket": probe_socket_module},
+            ),
             mock.patch.object(smoke, "_load_stage1", return_value=stage1),
             mock.patch.object(smoke, "_require_stage2_unloaded", return_value=True),
             mock.patch.object(smoke, "_require_proof_cold", return_value=True),
@@ -416,6 +425,36 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
                 except BaseException as caught:
                     error = caught
         return result, error, output.getvalue(), clock, filesystem
+
+    def _assert_stage1_failure_is_clean(
+        self,
+        result,
+        error,
+        output,
+        fake,
+        probe_listener,
+        filesystem,
+        secret=None,
+    ):
+        self.assertIsNone(result)
+        self.assertIsInstance(error, RuntimeError)
+        self.assertEqual(str(error), "Phase-8 full REST phone smoke failed")
+        self.assertIn(smoke.FULL_REST_PHONE_FAIL_TOKEN, output)
+        self.assertNotIn(smoke.FULL_REST_PHONE_IP_PASS_TOKEN, output)
+        self.assertNotIn(smoke.FULL_REST_PHONE_READY_TOKEN, output)
+        self.assertNotIn(smoke.FULL_REST_PHONE_PASS_TOKEN, output)
+        rendered = output + repr(error)
+        self.assertNotIn(_TEST_PASSWORD, rendered)
+        if secret is not None:
+            self.assertNotIn(secret, rendered)
+        self.assertTrue(probe_listener.closed)
+        self.assertIs(fake.interfaces[fake.IF_AP].enabled, False)
+        self.assertIs(fake.interfaces[fake.IF_STA].enabled, False)
+        self.assertIs(wifi_module._WIFI_LEASED, False)
+        self.assertIs(board_config.WIFI_RADIO_APPROVED, False)
+        for path in stage2._storage_paths():
+            self.assertNotIn(path, filesystem.files)
+        return _failure_diagnostics(output)
 
     def test_three_stage_real_composition_uses_one_ap_lifetime(self):
         fake = _fake_network()
@@ -700,6 +739,25 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
                     "ap_client_confirmed": "1",
                     "post_bind_peer_confirmed": "0",
                     "response_completed": "0",
+                    "stage1_client_seen": "0",
+                    "stage1_ap_clients": "-1",
+                    "stage1_action": "none",
+                    "stage1_http_started": "-1",
+                    "stage1_http_closed": "-1",
+                    "stage1_http_faulted": "-1",
+                    "stage1_http_clients": "-1",
+                    "stage1_http_accepted": "-1",
+                    "stage1_http_completed": "-1",
+                    "stage1_http_parse_errors": "-1",
+                    "stage1_http_timeouts": "-1",
+                    "stage1_http_socket_errors": "-1",
+                    "stage1_http_last_error": "none",
+                    "stage1_http_reentries": "-1",
+                    "stage1_accept_errno": "-1",
+                    "stage1_valid": "-1",
+                    "stage1_rejected": "-1",
+                    "stage1_responses": "-1",
+                    "stage1_cleanup_confirmed": "1",
                     "memory_before": "150000",
                     "memory_after_product_imports": "90000",
                     "memory_after_configuration_adoption": "85000",
@@ -1085,6 +1143,438 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
         self.assertIn(smoke.FULL_REST_PHONE_CLIENT_TOKEN, output)
         self.assertNotIn(smoke.FULL_REST_PHONE_IP_PASS_TOKEN, output)
         self.assertIs(wifi_module._WIFI_LEASED, False)
+
+    def test_stage1_diagnostics_pin_disconnect_accept_errno_and_contract(self):
+        fake = _fake_network()
+        _script_ap_clients(fake, (0, 1, 0))
+        listener = FakeListener()
+        filesystem = _MemoryFileSystem()
+        result, error, output, _, filesystem = self._execute(
+            fake,
+            listener,
+            FakeListener(),
+            filesystem=filesystem,
+        )
+        diagnostics = self._assert_stage1_failure_is_clean(
+            result, error, output, fake, listener, filesystem
+        )
+        self.assertEqual(
+            {
+                name: diagnostics[name]
+                for name in (
+                    "stage",
+                    "stage1_client_seen",
+                    "stage1_ap_clients",
+                    "stage1_action",
+                    "stage1_http_started",
+                    "stage1_http_closed",
+                    "stage1_http_faulted",
+                    "stage1_http_clients",
+                    "stage1_http_accepted",
+                    "stage1_http_completed",
+                    "stage1_http_parse_errors",
+                    "stage1_http_timeouts",
+                    "stage1_http_socket_errors",
+                    "stage1_http_last_error",
+                    "stage1_http_reentries",
+                    "stage1_accept_errno",
+                    "stage1_valid",
+                    "stage1_rejected",
+                    "stage1_responses",
+                    "stage1_cleanup_confirmed",
+                )
+            },
+            {
+                "stage": "stage1_observe_network_truth",
+                "stage1_client_seen": "1",
+                "stage1_ap_clients": "0",
+                "stage1_action": "ap_checked",
+                "stage1_http_started": "1",
+                "stage1_http_closed": "0",
+                "stage1_http_faulted": "0",
+                "stage1_http_clients": "0",
+                "stage1_http_accepted": "0",
+                "stage1_http_completed": "0",
+                "stage1_http_parse_errors": "0",
+                "stage1_http_timeouts": "0",
+                "stage1_http_socket_errors": "0",
+                "stage1_http_last_error": "none",
+                "stage1_http_reentries": "0",
+                "stage1_accept_errno": "-1",
+                "stage1_valid": "0",
+                "stage1_rejected": "0",
+                "stage1_responses": "0",
+                "stage1_cleanup_confirmed": "1",
+            },
+        )
+
+        secret = "stage1-accept-secret-" + _TEST_PASSWORD
+        cases = (
+            ("errno_12", OSError(12, secret), "accept_failed", 12),
+            ("errno_23", OSError(23, secret), "accept_failed", 23),
+            ("errno_103", OSError(103, secret), "accept_failed", 103),
+            (
+                "contract",
+                RuntimeError(secret),
+                "accept_contract_failed",
+                -1,
+            ),
+        )
+        for name, event, last_error, errno in cases:
+            with self.subTest(name=name):
+                fake = _fake_network()
+                _script_ap_clients(fake, (0, 1, 1))
+                listener = FakeListener(accept_events=[event])
+                filesystem = _MemoryFileSystem()
+                result, error, output, _, filesystem = self._execute(
+                    fake,
+                    listener,
+                    FakeListener(),
+                    filesystem=filesystem,
+                )
+                diagnostics = self._assert_stage1_failure_is_clean(
+                    result,
+                    error,
+                    output,
+                    fake,
+                    listener,
+                    filesystem,
+                    secret,
+                )
+                self.assertEqual(
+                    diagnostics["stage"], "stage1_observe_http_transport"
+                )
+                self.assertEqual(diagnostics["stage1_client_seen"], "0")
+                self.assertEqual(diagnostics["stage1_http_started"], "1")
+                self.assertEqual(diagnostics["stage1_http_closed"], "0")
+                self.assertEqual(diagnostics["stage1_http_faulted"], "0")
+                self.assertEqual(diagnostics["stage1_http_clients"], "0")
+                self.assertEqual(diagnostics["stage1_http_accepted"], "0")
+                self.assertEqual(diagnostics["stage1_http_completed"], "0")
+                self.assertEqual(
+                    diagnostics["stage1_http_socket_errors"], "1"
+                )
+                self.assertEqual(
+                    diagnostics["stage1_http_last_error"], last_error
+                )
+                self.assertEqual(
+                    diagnostics["stage1_accept_errno"], str(errno)
+                )
+                self.assertEqual(diagnostics["stage1_cleanup_confirmed"], "1")
+
+        for errno in (11, 35, 10035):
+            with self.subTest(would_block_errno=errno):
+                event = OSError(errno, secret)
+                raw = FakeListener(accept_events=[event])
+                owner = types.SimpleNamespace(accept_errno=-1)
+                wrapped = stage1._DiagnosticListener(raw, owner)
+                with self.assertRaises(OSError) as raised:
+                    wrapped.accept()
+                self.assertIs(raised.exception, event)
+                self.assertEqual(owner.accept_errno, -1)
+
+        post_client_cases = (
+            ("post_client_errno_103", OSError(103, secret), "accept_failed", 103),
+            (
+                "post_client_contract",
+                RuntimeError(secret),
+                "accept_contract_failed",
+                -1,
+            ),
+        )
+        for name, event, last_error, errno in post_client_cases:
+            with self.subTest(name=name):
+                fake = _fake_network()
+                _script_ap_clients(fake, (0, 1, 1))
+                listener = FakeListener(
+                    accept_events=[OSError(11)] * 40 + [event]
+                )
+                filesystem = _MemoryFileSystem()
+                result, error, output, _, filesystem = self._execute(
+                    fake,
+                    listener,
+                    FakeListener(),
+                    filesystem=filesystem,
+                )
+                diagnostics = self._assert_stage1_failure_is_clean(
+                    result,
+                    error,
+                    output,
+                    fake,
+                    listener,
+                    filesystem,
+                    secret,
+                )
+                self.assertIn(smoke.FULL_REST_PHONE_CLIENT_TOKEN, output)
+                self.assertEqual(
+                    diagnostics["stage"], "stage1_observe_http_transport"
+                )
+                self.assertEqual(diagnostics["stage1_client_seen"], "1")
+                self.assertEqual(diagnostics["stage1_ap_clients"], "1")
+                self.assertEqual(diagnostics["stage1_http_accepted"], "0")
+                self.assertEqual(
+                    diagnostics["stage1_http_socket_errors"], "1"
+                )
+                self.assertEqual(
+                    diagnostics["stage1_http_last_error"], last_error
+                )
+                self.assertEqual(
+                    diagnostics["stage1_accept_errno"], str(errno)
+                )
+                self.assertEqual(
+                    diagnostics["stage1_cleanup_confirmed"], "1"
+                )
+
+    def test_stage1_diagnostics_pin_post_client_transport_failures(self):
+        secret = "stage1-transport-secret-" + _TEST_PASSWORD
+        cases = (
+            (
+                "timeout",
+                [OSError(11)] * 200,
+                None,
+                (0, 1, 0, 0, "none"),
+            ),
+            (
+                "parse",
+                [b"BROKEN " + secret.encode("ascii") + b"\r\n\r\n"],
+                None,
+                (0, 0, 1, 0, "none"),
+            ),
+            (
+                "socket",
+                [OSError(12, secret)],
+                None,
+                (0, 0, 0, 1, "other"),
+            ),
+            (
+                "fault",
+                [_request(smoke.IP_CHECK_PATH, smoke.AP_IP + ":8080")],
+                RuntimeError(secret),
+                (1, 0, 0, 0, "other"),
+            ),
+        )
+        for name, recv_events, handler_error, expected in cases:
+            with self.subTest(name=name):
+                fake = _fake_network()
+                _script_ap_clients(fake, (0, 1, 1, 1))
+                client = FakeClientSocket(
+                    recv_events=recv_events,
+                    name="stage1-{}".format(name),
+                )
+                listener = FakeListener(
+                    accept_events=[OSError(11)] * 40 + [client]
+                )
+                filesystem = _MemoryFileSystem()
+                handler_patch = contextlib.nullcontext()
+                if handler_error is not None:
+                    def fail_handler(self, request, peer_ip=None):
+                        raise handler_error
+
+                    handler_patch = mock.patch.object(
+                        stage1._IPCheckHandler, "handle", fail_handler
+                    )
+                with handler_patch:
+                    result, error, output, _, filesystem = self._execute(
+                        fake,
+                        listener,
+                        FakeListener(),
+                        filesystem=filesystem,
+                    )
+                diagnostics = self._assert_stage1_failure_is_clean(
+                    result,
+                    error,
+                    output,
+                    fake,
+                    listener,
+                    filesystem,
+                    secret,
+                )
+                faulted, timeouts, parse_errors, socket_errors, last_error = (
+                    expected
+                )
+                self.assertIn(smoke.FULL_REST_PHONE_CLIENT_TOKEN, output)
+                self.assertEqual(
+                    diagnostics["stage"], "stage1_observe_http_transport"
+                )
+                self.assertEqual(diagnostics["stage1_client_seen"], "1")
+                self.assertEqual(diagnostics["stage1_ap_clients"], "1")
+                self.assertEqual(diagnostics["stage1_http_started"], "1")
+                self.assertEqual(diagnostics["stage1_http_closed"], "0")
+                self.assertEqual(
+                    diagnostics["stage1_http_faulted"], str(faulted)
+                )
+                self.assertEqual(diagnostics["stage1_http_accepted"], "1")
+                self.assertEqual(diagnostics["stage1_http_completed"], "0")
+                self.assertEqual(
+                    diagnostics["stage1_http_timeouts"], str(timeouts)
+                )
+                self.assertEqual(
+                    diagnostics["stage1_http_parse_errors"],
+                    str(parse_errors),
+                )
+                self.assertEqual(
+                    diagnostics["stage1_http_socket_errors"],
+                    str(socket_errors),
+                )
+                self.assertEqual(
+                    diagnostics["stage1_http_last_error"], last_error
+                )
+                self.assertEqual(diagnostics["stage1_accept_errno"], "-1")
+                self.assertEqual(diagnostics["stage1_cleanup_confirmed"], "1")
+
+    def test_stage1_failure_diagnostics_run_only_after_cleanup_and_survive_oom(self):
+        secret = "stage1-diagnostic-oom-secret-" + _TEST_PASSWORD
+        for failure_point in ("load", "capture", "emit"):
+            with self.subTest(failure_point=failure_point):
+                fake = _fake_network()
+                _script_ap_clients(fake, (0, 1, 1))
+                listener = FakeListener(
+                    accept_events=[OSError(12, secret)]
+                )
+                filesystem = _MemoryFileSystem()
+                loads = {"count": 0}
+
+                def load_diagnostics():
+                    loads["count"] += 1
+                    self.assertTrue(listener.closed)
+                    self.assertIs(fake.interfaces[fake.IF_AP].enabled, False)
+                    self.assertIs(fake.interfaces[fake.IF_STA].enabled, False)
+                    self.assertIs(wifi_module._WIFI_LEASED, False)
+                    self.assertIs(board_config.WIFI_RADIO_APPROVED, False)
+                    if failure_point == "load":
+                        raise MemoryError()
+                    return stage2_diagnostics
+
+                patch = contextlib.nullcontext()
+                if failure_point in ("capture", "emit"):
+                    patch = mock.patch.object(
+                        stage2_diagnostics,
+                        failure_point,
+                        side_effect=MemoryError,
+                    )
+                with patch:
+                    result, error, output, _, filesystem = self._execute(
+                        fake,
+                        listener,
+                        FakeListener(),
+                        filesystem=filesystem,
+                        diagnostics_loader=load_diagnostics,
+                    )
+
+                self.assertIsNone(result)
+                self.assertIsInstance(error, RuntimeError)
+                self.assertNotIsInstance(error, MemoryError)
+                self.assertEqual(
+                    str(error), "Phase-8 full REST phone smoke failed"
+                )
+                self.assertEqual(loads["count"], 1)
+                rendered = output + repr(error)
+                self.assertNotIn(_TEST_PASSWORD, rendered)
+                self.assertNotIn(secret, rendered)
+                self.assertNotIn(str(OSError(12, secret)), rendered)
+                self.assertNotIn(smoke.FULL_REST_PHONE_IP_PASS_TOKEN, output)
+                self.assertNotIn(smoke.FULL_REST_PHONE_PASS_TOKEN, output)
+                lines = output.splitlines()
+                failure_index = lines.index(
+                    stage2.FULL_REST_PHONE_FAILURE_STAGE_TOKEN
+                )
+                self.assertEqual(
+                    lines[failure_index + 1], smoke.FULL_REST_PHONE_FAIL_TOKEN
+                )
+                self.assertTrue(listener.closed)
+                self.assertIs(fake.interfaces[fake.IF_AP].enabled, False)
+                self.assertIs(fake.interfaces[fake.IF_STA].enabled, False)
+                self.assertIs(wifi_module._WIFI_LEASED, False)
+                self.assertIs(board_config.WIFI_RADIO_APPROVED, False)
+                for path in stage2._storage_paths():
+                    self.assertNotIn(path, filesystem.files)
+
+    def test_stage1_factory_retains_raw_listener_until_confirmed_close(self):
+        class PublishFaultFactory(stage1._DiagnosticSocketFactory):
+            __slots__ = ("_publish_fault",)
+
+            def __init__(self):
+                self._publish_fault = True
+                super().__init__()
+
+            def __setattr__(self, name, value):
+                if (
+                    name == "_orphan_port"
+                    and value is not None
+                    and getattr(self, "_publish_fault", False)
+                ):
+                    super().__setattr__("_publish_fault", False)
+                    raise MemoryError()
+                return super().__setattr__(name, value)
+
+        publish_raw = FakeListener(
+            close_events=[RuntimeError("publish-close-secret"), None]
+        )
+        publish_socket_module = types.SimpleNamespace(
+            AF_INET=2,
+            SOCK_STREAM=1,
+            socket=lambda family, kind: publish_raw,
+        )
+        publish_factory = PublishFaultFactory()
+        with mock.patch.dict(sys.modules, {"socket": publish_socket_module}):
+            with self.assertRaises(MemoryError):
+                publish_factory()
+        self.assertIs(publish_factory._orphan_port, publish_raw)
+        self.assertIs(publish_factory.close_retained(), True)
+        self.assertTrue(publish_raw.closed)
+        self.assertEqual(publish_raw.close_calls, 2)
+
+        raw = FakeListener(
+            close_events=[
+                RuntimeError("close-secret"),
+                "bad-close-contract",
+                RuntimeError("close-secret"),
+                "bad-close-contract",
+                None,
+            ]
+        )
+        socket_module = types.SimpleNamespace(
+            AF_INET=2,
+            SOCK_STREAM=1,
+            socket=lambda family, kind: raw,
+        )
+        factory = stage1._DiagnosticSocketFactory()
+        previous_retained = smoke._RETAINED_STAGE1_SOCKET_FACTORY
+        smoke._RETAINED_STAGE1_SOCKET_FACTORY = None
+        try:
+            with mock.patch.dict(sys.modules, {"socket": socket_module}), \
+                    mock.patch.object(
+                        stage1,
+                        "_DiagnosticListener",
+                        side_effect=MemoryError,
+                    ):
+                with self.assertRaises(MemoryError):
+                    factory()
+            self.assertIs(factory._orphan_port, raw)
+            self.assertFalse(raw.closed)
+
+            capsule = smoke._OwnershipCapsule()
+            capsule.stage1_socket_factory = factory
+            self.assertIs(smoke._outer_cleanup(capsule), False)
+            self.assertIs(
+                smoke._RETAINED_STAGE1_SOCKET_FACTORY,
+                factory,
+            )
+            self.assertIs(capsule.stage1_cleanup_confirmed, False)
+            self.assertIs(factory._orphan_port, raw)
+
+            self.assertIs(
+                smoke._recover_retained_stage1_socket_factory(),
+                True,
+            )
+            self.assertIsNone(smoke._RETAINED_STAGE1_SOCKET_FACTORY)
+            self.assertIsNone(factory._orphan_port)
+            self.assertTrue(raw.closed)
+            self.assertEqual(raw.close_calls, 5)
+            self.assertIs(factory.close_retained(), True)
+            self.assertEqual(raw.close_calls, 5)
+        finally:
+            smoke._RETAINED_STAGE1_SOCKET_FACTORY = previous_retained
 
     def test_stage2_import_oom_keeps_coordinator_cleanup_authority(self):
         fake = _fake_network()
@@ -1705,7 +2195,17 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
                 self.assertIs(board_config.WIFI_RADIO_APPROVED, False)
 
     def test_stage1_cleanup_failure_and_unload_failure_keep_outer_owner(self):
-        for failure_kind in ("probe_cleanup", "stage1_unload"):
+        original_probe_cleanup = stage1._cleanup_http_server
+
+        def close_then_fail(server):
+            original_probe_cleanup(server)
+            raise MemoryError()
+
+        for failure_kind in (
+            "probe_cleanup",
+            "probe_cleanup_after_close",
+            "stage1_unload",
+        ):
             with self.subTest(failure_kind=failure_kind):
                 fake = _fake_network()
                 _script_ap_clients(fake, (0, 1, 1))
@@ -1715,6 +2215,8 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
                 keywords = {}
                 if failure_kind == "probe_cleanup":
                     keywords["stage1_cleanup"] = MemoryError
+                elif failure_kind == "probe_cleanup_after_close":
+                    keywords["stage1_cleanup"] = close_then_fail
                 else:
                     keywords["unload"] = MemoryError
                 result, error, output, _, _ = self._execute(
@@ -1730,6 +2232,79 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
                 self.assertIs(fake.interfaces[fake.IF_STA].enabled, False)
                 self.assertIs(wifi_module._WIFI_LEASED, False)
                 self.assertIs(board_config.WIFI_RADIO_APPROVED, False)
+                if failure_kind.startswith("probe_cleanup"):
+                    diagnostics = _failure_diagnostics(output)
+                    self.assertEqual(
+                        diagnostics["stage"], "stage1_cleanup_http"
+                    )
+                    self.assertEqual(
+                        diagnostics["stage1_client_seen"], "1"
+                    )
+                    self.assertEqual(
+                        diagnostics["stage1_http_accepted"], "1"
+                    )
+                    self.assertEqual(
+                        diagnostics["stage1_http_completed"], "1"
+                    )
+                    self.assertEqual(
+                        diagnostics["stage1_http_started"], "1"
+                    )
+                    self.assertEqual(
+                        diagnostics["stage1_http_closed"], "0"
+                    )
+                    self.assertEqual(diagnostics["stage1_valid"], "1")
+                    self.assertEqual(diagnostics["stage1_responses"], "1")
+                    self.assertEqual(
+                        diagnostics["stage1_cleanup_confirmed"], "1"
+                    )
+
+    def test_stage1_cleanup_confirmation_requires_radio_cleanup(self):
+        real_radio_cleanup = smoke._cleanup_radio
+        secret = "stage1-radio-cleanup-secret-" + _TEST_PASSWORD
+
+        for failure_kind in ("false", "raise"):
+            with self.subTest(failure_kind=failure_kind):
+                fake = _fake_network()
+                _script_ap_clients(fake, (0, 1, 1))
+                listener = FakeListener(
+                    accept_events=[OSError(12, secret)]
+                )
+                cleanup_calls = {"count": 0}
+
+                def cleanup_then_fail(*arguments):
+                    cleanup_calls["count"] += 1
+                    self.assertIs(real_radio_cleanup(*arguments), True)
+                    if failure_kind == "raise":
+                        raise RuntimeError(secret)
+                    return False
+
+                with mock.patch.object(
+                    smoke,
+                    "_cleanup_radio",
+                    side_effect=cleanup_then_fail,
+                ):
+                    result, error, output, _, filesystem = self._execute(
+                        fake,
+                        listener,
+                        FakeListener(),
+                    )
+
+                diagnostics = self._assert_stage1_failure_is_clean(
+                    result,
+                    error,
+                    output,
+                    fake,
+                    listener,
+                    filesystem,
+                    secret,
+                )
+                self.assertEqual(cleanup_calls["count"], 1)
+                self.assertEqual(
+                    diagnostics["stage"], "stage1_observe_http_transport"
+                )
+                self.assertEqual(
+                    diagnostics["stage1_cleanup_confirmed"], "0"
+                )
 
     def test_split_transition_memory_and_baseexceptions_cleanup_all_owners(self):
         class StateConstructionFailureSeam:

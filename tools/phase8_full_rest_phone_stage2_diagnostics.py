@@ -7,6 +7,12 @@ FULL_REST_PHONE_FAILURE_STAGE_TOKEN = (
     "PHASE8_FULL_REST_PHONE_FAILURE_STAGE_V1"
 )
 _FAILURE_STAGES = (
+    "stage1_preflight", "stage1_ap_startup", "stage1_http_bind",
+    "stage1_observe_deadline", "stage1_observe_network_step",
+    "stage1_observe_network_truth", "stage1_observe_http_step",
+    "stage1_observe_http_transport", "stage1_post_response_heap",
+    "stage1_cleanup_http", "stage1_post_cleanup_heap",
+    "stage1_confirm_association",
     "preflight_product", "preflight_storage", "preflight_wifi",
     "ap_startup", "observe_association", "rest_composition", "http_bind",
     "confirm_association", "observe_network", "observe_http_step",
@@ -56,7 +62,7 @@ def _boolean(value):
 
 
 def _http_last_error(value):
-    if value is None:
+    if value is None or value == "none":
         return "none"
     if type(value) is str and value in _HTTP_LAST_ERRORS:
         return value
@@ -72,6 +78,7 @@ def capture(
     post_bind_peer_confirmed,
     response_completed,
     heap_values=None,
+    stage1_values=None,
 ):
     values = {
         "stage": stage if stage in _FAILURE_STAGES else "internal",
@@ -106,6 +113,25 @@ def capture(
         "ap_client_confirmed": _boolean(ap_client_confirmed),
         "post_bind_peer_confirmed": _boolean(post_bind_peer_confirmed),
         "response_completed": _boolean(response_completed),
+        "stage1_client_seen": -1,
+        "stage1_ap_clients": -1,
+        "stage1_action": "none",
+        "stage1_http_started": -1,
+        "stage1_http_closed": -1,
+        "stage1_http_faulted": -1,
+        "stage1_http_clients": -1,
+        "stage1_http_accepted": -1,
+        "stage1_http_completed": -1,
+        "stage1_http_parse_errors": -1,
+        "stage1_http_timeouts": -1,
+        "stage1_http_socket_errors": -1,
+        "stage1_http_last_error": "none",
+        "stage1_http_reentries": -1,
+        "stage1_accept_errno": -1,
+        "stage1_valid": -1,
+        "stage1_rejected": -1,
+        "stage1_responses": -1,
+        "stage1_cleanup_confirmed": -1,
     }
     for name in _HEAP_NAMES:
         values[name] = -1
@@ -164,6 +190,82 @@ def capture(
         if type(heap_values) is tuple and len(heap_values) == len(_HEAP_NAMES):
             for index, name in enumerate(_HEAP_NAMES):
                 values[name] = _counter(heap_values[index])
+        if type(stage1_values) is tuple and len(stage1_values) == 9:
+            (
+                stage1_snapshot,
+                stage1_client_seen,
+                stage1_ap_clients,
+                stage1_action,
+                stage1_accept_errno,
+                stage1_valid,
+                stage1_rejected,
+                stage1_responses,
+                stage1_cleanup_confirmed,
+            ) = stage1_values
+            values["stage1_client_seen"] = _boolean(stage1_client_seen)
+            values["stage1_ap_clients"] = _counter(stage1_ap_clients)
+            values["stage1_action"] = (
+                stage1_action
+                if stage1_action in ("none", "ap_checked", "other")
+                else "other"
+            )
+            values["stage1_accept_errno"] = _counter(stage1_accept_errno)
+            values["stage1_valid"] = _counter(stage1_valid)
+            values["stage1_rejected"] = _counter(stage1_rejected)
+            values["stage1_responses"] = _counter(stage1_responses)
+            values["stage1_cleanup_confirmed"] = _boolean(
+                stage1_cleanup_confirmed
+            )
+            if type(stage1_snapshot) is tuple and len(stage1_snapshot) == 11:
+                (
+                    started,
+                    closed,
+                    faulted,
+                    clients,
+                    accepted,
+                    completed,
+                    parse_errors,
+                    timeouts,
+                    socket_errors,
+                    last_error,
+                    reentries,
+                ) = stage1_snapshot
+                values["stage1_http_started"] = _boolean(started)
+                values["stage1_http_closed"] = _boolean(closed)
+                values["stage1_http_faulted"] = _boolean(faulted)
+                values["stage1_http_clients"] = _counter(clients)
+                values["stage1_http_accepted"] = _counter(accepted)
+                values["stage1_http_completed"] = _counter(completed)
+                values["stage1_http_parse_errors"] = _counter(parse_errors)
+                values["stage1_http_timeouts"] = _counter(timeouts)
+                values["stage1_http_socket_errors"] = _counter(socket_errors)
+                values["stage1_http_last_error"] = _http_last_error(last_error)
+                values["stage1_http_reentries"] = _counter(reentries)
+            elif type(stage1_snapshot) is dict:
+                values["stage1_http_started"] = _boolean(
+                    stage1_snapshot.get("started")
+                )
+                values["stage1_http_closed"] = _boolean(
+                    stage1_snapshot.get("closed")
+                )
+                values["stage1_http_faulted"] = _boolean(
+                    stage1_snapshot.get("faulted")
+                )
+                values["stage1_http_last_error"] = _http_last_error(
+                    stage1_snapshot.get("last_error")
+                )
+                for output_name, snapshot_name in (
+                    ("stage1_http_clients", "client_count"),
+                    ("stage1_http_accepted", "accepted"),
+                    ("stage1_http_completed", "completed"),
+                    ("stage1_http_parse_errors", "parse_errors"),
+                    ("stage1_http_timeouts", "timeouts"),
+                    ("stage1_http_socket_errors", "socket_errors"),
+                    ("stage1_http_reentries", "reentries"),
+                ):
+                    values[output_name] = _counter(
+                        stage1_snapshot.get(snapshot_name)
+                    )
     except BaseException:
         pass
     return values
@@ -186,6 +288,15 @@ def emit(values):
             "status_success", "status_marked", "status_rejected",
             "status_responses", "candidate_active", "ap_client_confirmed",
             "post_bind_peer_confirmed", "response_completed",
+            "stage1_client_seen", "stage1_ap_clients", "stage1_action",
+            "stage1_http_started", "stage1_http_closed",
+            "stage1_http_faulted", "stage1_http_clients",
+            "stage1_http_accepted", "stage1_http_completed",
+            "stage1_http_parse_errors", "stage1_http_timeouts",
+            "stage1_http_socket_errors", "stage1_http_last_error",
+            "stage1_http_reentries", "stage1_accept_errno",
+            "stage1_valid", "stage1_rejected", "stage1_responses",
+            "stage1_cleanup_confirmed",
         ) + _HEAP_NAMES:
             print("{}={}".format(name, values[name]))
     except BaseException:

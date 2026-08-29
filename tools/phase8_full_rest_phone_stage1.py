@@ -34,6 +34,123 @@ _HTTP_FROZEN_ORIGINS = (
     ("services.http_protocol", "services/http_protocol.py"),
     ("services.strict_json", "services/strict_json.py"),
 )
+_WOULD_BLOCK_ERRNOS = (11, 35, 10035)
+
+
+def _bounded_accept_errno(error):
+    try:
+        arguments = getattr(error, "args", ())
+        if not arguments:
+            return -1
+        value = arguments[0]
+        if value in _WOULD_BLOCK_ERRNOS:
+            return -1
+        if type(value) is int and 0 <= value <= 65535:
+            return value
+    except BaseException:
+        pass
+    return -1
+
+
+class _DiagnosticListener:
+    """Delegate the real listener while retaining only safe accept errno."""
+
+    __slots__ = ("_port", "_factory")
+
+    def __init__(self, port, factory):
+        self._port = port
+        self._factory = factory
+
+    def setblocking(self, value):
+        return self._port.setblocking(value)
+
+    def bind(self, address):
+        return self._port.bind(address)
+
+    def listen(self, backlog):
+        return self._port.listen(backlog)
+
+    def accept(self):
+        try:
+            return self._port.accept()
+        except OSError as error:
+            try:
+                errno = _bounded_accept_errno(error)
+                if errno >= 0 and self._factory.accept_errno < 0:
+                    self._factory.accept_errno = errno
+            except BaseException:
+                pass
+            raise
+
+    def close(self):
+        port = self._port
+        if port is None:
+            return None
+        result = port.close()
+        if result is not None:
+            return result
+        self._port = None
+        self._factory._release(port)
+        return None
+
+
+class _DiagnosticSocketFactory:
+    """Open the production listener without retaining request data."""
+
+    __slots__ = ("accept_errno", "_orphan_port", "_listener")
+
+    def __init__(self):
+        self.accept_errno = -1
+        self._orphan_port = None
+        self._listener = None
+
+    def _release(self, port):
+        if self._orphan_port is port:
+            self._orphan_port = None
+
+    def close_retained(self):
+        listener = self._listener
+        if listener is not None:
+            try:
+                result = listener.close()
+            except BaseException:
+                return False
+            if result is not None:
+                return False
+            self._listener = None
+        port = self._orphan_port
+        if port is None:
+            return True
+        try:
+            result = port.close()
+        except BaseException:
+            return False
+        if result is not None:
+            return False
+        self._orphan_port = None
+        return True
+
+    def __call__(self):
+        import socket as socket_module
+
+        raw = None
+        try:
+            raw = socket_module.socket(
+                socket_module.AF_INET,
+                socket_module.SOCK_STREAM,
+            )
+            self._orphan_port = raw
+            listener = _DiagnosticListener(raw, self)
+            self._listener = listener
+            return listener
+        except BaseException:
+            try:
+                if self._orphan_port is None and raw is not None:
+                    self._orphan_port = raw
+                self.close_retained()
+            except BaseException:
+                pass
+            raise
 
 
 class _Response:
@@ -246,6 +363,51 @@ def _assert_redacted(password, *values):
         raise RuntimeError("Phase-8 full REST phone smoke leaked its key")
 
 
+def _record_probe_snapshot(capsule, snapshot):
+    """Persist only normalized scalars before any listener cleanup."""
+
+    try:
+        if type(snapshot) is not dict:
+            return None
+        for target, source in (
+            ("stage1_http_started", "started"),
+            ("stage1_http_closed", "closed"),
+            ("stage1_http_faulted", "faulted"),
+        ):
+            value = snapshot.get(source)
+            setattr(
+                capsule,
+                target,
+                value if value is True or value is False else None,
+            )
+        for target, source in (
+            ("stage1_http_clients", "client_count"),
+            ("stage1_http_accepted", "accepted"),
+            ("stage1_http_completed", "completed"),
+            ("stage1_http_parse_errors", "parse_errors"),
+            ("stage1_http_timeouts", "timeouts"),
+            ("stage1_http_socket_errors", "socket_errors"),
+            ("stage1_http_reentries", "reentries"),
+        ):
+            value = snapshot.get(source)
+            setattr(
+                capsule,
+                target,
+                value
+                if type(value) is int and 0 <= value <= 1000000
+                else -1,
+            )
+        last_error = snapshot.get("last_error")
+        if last_error is None:
+            last_error = "none"
+        elif last_error not in ("accept_failed", "accept_contract_failed"):
+            last_error = "other"
+        capsule.stage1_http_last_error = last_error
+    except BaseException:
+        pass
+    return None
+
+
 def _sleep_checked(sleep_ms, milliseconds):
     result = sleep_ms(milliseconds)
     if result is not None:
@@ -304,7 +466,13 @@ def prepare(capsule, password, window_seconds):
     manager = None
     probe_server = None
     handler = None
+    socket_factory = None
     cleanup_error = None
+    cleanup_started = False
+    failure_stage = "stage1_preflight"
+    client_seen = False
+    last_clients = -1
+    last_action = "none"
     memory_before = _memory_free()
     memory_after_wifi_factory = None
     memory_after_ap_ready = None
@@ -378,6 +546,7 @@ def prepare(capsule, password, window_seconds):
         capsule.ticks_add = ticks_add
         capsule.ticks_diff = ticks_diff
         capsule.sleep_ms = sleep_ms
+        failure_stage = "stage1_ap_startup"
         started_ms = ticks_ms()
         _require(manager.start(started_ms) is True, "network did not start")
         startup_deadline = ticks_add(started_ms, STARTUP_TIMEOUT_MS)
@@ -412,10 +581,14 @@ def prepare(capsule, password, window_seconds):
         MicroPythonHTTPServer = _load_http_runtime()
         _verify_frozen_origins(sys_module, _HTTP_FROZEN_ORIGINS)
         handler = _IPCheckHandler()
+        socket_factory = _DiagnosticSocketFactory()
+        capsule.stage1_socket_factory = socket_factory
+        failure_stage = "stage1_http_bind"
         probe_server = MicroPythonHTTPServer(
             handler,
             AP_IP,
             port=IP_CHECK_PORT,
+            socket_factory=socket_factory,
             request_handler=handler.handle,
             ticks_ms=ticks_ms,
             ticks_add=ticks_add,
@@ -424,6 +597,8 @@ def prepare(capsule, password, window_seconds):
         capsule.stage1_server = probe_server
         _require(probe_server.start() is True, "IP probe server did not start")
         probe_snapshot = probe_server.snapshot()
+        _assert_redacted(password, probe_snapshot)
+        _record_probe_snapshot(capsule, probe_snapshot)
         _require(
             probe_snapshot["started"] is True
             and probe_snapshot["closed"] is False
@@ -438,15 +613,17 @@ def prepare(capsule, password, window_seconds):
         print("window_seconds={}".format(window_seconds))
         print("Connect the phone with Automatic IP and open this exact URL.")
 
-        client_seen = False
         while True:
+            failure_stage = "stage1_observe_deadline"
             now_ms = ticks_ms()
             if ticks_diff(now_ms, observation_deadline) >= 0:
                 raise RuntimeError("complete IP probe response was not observed")
+            failure_stage = "stage1_observe_network_step"
             action = manager.step(now_ms)
             network_snapshot = manager.snapshot()
             events = manager.drain_events()
             _assert_redacted(password, action, network_snapshot, events)
+            failure_stage = "stage1_observe_network_truth"
             access_point = network_snapshot["access_point"]
             _require(
                 access_point["active"] is True
@@ -454,23 +631,31 @@ def prepare(capsule, password, window_seconds):
                 "access point truth changed during IP proof",
             )
             if action is not None and action != "ap_checked":
+                last_action = "other"
                 raise RuntimeError("network changed state during IP proof")
             if action == "ap_checked":
+                last_action = "ap_checked"
                 clients = access_point["clients"]
                 _require(
                     type(clients) is int and 0 <= clients <= 1,
                     "phone client count is invalid",
                 )
+                last_clients = clients
                 if clients == 1 and not client_seen:
                     client_seen = True
                     print(FULL_REST_PHONE_CLIENT_TOKEN)
                     print("clients=1")
                 elif clients == 0 and client_seen:
                     raise RuntimeError("phone disconnected during IP proof")
+            else:
+                last_action = "none"
 
+            failure_stage = "stage1_observe_http_step"
             probe_server.step()
             probe_snapshot = probe_server.snapshot()
             _assert_redacted(password, probe_snapshot)
+            _record_probe_snapshot(capsule, probe_snapshot)
+            failure_stage = "stage1_observe_http_transport"
             _require(
                 probe_snapshot["started"] is True
                 and probe_snapshot["closed"] is False
@@ -502,18 +687,28 @@ def prepare(capsule, password, window_seconds):
         events = None
         access_point = None
         probe_snapshot = None
+        failure_stage = "stage1_post_response_heap"
         memory_after_ip_response = _require_heap(
             _memory_free(), "complete IP probe response"
         )
+        failure_stage = "stage1_cleanup_http"
+        cleanup_started = True
         probe_ok, cleanup_error = _cleanup_http_server(probe_server)
-        _require(probe_ok and cleanup_error is None, "IP probe cleanup failed")
+        factory_ok = socket_factory.close_retained()
+        _require(
+            probe_ok and cleanup_error is None and factory_ok,
+            "IP probe cleanup failed",
+        )
         probe_server = None
         capsule.stage1_server = None
+        capsule.stage1_socket_factory = None
         capsule.stage1_cleanup_confirmed = True
         _gc.collect()
+        failure_stage = "stage1_post_cleanup_heap"
         memory_after_ip_cleanup = _require_heap(
             _memory_free(), "IP probe cleanup"
         )
+        failure_stage = "stage1_confirm_association"
         _require(
             port.access_point_status()
             == {"active": True, "ip": AP_IP, "clients": 1},
@@ -530,6 +725,25 @@ def prepare(capsule, password, window_seconds):
         capsule.ip_peer = ip_peer
         capsule.probe_completed = probe_completed
         capsule.probe_rejected = probe_rejected
+        capsule.stage1_failure_stage = None
+        capsule.stage1_client_seen = False
+        capsule.stage1_ap_clients = -1
+        capsule.stage1_action = "none"
+        capsule.stage1_http_started = None
+        capsule.stage1_http_closed = None
+        capsule.stage1_http_faulted = None
+        capsule.stage1_http_clients = -1
+        capsule.stage1_http_accepted = -1
+        capsule.stage1_http_completed = -1
+        capsule.stage1_http_parse_errors = -1
+        capsule.stage1_http_timeouts = -1
+        capsule.stage1_http_socket_errors = -1
+        capsule.stage1_http_last_error = "none"
+        capsule.stage1_http_reentries = -1
+        capsule.stage1_accept_errno = -1
+        capsule.stage1_handler_valid = -1
+        capsule.stage1_handler_rejected = -1
+        capsule.stage1_handler_responses = -1
         return None
     except BaseException:
         if capsule.port is None and port is not None:
@@ -544,8 +758,32 @@ def prepare(capsule, password, window_seconds):
             capsule.board_config = board_config
         if capsule.wifi_module is None and wifi_module is not None:
             capsule.wifi_module = wifi_module
+        if (
+            capsule.stage1_socket_factory is None
+            and socket_factory is not None
+        ):
+            capsule.stage1_socket_factory = socket_factory
         if probe_server is not None:
             capsule.stage1_server = probe_server
+        try:
+            capsule.stage1_failure_stage = failure_stage
+            capsule.stage1_client_seen = client_seen
+            capsule.stage1_ap_clients = last_clients
+            capsule.stage1_action = last_action
+            capsule.stage1_accept_errno = (
+                -1 if socket_factory is None else socket_factory.accept_errno
+            )
+            if handler is not None:
+                capsule.stage1_handler_valid = handler.valid_requests
+                capsule.stage1_handler_rejected = handler.rejected_requests
+                capsule.stage1_handler_responses = handler.responses_returned
+            if probe_server is not None and not cleanup_started:
+                snapshot = probe_server.snapshot()
+                _assert_redacted(password, snapshot)
+                _record_probe_snapshot(capsule, snapshot)
+        except BaseException:
+            pass
+        if probe_server is not None:
             try:
                 _cleanup_http_server(probe_server)
             except BaseException:

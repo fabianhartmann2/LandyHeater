@@ -59,6 +59,7 @@ _LATE_ONLY_MODULES = (
     "services.rest_security",
     "services.time_service",
 )
+_RETAINED_STAGE1_SOCKET_FACTORY = None
 
 
 def _support_require(condition, message):
@@ -256,6 +257,26 @@ class _OwnershipCapsule:
         "memory_after_ip_response",
         "memory_after_ip_cleanup",
         "ip_peer",
+        "stage1_failure_stage",
+        "stage1_client_seen",
+        "stage1_ap_clients",
+        "stage1_action",
+        "stage1_http_started",
+        "stage1_http_closed",
+        "stage1_http_faulted",
+        "stage1_http_clients",
+        "stage1_http_accepted",
+        "stage1_http_completed",
+        "stage1_http_parse_errors",
+        "stage1_http_timeouts",
+        "stage1_http_socket_errors",
+        "stage1_http_last_error",
+        "stage1_http_reentries",
+        "stage1_accept_errno",
+        "stage1_handler_valid",
+        "stage1_handler_rejected",
+        "stage1_handler_responses",
+        "stage1_socket_factory",
         "probe_completed",
         "probe_rejected",
         "stage1_server",
@@ -266,6 +287,25 @@ class _OwnershipCapsule:
     def __init__(self):
         for name in _OwnershipCapsule.__slots__[:-5]:
             setattr(self, name, None)
+        self.stage1_failure_stage = "stage1_preflight"
+        self.stage1_client_seen = False
+        self.stage1_ap_clients = -1
+        self.stage1_action = "none"
+        self.stage1_http_started = None
+        self.stage1_http_closed = None
+        self.stage1_http_faulted = None
+        self.stage1_http_clients = -1
+        self.stage1_http_accepted = -1
+        self.stage1_http_completed = -1
+        self.stage1_http_parse_errors = -1
+        self.stage1_http_timeouts = -1
+        self.stage1_http_socket_errors = -1
+        self.stage1_http_last_error = "none"
+        self.stage1_http_reentries = -1
+        self.stage1_accept_errno = -1
+        self.stage1_handler_valid = -1
+        self.stage1_handler_rejected = -1
+        self.stage1_handler_responses = -1
         self.probe_completed = 0
         self.probe_rejected = 0
         self.stage1_server = None
@@ -392,9 +432,45 @@ def _close_stage1_server(server):
     return False
 
 
+def _close_stage1_socket_factory(factory):
+    if factory is None:
+        return True
+    close_retained = getattr(factory, "close_retained", None)
+    if not callable(close_retained):
+        return False
+    for _ in range(3):
+        try:
+            if close_retained() is True:
+                return True
+        except BaseException:
+            pass
+    return False
+
+
+def _recover_retained_stage1_socket_factory():
+    global _RETAINED_STAGE1_SOCKET_FACTORY
+    factory = _RETAINED_STAGE1_SOCKET_FACTORY
+    if factory is None:
+        return True
+    if not _close_stage1_socket_factory(factory):
+        return False
+    _RETAINED_STAGE1_SOCKET_FACTORY = None
+    return True
+
+
 def _outer_cleanup(capsule):
+    global _RETAINED_STAGE1_SOCKET_FACTORY
     clean = _close_stage1_server(capsule.stage1_server)
     capsule.stage1_server = None
+    socket_factory = capsule.stage1_socket_factory
+    factory_clean = _close_stage1_socket_factory(socket_factory)
+    if factory_clean:
+        capsule.stage1_socket_factory = None
+        if _RETAINED_STAGE1_SOCKET_FACTORY is socket_factory:
+            _RETAINED_STAGE1_SOCKET_FACTORY = None
+    elif socket_factory is not None:
+        _RETAINED_STAGE1_SOCKET_FACTORY = socket_factory
+    clean = factory_clean and clean
     support = capsule.support
     if support is not None:
         try:
@@ -419,6 +495,10 @@ def _outer_cleanup(capsule):
             and getattr(wifi_module, "_WIFI_LEASE_POISONED", None) is False
             and clean
         )
+    try:
+        capsule.stage1_cleanup_confirmed = clean
+    except BaseException:
+        clean = False
     return bool(clean)
 
 
@@ -491,6 +571,29 @@ def _emit_outer_failure(capsule, state, snapshot, stage):
             False,
             False,
             heaps,
+            (
+                (
+                    capsule.stage1_http_started,
+                    capsule.stage1_http_closed,
+                    capsule.stage1_http_faulted,
+                    capsule.stage1_http_clients,
+                    capsule.stage1_http_accepted,
+                    capsule.stage1_http_completed,
+                    capsule.stage1_http_parse_errors,
+                    capsule.stage1_http_timeouts,
+                    capsule.stage1_http_socket_errors,
+                    capsule.stage1_http_last_error,
+                    capsule.stage1_http_reentries,
+                ),
+                capsule.stage1_client_seen,
+                capsule.stage1_ap_clients,
+                capsule.stage1_action,
+                capsule.stage1_accept_errno,
+                capsule.stage1_handler_valid,
+                capsule.stage1_handler_rejected,
+                capsule.stage1_handler_responses,
+                capsule.stage1_cleanup_confirmed,
+            ),
         )
         diagnostics.emit(values)
     except BaseException:
@@ -514,6 +617,8 @@ def run(
         raise RuntimeError("exact Phase-8 full REST confirmation is required")
     password = _validate_password(temporary_password)
     window_seconds = _validate_window_seconds(window_seconds)
+    if not _recover_retained_stage1_socket_factory():
+        raise RuntimeError("retained Stage-1 listener cleanup failed")
     capsule = _OwnershipCapsule()
     capsule.support = _sys.modules.get(__name__)
     if capsule.support is None:
@@ -571,6 +676,11 @@ def run(
         outer_diagnostics = capsule.owner_state == "coordinator"
         if state is not None and state.context.failure_stage is not None:
             failure_stage = state.context.failure_stage
+        elif (
+            capsule.ip_peer is None
+            and capsule.stage1_failure_stage is not None
+        ):
+            failure_stage = capsule.stage1_failure_stage
         try:
             if state is not None and state.server is not None:
                 failure_snapshot = state.server.snapshot()
