@@ -14,6 +14,9 @@ Official references:
 - [ESP32-S3-WROOM-1/1U datasheet](https://documentation.espressif.com/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf)
 - [ESP-IDF external RAM guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-guides/external-ram.html)
 
+The evaluated alternatives and selection criteria are recorded in
+`ESP32_BOARD_OPTIONS.md`.
+
 ## Why this board
 
 The latest DFR0654 Phase-8 composition left only 32,880 bytes before the

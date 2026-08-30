@@ -787,6 +787,7 @@ landy-heater/
 ├── README.md
 ├── FIREBEETLE_BRINGUP.md
 ├── DFR0975U_MIGRATION.md
+├── ESP32_BOARD_OPTIONS.md
 ├── board_config.py
 ├── boot.py
 ├── main.py
@@ -938,6 +939,8 @@ Die DFR0975-U-Auswahl und die zwingend getrennte S3-Firmware-, Pin-, PSRAM-,
 Recovery- und Abnahmefolge sind in `DFR0975U_MIGRATION.md` festgehalten. Bis
 das neue Board eingetroffen und geprüft ist, bleiben Konfiguration und
 Firmware wahrheitsgemäß auf dem DFR0654-Stand.
+Die geprüften Alternativboards und Auswahlkriterien stehen in
+`ESP32_BOARD_OPTIONS.md`.
 
 Die UART-Pins sind entsprechend der offiziellen DFR0654-Dokumentation in
 `board_config.py` eingetragen. Sensor- und RTC-Pins bleiben auf `None`. Für
