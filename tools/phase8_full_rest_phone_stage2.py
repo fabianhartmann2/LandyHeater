@@ -38,12 +38,8 @@ PRODUCTION_LEDGER_BASE_PATH = "/landy_heater_scheduler"
 MINIMUM_FREE_HEAP_BYTES = 32 * 1024
 POLL_INTERVAL_MS = 25
 
-_STATUS_PROOF_HEADER_NAME = "X-Landy-Phase8-Status-Proof"
-_STATUS_PROOF_HEADER_VALUE = "validated-v1"
-_STATUS_PROOF_HEADER_LINE = (
-    b"X-Landy-Phase8-Status-Proof: validated-v1\r\n"
-)
 _MAX_OBSERVED_RESPONSE_BODY_BYTES = 8192
+_WOULD_BLOCK_ERRNOS = (11, 35, 10035)
 _TARGET_RESPONSE_PREFIX = (
     b"HTTP/1.1 200 OK\r\n"
     b"Content-Type: application/json; charset=utf-8\r\n"
@@ -53,8 +49,7 @@ _TARGET_RESPONSE_SUFFIX = (
     b"\nConnection: close\r\n"
     b"Cache-Control: no-store\r\n"
     b"X-Content-Type-Options: nosniff\r\n"
-    + _STATUS_PROOF_HEADER_LINE
-    + b"\r\n"
+    b"\r\n"
 )
 
 
@@ -72,7 +67,8 @@ class _ObservedClientSocket:
 
     __slots__ = (
         "_observer", "_port", "_leased", "_phase", "_index",
-        "_content_length", "_length_digits",
+        "_content_length", "_length_digits", "_target",
+        "_accepted_bytes",
     )
 
     def __init__(self, observer):
@@ -86,6 +82,8 @@ class _ObservedClientSocket:
         self._index = 0
         self._content_length = None
         self._length_digits = 0
+        self._target = False
+        self._accepted_bytes = 0
 
     def _claim(self, port):
         if self._leased or self._port is not None:
@@ -127,9 +125,62 @@ class _ObservedClientSocket:
         if not self._observer._begin_operation():
             raise RuntimeError("observed socket operation reentered")
         try:
-            return self._port.recv(maximum)
+            result = self._port.recv(maximum)
+            if type(result) in (bytes, bytearray, memoryview):
+                if result:
+                    self._observer._record_recv_client(self)
+                else:
+                    self._observer._record_peer_eof(self)
+            return result
         finally:
             self._observer._end_operation()
+
+    def _mark_target(self):
+        if not self._leased or self._port is None or self._target:
+            self._observer._mark_fault()
+            raise RuntimeError("target socket claim is invalid")
+        self._target = True
+        return None
+
+    def _observe_offered(self, payload):
+        if not self._target or self._observer.response_encoding_observed:
+            return None
+        size = len(payload)
+        prefix_size = len(_TARGET_RESPONSE_PREFIX)
+        if size <= prefix_size:
+            return None
+        for offset in range(prefix_size):
+            if payload[offset] != _TARGET_RESPONSE_PREFIX[offset]:
+                return None
+        index = prefix_size
+        content_length = 0
+        digits = 0
+        while index < size:
+            value = payload[index]
+            if 48 <= value <= 57:
+                if digits >= 4 or (digits > 0 and content_length == 0):
+                    return None
+                content_length = content_length * 10 + value - 48
+                digits += 1
+                if content_length > _MAX_OBSERVED_RESPONSE_BODY_BYTES:
+                    return None
+                index += 1
+                continue
+            break
+        if digits == 0 or index >= size or payload[index] != 13:
+            return None
+        index += 1
+        suffix_size = len(_TARGET_RESPONSE_SUFFIX)
+        if size - index < suffix_size:
+            return None
+        for offset in range(suffix_size):
+            if payload[index + offset] != _TARGET_RESPONSE_SUFFIX[offset]:
+                return None
+        header_size = index + suffix_size
+        self._observer._encoding_observed(
+            content_length, header_size + content_length
+        )
+        return None
 
     def _observe_sent(self, payload, sent):
         for offset in range(sent):
@@ -195,9 +246,17 @@ class _ObservedClientSocket:
         if not self._observer._begin_operation():
             raise RuntimeError("observed socket operation reentered")
         try:
-            result = self._port.send(payload)
+            self._observer._send_attempt(self, payload)
             try:
+                result = self._port.send(payload)
+            except OSError as error:
+                self._observer._send_error(self, error)
+                raise
+            try:
+                self._observer._send_result(self, result)
                 if type(result) is int and 0 < result <= len(payload):
+                    self._accepted_bytes += result
+                    self._observer._send_succeeded(self, result)
                     self._observe_sent(payload, result)
             except (MemoryError, KeyboardInterrupt, SystemExit):
                 self._observer._mark_fault()
@@ -214,7 +273,9 @@ class _ObservedClientSocket:
             return None
         result = self._port.close()
         if result is None:
-            self._observer._client_closed(self._phase >= 4, self._phase == 5)
+            self._observer._client_closed(
+                self, self._target, self._phase == 5, self._accepted_bytes
+            )
             self._release()
         return result
 
@@ -231,7 +292,12 @@ class _SocketResponseObserver:
     __slots__ = (
         "clients", "faulted", "accepted", "closed", "target_headers",
         "target_wires", "target_completions", "target_failures",
-        "operation_active", "reentries",
+        "operation_active", "reentries", "current_recv_client",
+        "target_client", "target_peer_ip", "target_socket_closed",
+        "send_attempts", "successful_send_calls", "bytes_written",
+        "send_would_blocks", "response_encoding_observed",
+        "response_body_length", "expected_response_wire_length",
+        "peer_eof_events", "target_zero_send_events",
     )
 
     def __init__(self):
@@ -248,6 +314,19 @@ class _SocketResponseObserver:
         self.target_failures = 0
         self.operation_active = False
         self.reentries = 0
+        self.current_recv_client = None
+        self.target_client = None
+        self.target_peer_ip = None
+        self.target_socket_closed = False
+        self.send_attempts = 0
+        self.successful_send_calls = 0
+        self.bytes_written = 0
+        self.send_would_blocks = 0
+        self.response_encoding_observed = False
+        self.response_body_length = -1
+        self.expected_response_wire_length = -1
+        self.peer_eof_events = 0
+        self.target_zero_send_events = 0
 
     def _begin_operation(self):
         if self.operation_active:
@@ -271,15 +350,94 @@ class _SocketResponseObserver:
         self._mark_fault()
         raise RuntimeError("observed client capacity exceeded")
 
+    def _record_recv_client(self, client):
+        if not client.leased:
+            self._mark_fault()
+            raise RuntimeError("received bytes came from an unowned socket")
+        self.current_recv_client = client
+        return None
+
+    def _record_peer_eof(self, client):
+        if not client.leased:
+            self._mark_fault()
+            raise RuntimeError("peer EOF came from an unowned socket")
+        self.peer_eof_events += 1
+        return None
+
+    def reject_current_request(self):
+        self.current_recv_client = None
+        return None
+
+    def claim_status_request(self, peer_ip):
+        client = self.current_recv_client
+        self.current_recv_client = None
+        if (
+            client is None
+            or not client.leased
+            or self.target_client is not None
+            or self.target_peer_ip is not None
+        ):
+            self._mark_fault()
+            raise RuntimeError("status request socket binding is invalid")
+        client._mark_target()
+        self.target_client = client
+        self.target_peer_ip = peer_ip
+        return None
+
+    def _send_attempt(self, client, payload):
+        if client is self.target_client:
+            self.send_attempts += 1
+            client._observe_offered(payload)
+        return None
+
+    def _send_error(self, client, error):
+        if client is not self.target_client:
+            return None
+        try:
+            arguments = getattr(error, "args", ())
+            value = arguments[0] if arguments else None
+            if type(value) is int and value in _WOULD_BLOCK_ERRNOS:
+                self.send_would_blocks += 1
+        except BaseException:
+            pass
+        return None
+
+    def _send_succeeded(self, client, count):
+        if client is self.target_client:
+            self.successful_send_calls += 1
+            self.bytes_written += count
+        return None
+
+    def _send_result(self, client, result):
+        if client is self.target_client and type(result) is int and result == 0:
+            self.target_zero_send_events += 1
+        return None
+
+    def _encoding_observed(self, body_length, wire_length):
+        if self.response_encoding_observed:
+            self._mark_fault()
+            raise RuntimeError("target response encoding was observed twice")
+        self.response_encoding_observed = True
+        self.response_body_length = body_length
+        self.expected_response_wire_length = wire_length
+        return None
+
     def _header_observed(self):
         self.target_headers += 1
 
     def _wire_completed(self):
         self.target_wires += 1
 
-    def _client_closed(self, target, wire_complete):
+    def _client_closed(self, client, target, wire_complete, accepted_bytes):
         self.closed += 1
+        if self.current_recv_client is client:
+            self.current_recv_client = None
         if target:
+            if client is not self.target_client:
+                self._mark_fault()
+            self.target_socket_closed = True
+            self.target_client = None
+            self.bytes_written = accepted_bytes
             if wire_complete:
                 self.target_completions += 1
             else:
@@ -297,17 +455,26 @@ class _ReadOnlyStatusGateway:
     """Forward only one exact phone GET to the real REST runtime."""
 
     __slots__ = (
-        "runtime", "valid_status_requests", "successful_status_responses",
-        "marked_status_responses", "rejected_requests", "responses_returned",
+        "runtime", "observer", "routed_requests", "valid_status_requests",
+        "rest_application_entered", "rest_application_returned",
+        "status_data_completed", "successful_status_responses",
+        "validator_accepted", "validator_rejected", "rejected_requests",
+        "responses_returned",
         "last_valid_peer_ip", "status_body_validated", "secret_checked",
         "secret_cleared", "_secret", "_not_found", "_method_not_allowed",
     )
 
-    def __init__(self, runtime, temporary_password, csrf_secret):
+    def __init__(self, runtime, observer, temporary_password, csrf_secret):
         self.runtime = runtime
+        self.observer = observer
+        self.routed_requests = 0
         self.valid_status_requests = 0
+        self.rest_application_entered = 0
+        self.rest_application_returned = 0
+        self.status_data_completed = 0
         self.successful_status_responses = 0
-        self.marked_status_responses = 0
+        self.validator_accepted = 0
+        self.validator_rejected = 0
         self.rejected_requests = 0
         self.responses_returned = 0
         self.last_valid_peer_ip = None
@@ -355,16 +522,16 @@ class _ReadOnlyStatusGateway:
         return type(value) is str and value in (AP_IP, AP_IP + ":80")
 
     def _fixed(self, response):
+        self.observer.reject_current_request()
         self.rejected_requests += 1
         self.responses_returned += 1
         return response
 
     @staticmethod
-    def _marked_status_response(response):
+    def _validated_status_response(response):
         headers = getattr(response, "headers", None)
         if type(headers) is not dict or headers:
-            raise RuntimeError("status response marker contract failed")
-        headers[_STATUS_PROOF_HEADER_NAME] = _STATUS_PROOF_HEADER_VALUE
+            raise RuntimeError("status response header contract failed")
         return response
 
     @staticmethod
@@ -529,6 +696,7 @@ class _ReadOnlyStatusGateway:
         return True
 
     def handle(self, request, peer_ip=None):
+        self.routed_requests += 1
         exact_target = (
             getattr(request, "path", None) == STATUS_PATH
             and getattr(request, "target", None) == STATUS_PATH
@@ -545,20 +713,26 @@ class _ReadOnlyStatusGateway:
         if self.valid_status_requests != 0:
             return self._fixed(self._not_found)
 
+        self.observer.claim_status_request(peer_ip)
+        self.rest_application_entered += 1
         response = self.runtime.handle(request, peer_ip)
+        self.rest_application_returned += 1
         self.valid_status_requests += 1
         self.responses_returned += 1
         self.last_valid_peer_ip = peer_ip
+        if getattr(response, "status", None) == 200:
+            self.status_data_completed += 1
         valid = (
             getattr(response, "status", None) == 200
             and self._validate_status_body(getattr(response, "body", None))
         )
         if valid:
-            response = self._marked_status_response(response)
+            response = self._validated_status_response(response)
             self.successful_status_responses += 1
-            self.marked_status_responses += 1
+            self.validator_accepted += 1
             self.status_body_validated = True
         else:
+            self.validator_rejected += 1
             self.rejected_requests += 1
             response = self._not_found
         return response
@@ -734,7 +908,7 @@ def _rest_read_only_truth(runtime, serving):
         return False
     if serving:
         return (
-            application.get("requests", 0) >= 1
+            application.get("requests") == 1
             and security.get("started") is True
             and security.get("mutation_api_available") is True
         )
@@ -774,6 +948,7 @@ def _capture_failure_diagnostics(
     post_bind_peer_confirmed,
     response_completed,
     heap_values=None,
+    cleanup_confirmed=False,
 ):
     return _load_failure_diagnostics().capture(
         stage,
@@ -784,6 +959,8 @@ def _capture_failure_diagnostics(
         post_bind_peer_confirmed,
         response_completed,
         heap_values,
+        None,
+        cleanup_confirmed,
     )
 
 
@@ -926,12 +1103,12 @@ def prepare_proof(context):
         and len(random_provider.secret) == 32,
         "REST security changed before proof composition",
     )
-    gateway = _ReadOnlyStatusGateway(
-        rest_runtime, password, random_provider.secret
-    )
-    context.gateway = gateway
     observer = _SocketResponseObserver()
     context.socket_observer = observer
+    gateway = _ReadOnlyStatusGateway(
+        rest_runtime, observer, password, random_provider.secret
+    )
+    context.gateway = gateway
     context.password = None
     return None
 
@@ -969,11 +1146,14 @@ def continue_run(capsule, state, temporary_password, window_seconds):
     radio_cleanup_ok = False
     files_cleanup_ok = False
     storage_owned = context.storage_owned
-    ap_client_confirmed = capsule.ip_peer is not None
+    ap_client_confirmed = capsule.association_confirmed is True
     post_bind_peer_confirmed = False
     response_completed = False
     completed_responses = 0
     observed_timeouts = 0
+    observed_accept_actions = 0
+    observed_recv_actions = 0
+    observed_send_actions = 0
     target_wire_completions = 0
     valid_peer_ip = None
     memory_before = capsule.memory_before
@@ -983,9 +1163,9 @@ def continue_run(capsule, state, temporary_password, window_seconds):
     )
     memory_after_wifi_factory = capsule.memory_after_wifi_factory
     memory_after_ap_ready = capsule.memory_after_ap_ready
-    memory_after_ip_bind = capsule.memory_after_ip_bind
-    memory_after_ip_response = capsule.memory_after_ip_response
-    memory_after_ip_cleanup = capsule.memory_after_ip_cleanup
+    memory_after_client_association = (
+        capsule.memory_after_client_association
+    )
     memory_before_http_start = context.memory_before_http_start
     memory_after_proof_before_listen = (
         context.memory_after_proof_before_listen
@@ -1077,7 +1257,17 @@ def continue_run(capsule, state, temporary_password, window_seconds):
             and observed_socket_factory._reentries == 0
             and observed_socket_factory.listener.active is True
             and socket_observer.accepted == 0
-            and socket_observer.open_clients() == 0,
+            and socket_observer.open_clients() == 0
+            and socket_observer.current_recv_client is None
+            and socket_observer.target_client is None
+            and socket_observer.target_peer_ip is None
+            and socket_observer.send_attempts == 0
+            and socket_observer.successful_send_calls == 0
+            and socket_observer.bytes_written == 0
+            and socket_observer.send_would_blocks == 0
+            and socket_observer.peer_eof_events == 0
+            and socket_observer.target_zero_send_events == 0
+            and socket_observer.response_encoding_observed is False,
             "HTTP response observer did not bind cleanly",
         )
         action = None
@@ -1156,7 +1346,7 @@ def continue_run(capsule, state, temporary_password, window_seconds):
                 and observer_open_clients == server_snapshot["client_count"]
                 and socket_observer.target_failures == 0
                 and socket_observer.target_headers
-                <= gateway.marked_status_responses
+                <= gateway.successful_status_responses
                 and socket_observer.target_wires
                 <= socket_observer.target_headers
                 and socket_observer.target_completions
@@ -1175,21 +1365,21 @@ def continue_run(capsule, state, temporary_password, window_seconds):
                 "read-only safety truth changed during observation",
             )
 
-            # The sole schema-valid status response carries a fixed public
-            # marker.  Its preallocated socket wrapper recognizes that marker
-            # only in bounded response-header bytes actually accepted by the
-            # underlying send(), parses canonical Content-Length, counts the
-            # exact wire length, and records completion only after close()
-            # succeeds.  One server step can perform only that final send, so
-            # the matching +1 completed transition binds the proof to the
-            # target socket.  Unmarked browser sockets and their timeouts are
-            # independent and remain owned by ordered HTTP cleanup.
+            # The final positive recv() identifies the exact leased wrapper
+            # which synchronously enters the gateway.  The gateway marks that
+            # wrapper as the sole target before calling RestApplication and
+            # returns the product response unchanged.  The wrapper observes
+            # the canonical framing offered by the production adapter, counts
+            # only bytes accepted by raw send(), and records completion only
+            # after the target close succeeds.  One server step can perform
+            # only that final send, binding the +1 server completion to it.
             failure_stage = "observe_route_binding"
             _require(
-                gateway.marked_status_responses
+                gateway.validator_accepted
                 == gateway.successful_status_responses
-                and gateway.marked_status_responses <= 1,
-                "status response marker accounting diverged",
+                and gateway.validator_accepted <= 1
+                and gateway.validator_rejected <= 1,
+                "status validator accounting diverged",
             )
             target_completion_delta = (
                 socket_observer.target_completions
@@ -1204,19 +1394,24 @@ def continue_run(capsule, state, temporary_password, window_seconds):
                     and socket_observer.target_completions == 1
                     and gateway.valid_status_requests == 1
                     and gateway.successful_status_responses == 1
-                    and gateway.marked_status_responses == 1
+                    and gateway.validator_accepted == 1
+                    and socket_observer.response_encoding_observed is True
+                    and socket_observer.expected_response_wire_length > 0
+                    and socket_observer.bytes_written
+                    == socket_observer.expected_response_wire_length
+                    and socket_observer.target_zero_send_events == 0
                     and server_snapshot["completed"]
                     == completed_before_step + 1,
                     "target response completion was not route-bound",
                 )
                 response_completed = True
             if (
-                gateway.marked_status_responses == 1
+                gateway.successful_status_responses == 1
                 and socket_observer.target_completions == 0
                 and server_snapshot["client_count"] == 0
             ):
                 raise RuntimeError(
-                    "marked target response closed before completion"
+                    "target status response closed before completion"
                 )
             if response_completed:
                 _require(
@@ -1231,13 +1426,17 @@ def continue_run(capsule, state, temporary_password, window_seconds):
                 failure_stage = "observe_post_response"
                 completed_responses = server_snapshot["completed"]
                 observed_timeouts = server_snapshot["timeouts"]
+                observed_accept_actions = server_snapshot["accept_actions"]
+                observed_recv_actions = server_snapshot["recv_actions"]
+                observed_send_actions = server_snapshot["send_actions"]
                 target_wire_completions = (
                     socket_observer.target_completions
                 )
                 valid_peer_ip = gateway.last_valid_peer_ip
                 _require(
-                    valid_peer_ip == capsule.ip_peer,
-                    "full status peer differs from the proven link peer",
+                    gateway._is_ap_peer(valid_peer_ip)
+                    and socket_observer.target_peer_ip == valid_peer_ip,
+                    "full status peer is not the accepted AP peer",
                 )
                 network_snapshot = None
                 events = None
@@ -1405,19 +1604,19 @@ def continue_run(capsule, state, temporary_password, window_seconds):
                 response_completed,
                 (
                     memory_before,
-                    memory_after_product_imports,
-                    memory_after_configuration_adoption,
                     memory_after_wifi_factory,
                     memory_after_ap_ready,
-                    memory_after_ip_bind,
-                    memory_after_ip_response,
-                    memory_after_ip_cleanup,
+                    memory_after_client_association,
+                    memory_after_product_imports,
+                    memory_after_configuration_adoption,
                     memory_before_http_start,
+                    memory_after_proof_before_listen,
                     memory_after_http_bind,
                     memory_after_response,
                     memory_after_cleanup,
                     memory_after_failure_cleanup,
                 ),
+                state.cleanup_confirmed,
             )
         except BaseException:
             # Diagnostics are subordinate to the original, sanitized failure.
@@ -1434,6 +1633,8 @@ def continue_run(capsule, state, temporary_password, window_seconds):
             ap_client_confirmed,
             post_bind_peer_confirmed,
             response_completed,
+            None,
+            state.cleanup_confirmed,
         )
         _emit_failure_diagnostics(failure_diagnostics)
         print(FULL_REST_PHONE_FAIL_TOKEN)
@@ -1453,6 +1654,8 @@ def continue_run(capsule, state, temporary_password, window_seconds):
             ap_client_confirmed,
             post_bind_peer_confirmed,
             response_completed,
+            None,
+            state.cleanup_confirmed,
         )
         _emit_failure_diagnostics(failure_diagnostics)
         print(FULL_REST_PHONE_FAIL_TOKEN)
@@ -1504,7 +1707,20 @@ def continue_run(capsule, state, temporary_password, window_seconds):
             and socket_observer.target_wires == 1
             and socket_observer.target_completions == 1
             and socket_observer.target_failures == 0
-            and gateway.marked_status_responses == 1
+            and socket_observer.target_socket_closed is True
+            and socket_observer.target_client is None
+            and socket_observer.current_recv_client is None
+            and socket_observer.response_encoding_observed is True
+            and socket_observer.bytes_written
+            == socket_observer.expected_response_wire_length
+            and socket_observer.target_zero_send_events == 0
+            and gateway.routed_requests >= 1
+            and gateway.valid_status_requests == 1
+            and gateway.rest_application_entered == 1
+            and gateway.rest_application_returned == 1
+            and gateway.status_data_completed == 1
+            and gateway.validator_accepted == 1
+            and gateway.validator_rejected == 0
             and gateway.secret_checked is True
             and gateway.secret_cleared is True
             and _store_write_truth(config_manager) == storage_write_baseline
@@ -1521,9 +1737,8 @@ def continue_run(capsule, state, temporary_password, window_seconds):
             memory_after_configuration_adoption,
             memory_after_wifi_factory,
             memory_after_ap_ready,
-            memory_after_ip_bind,
-            memory_after_ip_response,
-            memory_after_ip_cleanup,
+            memory_after_client_association,
+            memory_before_http_start,
             memory_after_proof_before_listen,
             memory_after_http_bind,
             memory_after_response,
@@ -1531,7 +1746,7 @@ def continue_run(capsule, state, temporary_password, window_seconds):
         )
         _require(
             type(memory_before_http_start) is int
-            and memory_before_http_start >= 40 * 1024,
+            and memory_before_http_start >= MINIMUM_FREE_HEAP_BYTES,
             "pre-bind heap boundary was not retained",
         )
         _require(
@@ -1558,6 +1773,8 @@ def continue_run(capsule, state, temporary_password, window_seconds):
             ap_client_confirmed,
             post_bind_peer_confirmed,
             response_completed,
+            None,
+            state.cleanup_confirmed,
         )
         _emit_failure_diagnostics(failure_diagnostics)
         print(FULL_REST_PHONE_FAIL_TOKEN)
@@ -1570,21 +1787,57 @@ def continue_run(capsule, state, temporary_password, window_seconds):
         "ap_ip": AP_IP,
         "url": STATUS_URL,
         "clients_confirmed": 1,
-        "association_confirmed_before_rest": True,
+        "association_confirmed_before_product_imports": True,
         "association_confirmed_after_bind": True,
-        "link_probe_url": "http://192.168.4.1:8080/api/v1/phase8-link-check",
-        "link_peer_ip": capsule.ip_peer,
-        "link_probe_completed_responses": capsule.probe_completed,
-        "link_probe_rejected_requests": capsule.probe_rejected,
-        "link_probe_cleanup_confirmed": capsule.stage1_cleanup_confirmed,
+        "http_listener_count": 1,
+        "http_listener_port": 80,
+        "listener_factory_returned": (
+            observed_socket_factory.factory_returned
+        ),
+        "listener_setblocking_returned": (
+            observed_socket_factory.setblocking_returned
+        ),
+        "listener_bind_returned": observed_socket_factory.bind_returned,
+        "listener_listen_returned": observed_socket_factory.listen_returned,
         "single_wifi_lifetime_confirmed": True,
+        "routed_requests": gateway.routed_requests,
         "valid_status_requests": gateway.valid_status_requests,
+        "rest_application_entered": gateway.rest_application_entered,
+        "rest_application_returned": gateway.rest_application_returned,
+        "status_data_completed": gateway.status_data_completed,
         "successful_status_responses": gateway.successful_status_responses,
-        "marked_status_responses": gateway.marked_status_responses,
+        "status_validator_accepted": gateway.validator_accepted,
+        "status_validator_rejected": gateway.validator_rejected,
         "rejected_requests": gateway.rejected_requests,
         "valid_peer_ip": valid_peer_ip,
+        "http_accept_actions": observed_accept_actions,
+        "http_accepted": socket_observer.accepted,
+        "listener_errno": observed_socket_factory.listener_errno,
+        "http_recv_actions": observed_recv_actions,
+        "http_send_actions": observed_send_actions,
+        "target_send_attempts": socket_observer.send_attempts,
+        "target_successful_send_calls": (
+            socket_observer.successful_send_calls
+        ),
+        "target_bytes_written": socket_observer.bytes_written,
+        "target_send_would_blocks": socket_observer.send_would_blocks,
+        "peer_eof_events": socket_observer.peer_eof_events,
+        "target_zero_send_events": socket_observer.target_zero_send_events,
+        "client_disconnect_observed": bool(
+            socket_observer.peer_eof_events
+            or socket_observer.target_zero_send_events
+        ),
+        "response_encoding_observed": (
+            socket_observer.response_encoding_observed
+        ),
+        "response_body_length": socket_observer.response_body_length,
+        "expected_response_wire_length": (
+            socket_observer.expected_response_wire_length
+        ),
+        "target_socket_closed": socket_observer.target_socket_closed,
         "completed_responses": completed_responses,
         "observed_http_timeouts": observed_timeouts,
+        "write_timeout": False,
         "target_wire_completions": target_wire_completions,
         "response_completed": True,
         "status_body_validated": True,
@@ -1598,6 +1851,8 @@ def continue_run(capsule, state, temporary_password, window_seconds):
         "heater_requested_on": False,
         "heater_request_revision": 0,
         "protocol_calls": 0,
+        "client_connection_closed": True,
+        "cleanup_success": True,
         "http_cleanup_confirmed": True,
         "socket_observer_cleanup_confirmed": True,
         "rest_cleanup_confirmed": True,
@@ -1618,9 +1873,9 @@ def continue_run(capsule, state, temporary_password, window_seconds):
         ),
         "memory_after_wifi_factory": memory_after_wifi_factory,
         "memory_after_ap_ready": memory_after_ap_ready,
-        "memory_after_ip_bind": memory_after_ip_bind,
-        "memory_after_ip_response": memory_after_ip_response,
-        "memory_after_ip_cleanup": memory_after_ip_cleanup,
+        "memory_after_client_association": (
+            memory_after_client_association
+        ),
         "memory_before_http_start": memory_before_http_start,
         "memory_after_proof_before_listen": memory_after_proof_before_listen,
         "memory_after_http_bind": memory_after_http_bind,

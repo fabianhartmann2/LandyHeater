@@ -1,8 +1,9 @@
 # Landy Heater — Software Architecture
 
 **Version:** 1.1  
-**Status:** Phase-8 components implemented; minimal frozen AP/HTTP phone path
-passed; full product target acceptance open  
+**Status:** Phase-8 components implemented; single-listener full-product
+harness host-validated; DFR0654 target capacity-blocked; target acceptance open
+
 **Runtime:** MicroPython on ESP32
 
 ## 1. Architectural goals
@@ -141,7 +142,12 @@ those phases, but the responsibility boundaries must remain.
 
 ## 4. Hardware abstraction
 
-`board_config.py` is the only place that should need modification for a different ESP32 board.
+`board_config.py` shall be the authoritative source for a selected board
+profile. The current DFR0654 implementation still contains explicit identity
+guards in RX-only transport, capture/loopback tools, target runners and tests;
+the DFR0975-U migration must make those guards profile-aware rather than only
+changing pin constants. Board-specific safety validation remains explicit and
+fail-closed.
 
 Example configuration categories:
 
@@ -1013,3 +1019,22 @@ used a fixed probe handler instead of the complete application/configuration
 closure, the full P1 product target acceptance remains open. Product
 `boot.py`/`main.py` stays passive and Web UI implementation is not released
 until that combined acceptance passes.
+
+The active full-product acceptance harness now uses exactly one HTTP listener.
+Its first stage starts the production AP and confirms direct address plus one
+associated client without importing HTTP or opening a socket. The complete
+product closure then binds one production server to `192.168.4.1:80`; proof
+and the fail-closed request gate are composed after raw bind and before
+`listen`/`accept`. One deliberate `GET /api/v1/status` is the only IPv4/TCP
+and product-response proof. There is no separate port-8080 reachability
+listener, browser redirect, Refresh flow or diagnostic HTTP response, and the
+real RestApplication response is not modified by the observer.
+
+The latest DFR0654 run reached the single-listener path but retained only
+32,880 bytes at the proof-before-listen checkpoint and fell below the required
+32 KiB at the following checkpoint before READY. This is not a Phase-8 pass.
+The selected DFR0975-U N16R8 successor requires a separate ESP32-S3/Octal-PSRAM
+firmware and board profile; no classic-ESP32 image or pin assumption transfers.
+The bounded state and migration boundary are recorded in
+`captures/2026-08-30-phase8-single-listener-project-state.md` and
+`DFR0975U_MIGRATION.md`.

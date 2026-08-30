@@ -7,26 +7,30 @@ Node-RED auf einen ESP32 mit MicroPython.
 
 Dieses Paket folgt weiterhin dem ursprünglich festgelegten Phasenplan 0–13.
 Die Komponenten von **Phase 8 – REST API** sind implementiert und unter
-CPython geprüft. Der isolierte, hardwarefreie USB-only-Board-Smoke bestand auf
-dem DFR0654 mit 4/4 Durchläufen, 12/12 abgeschlossenen Fake-Socket-Antworten
-und 42.288 Bytes freiem Heap nach dem Messlauf. Auf der anschließend geflashten
-Frozen-Kapazitätsfirmware bestand außerdem ein AP-first/lazy-HTTP-Handytest:
-ein echter Handy-Peer mit `192.168.4.2`, eine validierte Anfrage und zwei
-vollständig geschriebene Antworten bei mindestens 75.072 Bytes freiem Heap an
-allen gemessenen Punkten. Diese Abnahme umfasst den produktiven WLAN- und
-HTTP-Adapter, aber nur einen festen Read-only-Prüfhandler. Sie ist deshalb
-keine Abnahme der gemeinsamen `RestApplication`-/ConfigManager-/Storage-
-Produktclosure. Deren P1-Zielabnahme bleibt offen; der frühere dynamische
-Heapblocker ist durch den engen Frozen-Test noch nicht als gelöst nachgewiesen.
-Ein späterer app-only Firmwarestand korrigierte die HTTP-Schreibfrist und
-bestand erneut Safe-Boot und Readback. Der gestufte Full-REST-Test bewies
-daraufhin den IPv4-/TCP-Pfad am Port 8080 und band den finalen Port 80, erreichte
-aber noch keine vollständige REST-Antwort: ein Lauf scheiterte beim ersten
-Socket-Accept, ein weiterer nach Verlust der Handy-WLAN-Verbindung. Der genaue,
-geheimnisfreie Zwischenstand steht in
+CPython geprüft. Der isolierte USB-only-Board-Smoke und ein enger
+Frozen-AP/HTTP-Handytest bestanden auf dem DFR0654; letzterer verwendete jedoch
+nur einen festen Read-only-Prüfhandler und ist keine Abnahme der gemeinsamen
+`RestApplication`-/ConfigManager-/Storage-Produktclosure.
+
+Der aktuelle Zielrunner wurde deshalb auf den architekturkonformen
+Minimalpfad reduziert: AP und genau einen Handy-Client bestätigen, die volle
+Produktclosure lazy laden und genau einen produktiven Listener auf Port 80 für
+`GET /api/v1/status` verwenden. Port 8080, Browser-Refreshes, Redirects und
+zusätzliche Probe-Requests gehören nicht mehr zur Baseline. Die fokussierte
+Hostmatrix deckt 24 getrennte Erfolgs- und Fehlergrenzen ab. Auf dem DFR0654
+erreichte dieser Lauf den Listenerpfad, hatte vor `listen` aber nur 32.880 Bytes
+freien Heap; der folgende Pflicht-Checkpoint fiel vor READY unter 32 KiB. Es
+wurde daher keine Produktanfrage zugelassen und kein Phase-8-PASS erzeugt.
+
+Als Nachfolgeboard ist ein DFRobot FireBeetle 2 ESP32-S3-U
+**DFR0975-U N16R8** mit 16 MB Flash, 8 MB PSRAM und externer Antenne ausgewählt.
+Die S3-Migration ist noch nicht implementiert und benötigt ein eigenes
+Boardprofil, neue Pins und eine neue Firmware. Der vollständige Stand ist in
+`captures/2026-08-30-phase8-single-listener-project-state.md` festgehalten;
+die älteren Versuche bleiben historische Evidenz in
 `captures/2026-08-25-phase8-full-rest-progress.md`.
-`boot.py` und `main.py` bleiben bewusst passiv; **Phase 9 – Web UI ist noch
-nicht freigegeben**.
+`boot.py` und `main.py` bleiben bewusst passiv; **Phase 8 ist weiterhin offen
+und Phase 9 – Web UI ist nicht freigegeben**.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
 Innerhalb von Phase 5 sind TimeService, Scheduler, der DS3231-Registeradapter,
@@ -81,7 +85,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen: UTC-Zeitkern, feste Offsets, `Europe/Zurich` mit CET/CEST, Scheduler, verriegelte DS3231/I2C-Hülle, RTC-Brücke und Controller-Gateway; USB-only auf dem realen MicroPython-Ziel bestanden, reale RTC-Abnahme folgt in Phase 13 |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
-| **8** | **REST API** | **Komponenten implementiert: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; isolierter REST-Smoke 4/4 sowie minimaler Frozen-AP+HTTP-Handytest bestanden; gestufter Full-REST-Test bis Link-Probe und finalem Bind vorgedrungen, vollständige `RestApplication`-/ConfigManager-/Storage-Produktzielabnahme weiterhin offen** |
+| **8** | **REST API** | **Komponenten implementiert: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; isolierter REST-Smoke und minimaler Frozen-AP+HTTP-Handytest bestanden; Ein-Listener-Full-Product-Runner hostseitig 24/24 fokussiert geprüft, DFR0654 aber am 32-KiB-Zielgate blockiert; S3/PSRAM-Migration und vollständige Produktzielabnahme offen** |
 | 9 | Web UI | Nicht freigegeben, bis die gemeinsame Wi-Fi-/HTTP-/Produktclosure die Zielabnahme besteht |
 | 10 | Setup Assistant | Nicht begonnen |
 | 11 | Events / Diagnostics / Capture Export | Einzelne Capture-/Diagnostikbausteine aus Sicherheitsgründen vorgezogen; Phase nicht abgeschlossen |
@@ -685,6 +689,18 @@ eager-/ready-only-Nicht-Abnahmen bleiben unverändert in
 `captures/2026-08-11-phase8-wifi-http-capacity-blocked.md`. `boot.py` und
 `main.py` starten weiterhin weder REST noch Socket oder Funk automatisch.
 
+Der aktuelle Full-Product-Runner verwendet bewusst nur noch **einen**
+HTTP-Listener auf `192.168.4.1:80`. Seine erste Stufe bestätigt ausschließlich
+AP-Adresse und Clientassoziation und öffnet keinen Socket. Erst danach werden
+die vollständige Produktclosure und der Produktionsadapter geladen; der eine
+reale `GET /api/v1/status` ist zugleich IPv4-/TCP-, Routing-,
+RestApplication-, Wire- und Close-Beweis. Auf dem DFR0654 blieb dieser Aufbau
+vor `listen` mit 32.880 Bytes nur 112 Bytes über dem 32-KiB-Gate und fiel am
+folgenden Pflicht-Checkpoint vor READY darunter. Deshalb ist Phase 8 weiterhin
+offen und die Migration auf den ausgewählten DFR0975-U N16R8 vorgesehen.
+Details und unveränderte Sicherheitsgrenzen stehen in
+`captures/2026-08-30-phase8-single-listener-project-state.md`.
+
 ## Umfang des Protokoll-Service
 
 `protocol/autoterm_service.py` ist der konkrete Adapter zwischen dem rohen
@@ -770,6 +786,7 @@ landy-heater/
 ├── PROTOCOL.md
 ├── README.md
 ├── FIREBEETLE_BRINGUP.md
+├── DFR0975U_MIGRATION.md
 ├── board_config.py
 ├── boot.py
 ├── main.py
@@ -810,6 +827,8 @@ landy-heater/
 │   ├── 2026-08-11-phase8-frozen-phone-http-esp32-smoke.md
 │   ├── 2026-08-11-phase8-rest-esp32-smoke.md
 │   ├── 2026-08-11-phase8-wifi-http-capacity-blocked.md
+│   ├── 2026-08-25-phase8-full-rest-progress.md
+│   ├── 2026-08-30-phase8-single-listener-project-state.md
 │   ├── 2026-08-09-heater-off-status.md
 │   └── 2026-08-09-heater-init-response.md
 ├── protocol/
@@ -903,14 +922,22 @@ landy-heater/
 
 Bestätigt beziehungsweise vorgesehen sind:
 
-- DFRobot FireBeetle 2 ESP32-E V1.0, SKU DFR0654
-- ESP32-WROOM-32E mit 4 MB Flash
-- MicroPython-Ziel `ESP32_GENERIC`, stabile Version 1.28.0
-- UART2: TX GPIO17 (`D10/17`), RX GPIO16 (`D11/16`)
+- bisher bestätigtes Board: DFRobot FireBeetle 2 ESP32-E V1.0, SKU DFR0654
+- ausgewähltes Nachfolgeboard: DFRobot FireBeetle 2 ESP32-S3-U,
+  DFR0975-U N16R8 mit 16 MB Flash, 8 MB PSRAM und externer Antenne
+- bisher bestätigtes MicroPython-Ziel `ESP32_GENERIC`, stabile Version 1.28.0;
+  der neue S3-Build und das Boardprofil sind noch nicht implementiert
+- bisherige DFR0654-UART2-Belegung: TX GPIO17 (`D10/17`),
+  RX GPIO16 (`D11/16`); auf dem S3 vollständig neu zu validieren
 - geeigneter 5-V-↔-3,3-V-Pegelwandler für die Autoterm-UART
 - drei DS18B20-Sensoren
 - DS3231-RTC
 - geeigneter DC/DC-Wandler vom 12-V-Bordnetz
+
+Die DFR0975-U-Auswahl und die zwingend getrennte S3-Firmware-, Pin-, PSRAM-,
+Recovery- und Abnahmefolge sind in `DFR0975U_MIGRATION.md` festgehalten. Bis
+das neue Board eingetroffen und geprüft ist, bleiben Konfiguration und
+Firmware wahrheitsgemäß auf dem DFR0654-Stand.
 
 Die UART-Pins sind entsprechend der offiziellen DFR0654-Dokumentation in
 `board_config.py` eingetragen. Sensor- und RTC-Pins bleiben auf `None`. Für
@@ -1087,13 +1114,15 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
    USB-only 4/4 bestanden. Der echte AP-first/lazy-HTTP-Lauf auf der Frozen-
    Firmware bestand mit `PHASE8_PHONE_HTTP_SMOKE_PASS_V1`, einem Handy-Peer und
    vollständiger Antwort; er umfasste aber nur den festen Read-only-Prüfhandler.
-   Die spätere gestufte Full-REST-Fassung bewies den Handy-IP-/TCP-Pfad am
-   Port 8080 und band anschließend den produktiven Port 80, erreichte aber
-   wegen eines Accept-Fehlers beziehungsweise einer verlorenen
-   WLAN-Verbindung noch keine vollständige Zielantwort. Die vollständige
-   `RestApplication`-/ConfigManager-/Storage-Produktzielabnahme bleibt daher
-   offen. Als Nächstes folgt genau ein neuer, hashgebundener USB-only-
-   Diagnoselauf; nur dessen vollständiger Post-Cleanup-PASS zählt.
+   Die Full-REST-Abnahme ist inzwischen auf einen einzigen produktiven
+   Port-80-Listener ohne vorherige HTTP-Probe reduziert und hostseitig an 24
+   getrennten Grenzen geprüft. Auf dem DFR0654 scheiterte der reale Aufbau vor
+   READY am folgenden 32-KiB-Heapcheckpoint; es wurde keine Anfrage zugelassen.
+   Die vollständige `RestApplication`-/ConfigManager-/Storage-
+   Produktzielabnahme bleibt deshalb offen. Als Nächstes folgt der sichere
+   Bring-up des ausgewählten DFR0975-U N16R8, danach genau ein neuer
+   hashgebundener Ein-Listener-Abnahmelauf; nur dessen vollständiger
+   Post-Cleanup-PASS zählt.
    `boot.py`, `main.py` und der produktive Runtime-Start bleiben passiv.
 9. **Phase 9 – Web UI ist nicht freigegeben.** Session-PATCH, Events,
    Live-Protokolllog und Exporte werden ebenfalls nicht nachträglich in Phase 8

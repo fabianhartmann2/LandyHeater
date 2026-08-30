@@ -1,5 +1,11 @@
 # FireBeetle DFR0654 – sicherer Bring-up
 
+> **Historischer DFR0654-Pfad:** Diese Anleitung, ihre Pins und ihre Firmware
+> gelten ausschließlich für den klassischen ESP32 DFR0654. Als Nachfolgeboard
+> ist ein DFR0975-U N16R8 ausgewählt; dessen noch ausstehender S3-Bring-up ist
+> getrennt in `DFR0975U_MIGRATION.md` geplant. Keine DFR0654-Firmware und keine
+> Pinannahme auf den ESP32-S3 übertragen.
+
 ## Bestätigtes Boardprofil
 
 Das Board wurde über den vorhandenen Pin `D11/16` als **DFRobot DFR0654,

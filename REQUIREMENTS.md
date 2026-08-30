@@ -1,8 +1,10 @@
 # Landy Heater — Requirements Specification
 
 **Version:** 1.1  
-**Status:** Phase-8 REST component profile implemented; minimal frozen
-AP/HTTP phone path passed; full product target acceptance open  
+**Status:** Phase-8 REST component profile implemented; single-listener
+full-product harness host-validated; DFR0654 capacity-blocked; target
+acceptance open
+
 **Target:** ESP32 + MicroPython  
 **Project:** Migration of the existing Raspberry Pi / Node-RED Autoterm/Planar heater controller
 
@@ -32,7 +34,11 @@ Priorities, in order:
 
 - Language: MicroPython
 - Hardware family: ESP32
-- Exact ESP32 model: not yet fixed
+- Validated prototype: DFRobot DFR0654 / classic ESP32, 4 MB flash, no PSRAM
+- Selected successor pending validation: DFRobot DFR0975-U N16R8 / ESP32-S3,
+  16 MB flash and 8 MB Octal PSRAM
+- Exact production board is not fixed until the successor passes target
+  acceptance
 - Hardware-specific pins and peripheral IDs must therefore be isolated in `board_config.py`
 - One UART is required for the heater in version 1
 - One 1-Wire bus is required for three DS18B20 sensors
@@ -666,11 +672,21 @@ verified before importing and starting the HTTP parser/JSON/socket closure.
 HTTP shall be loaded lazily only after the AP has a confirmed direct IP. This
 AP-first order is required, but is not alone sufficient for acceptance.
 
+The Phase-8 full-product target acceptance shall use exactly one HTTP listener
+bound to `192.168.4.1:80`. AP readiness and one associated client shall be
+proven without a diagnostic HTTP listener. The single deliberate
+`GET /api/v1/status` request shall provide the IPv4/TCP, routing,
+RestApplication, encoded-wire and clean-close proof. Port 8080, redirects,
+Refresh navigation and additional link-check requests are not acceptance
+prerequisites.
+
 At least 32 KiB free heap shall remain at every measured checkpoint: after the
 intended product imports, after Wi-Fi factory construction, after AP readiness,
-after HTTP import and bind, after a complete request/response, and after
-ordered cleanup. HTTP sockets shall close before Wi-Fi owners. Both interfaces,
-the temporary approval and all leases shall be inactive afterward.
+after client association, after configuration adoption, before HTTP start,
+after proof composition but before listen, after HTTP bind/listen, after a
+complete request/response, and after ordered cleanup. HTTP sockets shall close
+before Wi-Fi owners. Both interfaces, the temporary approval and all leases
+shall be inactive afterward.
 
 Separate Wi-Fi-only and REST-with-fake-socket passes shall never be combined on
 paper into a joint pass. One target run shall use the intended Configuration,
@@ -687,6 +703,10 @@ sample heap separately between the completed response and cleanup. Freezing
 the project modules changes the premise of the earlier dynamic-import heap
 failure, but does not by itself prove the full composition. Its P1 target
 acceptance remains open and shall not enable `main.py` or release Phase 9.
+
+The subsequent single-listener DFR0654 run measured 32,880 bytes before listen
+and fell below the same 32-KiB floor at the following checkpoint before READY.
+It therefore remains a failed capacity measurement, not a product acceptance.
 
 ## 28. Web interface
 

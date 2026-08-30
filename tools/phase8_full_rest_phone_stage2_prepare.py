@@ -1,6 +1,6 @@
 """Disposable full-product preparation before the final Phase-8 bind.
 
-Importing is inert.  ``prepare`` adopts the already-proven AP, provisions the
+Importing is inert.  ``prepare`` adopts the already-associated AP, provisions the
 isolated production stores, builds and starts the real REST security runtime,
 and constructs an inert production HTTP server over the persistent safe seam.
 No socket is opened here.  The coordinator removes this module and collects
@@ -317,8 +317,8 @@ def prepare(capsule, state, temporary_password, window_seconds):
 
     context.failure_stage = "preflight_wifi"
     _require(
-        capsule.stage1_cleanup_confirmed is True
-        and capsule.stage1_server is None
+        capsule.association_confirmed is True
+        and capsule.associated_clients == 1
         and capsule.network_manager is not None
         and capsule.port is not None
         and getattr(capsule.network_manager, "running", None) is True

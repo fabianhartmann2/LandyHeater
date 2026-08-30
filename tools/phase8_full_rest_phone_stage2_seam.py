@@ -1,6 +1,6 @@
 """Small persistent ownership seam for the late Phase-8 REST stages.
 
-This VFS module is imported only after the Stage-1 DHCP/TCP proof.  The
+This VFS module is imported only after the Stage-1 AP-association proof.  The
 disposable preparation module publishes only frozen production objects into
 the preallocated context below.  The production HTTP adapter then performs
 the real bind through this socket facade.  Its listen call loads and seals the
@@ -13,7 +13,7 @@ import os as _os
 
 AP_IP = "192.168.4.1"
 MINIMUM_FREE_HEAP_BYTES = 32 * 1024
-MINIMUM_PRE_BIND_HEAP_BYTES = 40 * 1024
+MINIMUM_PRE_BIND_HEAP_BYTES = MINIMUM_FREE_HEAP_BYTES
 _PROOF_MODULE = "tools.phase8_full_rest_phone_stage2"
 _DIAGNOSTIC_ERRNO_LIMIT = 65535
 _ABORTED_ACCEPT_ERRNO = 113

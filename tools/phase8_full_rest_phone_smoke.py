@@ -1,7 +1,7 @@
-"""Tiny owner coordinating lazy link proof and full-product REST stages.
+"""Tiny owner coordinating AP association and full-product REST stages.
 
 Import is inert.  The coordinator preallocates the ownership capsule, unloads
-the link-proof module before importing the full stage, and retains cleanup
+the AP-only module before importing the full stage, and retains cleanup
 authority until the full stage explicitly claims the live AP lifetime.
 """
 
@@ -11,18 +11,13 @@ import sys as _sys
 
 FULL_REST_PHONE_CONFIRMATION = "PHASE8_FULL_REST_PHONE_CONFIRM_V1"
 FULL_REST_PHONE_AP_READY_TOKEN = "PHASE8_FULL_REST_PHONE_AP_READY_V1"
-FULL_REST_PHONE_IP_READY_TOKEN = "PHASE8_FULL_REST_PHONE_IP_READY_V1"
 FULL_REST_PHONE_CLIENT_TOKEN = "PHASE8_FULL_REST_PHONE_CLIENT_SEEN_V1"
-FULL_REST_PHONE_IP_PASS_TOKEN = "PHASE8_FULL_REST_PHONE_IP_PASS_V1"
 FULL_REST_PHONE_READY_TOKEN = "PHASE8_FULL_REST_PHONE_READY_V1"
 FULL_REST_PHONE_PASS_TOKEN = "PHASE8_FULL_REST_PHONE_SMOKE_PASS_V1"
 FULL_REST_PHONE_FAIL_TOKEN = "PHASE8_FULL_REST_PHONE_SMOKE_FAIL_V1"
 
 AP_SSID = "Landy Heater"
 AP_IP = "192.168.4.1"
-IP_CHECK_PORT = 8080
-IP_CHECK_PATH = "/api/v1/phase8-link-check"
-IP_CHECK_URL = "http://192.168.4.1:8080/api/v1/phase8-link-check"
 STATUS_PATH = "/api/v1/status"
 STATUS_URL = "http://192.168.4.1/api/v1/status"
 
@@ -40,6 +35,7 @@ _LATE_ONLY_MODULES = (
     _STAGE2_PREPARE_MODULE,
     _STAGE2_MODULE,
     _STAGE2_DIAGNOSTICS_MODULE,
+    "adapters.micropython_http_server",
     "adapters.config_file_store",
     "app.application_state",
     "app.configuration_bootstrap",
@@ -55,11 +51,12 @@ _LATE_ONLY_MODULES = (
     "protocol.autoterm_protocol",
     "services.config_manager",
     "services.configuration_errors",
+    "services.http_protocol",
     "services.rest_rate_limiter",
     "services.rest_security",
+    "services.strict_json",
     "services.time_service",
 )
-_RETAINED_STAGE1_SOCKET_FACTORY = None
 
 
 def _support_require(condition, message):
@@ -253,63 +250,25 @@ class _OwnershipCapsule:
         "memory_before",
         "memory_after_wifi_factory",
         "memory_after_ap_ready",
-        "memory_after_ip_bind",
-        "memory_after_ip_response",
-        "memory_after_ip_cleanup",
-        "ip_peer",
+        "memory_after_client_association",
+        "association_confirmed",
+        "associated_clients",
         "stage1_failure_stage",
         "stage1_client_seen",
         "stage1_ap_clients",
         "stage1_action",
-        "stage1_http_started",
-        "stage1_http_closed",
-        "stage1_http_faulted",
-        "stage1_http_clients",
-        "stage1_http_accepted",
-        "stage1_http_completed",
-        "stage1_http_parse_errors",
-        "stage1_http_timeouts",
-        "stage1_http_socket_errors",
-        "stage1_http_last_error",
-        "stage1_http_reentries",
-        "stage1_accept_errno",
-        "stage1_handler_valid",
-        "stage1_handler_rejected",
-        "stage1_handler_responses",
-        "stage1_socket_factory",
-        "probe_completed",
-        "probe_rejected",
-        "stage1_server",
-        "stage1_cleanup_confirmed",
         "owner_state",
     )
 
     def __init__(self):
-        for name in _OwnershipCapsule.__slots__[:-5]:
+        for name in _OwnershipCapsule.__slots__:
             setattr(self, name, None)
+        self.association_confirmed = False
+        self.associated_clients = -1
         self.stage1_failure_stage = "stage1_preflight"
         self.stage1_client_seen = False
         self.stage1_ap_clients = -1
         self.stage1_action = "none"
-        self.stage1_http_started = None
-        self.stage1_http_closed = None
-        self.stage1_http_faulted = None
-        self.stage1_http_clients = -1
-        self.stage1_http_accepted = -1
-        self.stage1_http_completed = -1
-        self.stage1_http_parse_errors = -1
-        self.stage1_http_timeouts = -1
-        self.stage1_http_socket_errors = -1
-        self.stage1_http_last_error = "none"
-        self.stage1_http_reentries = -1
-        self.stage1_accept_errno = -1
-        self.stage1_handler_valid = -1
-        self.stage1_handler_rejected = -1
-        self.stage1_handler_responses = -1
-        self.probe_completed = 0
-        self.probe_rejected = 0
-        self.stage1_server = None
-        self.stage1_cleanup_confirmed = False
         self.owner_state = "coordinator"
 
 
@@ -348,11 +307,11 @@ def _unload_stage1(module):
             except AttributeError:
                 pass
     if _STAGE1_MODULE in _sys.modules:
-        raise RuntimeError("link stage remained in the module registry")
+        raise RuntimeError("AP stage remained in the module registry")
     if package is not None and hasattr(
         package, "phase8_full_rest_phone_stage1"
     ):
-        raise RuntimeError("link stage remained on its parent package")
+        raise RuntimeError("AP stage remained on its parent package")
     return None
 
 
@@ -377,7 +336,9 @@ def _unload_module(module, module_name, attribute_name):
 def _require_cold_late_modules(registry):
     for module_name in _LATE_ONLY_MODULES:
         if module_name in registry:
-            raise RuntimeError("a late product module was resident before link proof")
+            raise RuntimeError(
+                "a late product module was resident before AP association"
+            )
     return True
 
 
@@ -411,66 +372,8 @@ def _require_proof_cold():
     return True
 
 
-def _close_stage1_server(server):
-    if server is None:
-        return True
-    for _ in range(2):
-        try:
-            server.deinit()
-        except BaseException:
-            pass
-        try:
-            snapshot = server.snapshot()
-            if (
-                snapshot.get("closed") is True
-                and snapshot.get("started") is False
-                and snapshot.get("client_count") == 0
-            ):
-                return True
-        except BaseException:
-            pass
-    return False
-
-
-def _close_stage1_socket_factory(factory):
-    if factory is None:
-        return True
-    close_retained = getattr(factory, "close_retained", None)
-    if not callable(close_retained):
-        return False
-    for _ in range(3):
-        try:
-            if close_retained() is True:
-                return True
-        except BaseException:
-            pass
-    return False
-
-
-def _recover_retained_stage1_socket_factory():
-    global _RETAINED_STAGE1_SOCKET_FACTORY
-    factory = _RETAINED_STAGE1_SOCKET_FACTORY
-    if factory is None:
-        return True
-    if not _close_stage1_socket_factory(factory):
-        return False
-    _RETAINED_STAGE1_SOCKET_FACTORY = None
-    return True
-
-
 def _outer_cleanup(capsule):
-    global _RETAINED_STAGE1_SOCKET_FACTORY
-    clean = _close_stage1_server(capsule.stage1_server)
-    capsule.stage1_server = None
-    socket_factory = capsule.stage1_socket_factory
-    factory_clean = _close_stage1_socket_factory(socket_factory)
-    if factory_clean:
-        capsule.stage1_socket_factory = None
-        if _RETAINED_STAGE1_SOCKET_FACTORY is socket_factory:
-            _RETAINED_STAGE1_SOCKET_FACTORY = None
-    elif socket_factory is not None:
-        _RETAINED_STAGE1_SOCKET_FACTORY = socket_factory
-    clean = factory_clean and clean
+    clean = True
     support = capsule.support
     if support is not None:
         try:
@@ -495,10 +398,6 @@ def _outer_cleanup(capsule):
             and getattr(wifi_module, "_WIFI_LEASE_POISONED", None) is False
             and clean
         )
-    try:
-        capsule.stage1_cleanup_confirmed = clean
-    except BaseException:
-        clean = False
     return bool(clean)
 
 
@@ -542,21 +441,22 @@ def _load_stage2_diagnostics():
     return phase8_full_rest_phone_stage2_diagnostics
 
 
-def _emit_outer_failure(capsule, state, snapshot, stage):
+def _emit_outer_failure(
+    capsule, state, snapshot, stage, cleanup_confirmed
+):
     try:
         diagnostics = _load_stage2_diagnostics()
         context = None if state is None else state.context
         after_cleanup = diagnostics.memory_free_no_collect()
         heaps = (
             capsule.memory_before,
-            None if context is None else context.memory_after_product_imports,
-            None if context is None else context.memory_after_configuration_adoption,
             capsule.memory_after_wifi_factory,
             capsule.memory_after_ap_ready,
-            capsule.memory_after_ip_bind,
-            capsule.memory_after_ip_response,
-            capsule.memory_after_ip_cleanup,
+            capsule.memory_after_client_association,
+            None if context is None else context.memory_after_product_imports,
+            None if context is None else context.memory_after_configuration_adoption,
             None if context is None else context.memory_before_http_start,
+            None if context is None else context.memory_after_proof_before_listen,
             None,
             None,
             None,
@@ -567,33 +467,17 @@ def _emit_outer_failure(capsule, state, snapshot, stage):
             snapshot,
             None if state is None else state.socket_factory,
             None if context is None else context.gateway,
-            capsule.ip_peer is not None,
+            capsule.association_confirmed is True,
             False,
             False,
             heaps,
             (
-                (
-                    capsule.stage1_http_started,
-                    capsule.stage1_http_closed,
-                    capsule.stage1_http_faulted,
-                    capsule.stage1_http_clients,
-                    capsule.stage1_http_accepted,
-                    capsule.stage1_http_completed,
-                    capsule.stage1_http_parse_errors,
-                    capsule.stage1_http_timeouts,
-                    capsule.stage1_http_socket_errors,
-                    capsule.stage1_http_last_error,
-                    capsule.stage1_http_reentries,
-                ),
                 capsule.stage1_client_seen,
                 capsule.stage1_ap_clients,
                 capsule.stage1_action,
-                capsule.stage1_accept_errno,
-                capsule.stage1_handler_valid,
-                capsule.stage1_handler_rejected,
-                capsule.stage1_handler_responses,
-                capsule.stage1_cleanup_confirmed,
+                capsule.association_confirmed,
             ),
+            cleanup_confirmed,
         )
         diagnostics.emit(values)
     except BaseException:
@@ -617,8 +501,6 @@ def run(
         raise RuntimeError("exact Phase-8 full REST confirmation is required")
     password = _validate_password(temporary_password)
     window_seconds = _validate_window_seconds(window_seconds)
-    if not _recover_retained_stage1_socket_factory():
-        raise RuntimeError("retained Stage-1 listener cleanup failed")
     capsule = _OwnershipCapsule()
     capsule.support = _sys.modules.get(__name__)
     if capsule.support is None:
@@ -677,7 +559,7 @@ def run(
         if state is not None and state.context.failure_stage is not None:
             failure_stage = state.context.failure_stage
         elif (
-            capsule.ip_peer is None
+            capsule.association_confirmed is not True
             and capsule.stage1_failure_stage is not None
         ):
             failure_stage = capsule.stage1_failure_stage
@@ -704,16 +586,23 @@ def run(
                 if primary is None:
                     primary = error
         if capsule.owner_state != "released":
+            fallback_attempted = seam is not None and state is not None
             if seam is not None and state is not None:
                 try:
                     cleanup_ok = seam.fallback_cleanup(capsule, state)
                 except BaseException:
                     cleanup_ok = False
             if not cleanup_ok:
-                cleanup_ok = _outer_cleanup(capsule)
+                # Always attempt the radio fail-safe, but it cannot certify a
+                # failed HTTP/socket/REST cleanup performed by the full seam.
+                radio_cleanup_ok = _outer_cleanup(capsule)
+                if not fallback_attempted:
+                    cleanup_ok = radio_cleanup_ok
 
     if outer_diagnostics:
-        _emit_outer_failure(capsule, state, failure_snapshot, failure_stage)
+        _emit_outer_failure(
+            capsule, state, failure_snapshot, failure_stage, cleanup_ok
+        )
     print(FULL_REST_PHONE_FAIL_TOKEN)
     if primary is not None:
         _sanitized_raise(primary)
