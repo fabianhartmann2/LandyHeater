@@ -98,7 +98,11 @@ reported 8 MiB PSRAM, 8,216,128 B GC free, 274,191 B internal free and
 diagnostic file was persisted to the board. Exact evidence is in
 `../../captures/2026-09-01-dfr0975u-first-flash-memory-gate.md`.
 
-The retained artifact does not authorize another erase or flash. USB recovery,
-VFS/storage, S3 UART/level interface, functional radio/DHCP and Phase-8 product
-acceptance remain separate later gates. Internal and DMA headroom must be
-measured again under the bounded WLAN/product load.
+The retained artifact does not authorize another erase or flash. Manual
+`BOOT`/`RST` ROM recovery and isolated VFS/A-B storage subsequently passed;
+automatic USB control-line recovery is not reliable and physical button access
+must remain available. S3 UART/level interface, functional radio/DHCP and
+Phase-8 product acceptance remain separate later gates. Internal and DMA
+headroom must be measured again under the bounded WLAN/product load. Exact
+recovery/storage evidence is in
+`../../captures/2026-09-01-dfr0975u-usb-recovery-storage-gate.md`.

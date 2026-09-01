@@ -10,8 +10,9 @@ closed. A path-bound reproducible MicroPython S3 artifact set is retained
 under `firmware/dfr0975u_n16r8/`. After a fresh hash-bound authorization, the
 complete flash was erased and the verified combined image was written. Passive
 MicroPython identity and separate USB-only GC, PSRAM, internal and
-internal-DMA memory gates passed. Storage, functional radio and Phase-8 target
-acceptance remain open.
+internal-DMA memory gates passed. Manual ROM recovery and isolated real VFS
+A/B storage also passed; automatic USB control-line recovery is not reliable.
+Functional radio and Phase-8 target acceptance remain open.
 
 Official references:
 
@@ -88,7 +89,9 @@ that original board.
 | 16-MiB bootloader, partition table, app, combined image and hashes | retained, statically verified, fully flashed after exact approval and write-verified |
 | PSRAM/internal memory | complete for idle USB-only gate: 8 MiB PSRAM, 8,216,128 B GC free, 274,191 B internal free and 266,475 B internal-DMA free; loaded WLAN gate remains later |
 | Passive boot and exact custom MicroPython identity | complete; MicroPython 1.28.0 and exact machine string confirmed without soft reset |
-| USB recovery, storage, functional radio and Phase-8 HTTP target gates | open |
+| USB recovery | manual `BOOT`/`RST` ROM entry and physical-reset return complete; automatic USB control-line entry/return is unreliable and not accepted |
+| VFS and isolated Phase-6 A/B storage | complete: full 12.9375-MiB VFS, bounded real write/readback, generation/recovery checks and exact cleanup |
+| Functional radio and Phase-8 HTTP target gates | open |
 
 The profile migration intentionally does not generalize the old
 `rx_only_transport`, UART loopback or UART capture path by changing constants.

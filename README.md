@@ -34,7 +34,11 @@ der vollständige Host-Test mit 1046/1046 bestandenen Tests sind abgeschlossen.
 Nach einer neuen hashgebundenen Freigabe wurde der Flash vollständig gelöscht
 und das Combined-Image erfolgreich geschrieben und verifiziert. Passiver
 MicroPython-1.28-USB-Boot, 8-MiB-PSRAM sowie getrennte interne und DMA-fähige
-Speichergates sind bestanden; beide WLAN-Schnittstellen blieben aus. Der
+Speichergates sind bestanden. Auch manueller ROM-Recovery über `BOOT`/`RST`,
+die vollständige 12,9375-MiB-VFS und ein isolierter echter A/B-Storage-
+Roundtrip mit vollständigem Cleanup sind bestätigt; beide WLAN-Schnittstellen
+blieben aus. Der automatische USB-Control-Line-Reset ist auf diesem Board
+hingegen nicht zuverlässig und wird nicht als Recovery-Pfad angenommen. Der
 vollständige Migrationsstand steht in `DFR0975U_MIGRATION.md`; die älteren
 DFR0654-Versuche bleiben historische Evidenz in
 `captures/2026-08-30-phase8-single-listener-project-state.md` und
@@ -95,12 +99,12 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen: UTC-Zeitkern, feste Offsets, `Europe/Zurich` mit CET/CEST, Scheduler, verriegelte DS3231/I2C-Hülle, RTC-Brücke und Controller-Gateway; USB-only auf dem realen MicroPython-Ziel bestanden, reale RTC-Abnahme folgt in Phase 13 |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
-| **8** | **REST API** | **Komponenten implementiert: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; isolierter REST-Smoke und minimaler Frozen-AP+HTTP-Handytest bestanden; Ein-Listener-Full-Product-Runner hostseitig fokussiert geprüft, DFR0654 aber am 32-KiB-Zielgate blockiert; DFR0975-U-Profil, reproduzierbare S3/PSRAM-Artefakte, erster Full-Flash, passiver Boot und USB-only-Speichergate bestanden; vollständige Produktzielabnahme offen** |
+| **8** | **REST API** | **Komponenten implementiert: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; isolierter REST-Smoke und minimaler Frozen-AP+HTTP-Handytest bestanden; Ein-Listener-Full-Product-Runner hostseitig fokussiert geprüft, DFR0654 aber am 32-KiB-Zielgate blockiert; DFR0975-U-Profil, reproduzierbare S3/PSRAM-Artefakte, erster Full-Flash, passiver Boot, Speicher-, Recovery- und VFS/A-B-Storage-Gates bestanden; vollständige Produktzielabnahme offen** |
 | 9 | Web UI | Nicht freigegeben, bis die gemeinsame Wi-Fi-/HTTP-/Produktclosure die Zielabnahme besteht |
 | 10 | Setup Assistant | Nicht begonnen |
 | 11 | Events / Diagnostics / Capture Export | Einzelne Capture-/Diagnostikbausteine aus Sicherheitsgründen vorgezogen; Phase nicht abgeschlossen |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
-| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten einschließlich DFR0975-U USB-only-Speichergate sowie historische DFR0654-UART-Loopback-/RX-Vorarbeiten erledigt; Produktperipherie offen |
+| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten einschließlich DFR0975-U USB-only-Speicher-, manueller Recovery- und VFS/A-B-Storage-Gates sowie historische DFR0654-UART-Loopback-/RX-Vorarbeiten erledigt; Produktperipherie offen |
 
 Vorgezogene Arbeiten aus Phase 11 oder 12 ändern die funktionale
 Phasenzuordnung nicht. Eine Phase gilt außerdem nicht allein wegen vorhandener
@@ -843,6 +847,7 @@ landy-heater/
 │   ├── 2026-09-01-dfr0975u-preflash-gate.md
 │   ├── 2026-09-01-dfr0975u-first-flash-memory-gate.md
 │   ├── 2026-09-01-dfr0975u-usb-identity.md
+│   ├── 2026-09-01-dfr0975u-usb-recovery-storage-gate.md
 │   ├── 2026-08-09-heater-off-status.md
 │   └── 2026-08-09-heater-init-response.md
 ├── firmware/
@@ -1111,12 +1116,15 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
 4. Passiver USB-Boot und exakte MicroPython-/Boardidentität sind bestätigt.
    GC, 8-MiB-PSRAM, interner 8-Bit-Heap und DMA-fähiger interner Heap haben
    ihre getrennten Gates bestanden; STA und AP blieben deaktiviert.
-5. Als Nächstes folgen einzeln genehmigte USB-Recovery-, VFS/Storage-, S3-UART-
-   und Funkgates. Der alte DFR0654-RX-/Loopbackpfad wird nicht übernommen.
-6. Zum Abschluss genau einen begrenzten Phase-8-Ein-Listener-Lauf auf Port 80
+5. Manueller ROM-Recovery über `BOOT`/`RST` und der isolierte
+   VFS/A-B-Storage-Gate sind bestanden. Automatischer USB-Control-Line-Recovery
+   gilt als unzuverlässig; physischer Tastenzugang bleibt zwingend.
+6. Als Nächstes folgen separat geplante S3-UART-/Level-Interface- und
+   Funk-/DHCP-Gates. Der alte DFR0654-RX-/Loopbackpfad wird nicht übernommen.
+7. Zum Abschluss genau einen begrenzten Phase-8-Ein-Listener-Lauf auf Port 80
    mit realem `GET /api/v1/status` durchführen. Nur HTTP 200, vollständiges
    JSON, alle Speicher-/Safety-Gates und kompletter Cleanup zählen als Pass.
-7. **Phase 9 – Web UI bleibt bis zu diesem Zielpass nicht freigegeben.**
+8. **Phase 9 – Web UI bleibt bis zu diesem Zielpass nicht freigegeben.**
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und
