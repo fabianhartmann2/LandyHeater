@@ -1,8 +1,8 @@
 # Phase 9 – Web UI
 
-Status: **hostseitig implementiert und geprüft; reproduzierbarer DFR0975-U-
-Build und statische Artefaktprüfung bestanden; Flashfreigabe und Zielabnahme
-stehen aus**.
+Status: **hostseitig und auf dem DFR0975-U abgeschlossen: reproduzierbarer
+Build, statische Artefaktprüfung, hashgebundener App-Flash, vollständige
+Rückleseprüfung und realer Ein-Listener-UI/API-Handytest bestanden**.
 
 ## Umfang
 
@@ -63,14 +63,16 @@ und für alle 15 verglichenen Ausgaben bytegleich gebaut. ESP32-S3-Image,
 kombinierter Binärinhalt wurden statisch geprüft. Die separaten Artefakte und
 der vollständige Nachweis liegen unter `firmware/phase9_frozen/`.
 
-Für Phase 9 sind weiterhin erforderlich:
+Die verbleibenden Phase-9-Gates wurden anschließend bestanden:
 
-1. neue hashgebundene Freigabe für den App-Flash ohne Erase bei `0x10000`:
+1. hashgebundener App-Flash ohne Full Erase bei `0x10000`:
    `a228d115cc2aba8569ddad3a46b9c038ab5f06e159bae3d4ded955345b6485e6`;
-2. App-Flash und vollständige Schreibverifikation; Bootloader und
-   Partitionstabelle bleiben bytegleich zum abgenommenen Phase-8-Stand;
-3. ein begrenzter Zieltest mit einem Port-80-Listener, realem UI- und
-   API-Abruf, Heap-Gates und vollständigem Cleanup.
+2. vollständige Rückleseprüfung aller 2.020.592 App-Bytes;
+3. ein begrenzter Zieltest mit einem Port-80-Listener, 9/9 vollständig
+   ausgelieferten UI-Ressourcen, 4/4 automatischen API-Lesezugriffen, null
+   Mutationen, allen Heap-Gates und vollständigem Cleanup.
 
-Bis dahin bleiben `boot.py` und `main.py` passiv. Es gibt keinen Auto-Start,
-keinen Flash und keine Freigabe von UART, Heizung, RTC/I2C oder 1-Wire.
+`boot.py` und `main.py` bleiben weiterhin passiv. Phase 9 aktiviert keinen
+Auto-Start und gibt weder UART, Heizung, RTC/I2C noch 1-Wire frei. Die
+sanitisierte Zielevidenz steht in
+`captures/2026-09-01-dfr0975u-phase9-web-ui-gate.md`.

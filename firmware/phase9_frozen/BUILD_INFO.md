@@ -1,7 +1,7 @@
 # Phase 9 frozen firmware build record
 
-Build date: 2026-09-01. Status: **offline reproducibility and artifact gates
-passed; not flashed and not target-approved**.
+Build date: 2026-09-01. Status: **offline reproducibility and artifact gates,
+authorized app-only flash, complete readback and Phase-9 target gate passed**.
 
 No serial port, board, deploy, erase or write operation was used while
 building or verifying this candidate. A flash requires a new authorization
@@ -122,6 +122,24 @@ Its bootloader and partition-table bytes are identical to the Phase-9
 candidate. The least-destructive next operation is therefore an app-only
 write of `micropython.bin` at `0x10000` without erase, bound to SHA-256
 `a228d115cc2aba8569ddad3a46b9c038ab5f06e159bae3d4ded955345b6485e6`.
-That operation still requires explicit approval and full application
-readback. This candidate does not enable automatic startup, UART, heater
-control, RTC/I2C or 1-Wire.
+That exact operation was subsequently authorized and completed. It did not
+enable automatic startup, UART, heater control, RTC/I2C or 1-Wire.
+
+## Post-flash verification and target acceptance
+
+The authorized operation wrote only the 2,020,592-byte application at
+`0x10000` without a full erase. esptool's write verification passed, followed
+by an independent complete application readback with the exact retained
+SHA-256. Bootloader, partition table and VFS were not written.
+
+The passive boot returned MicroPython 1.28.0 and the exact DFR0975-U machine
+identity with both WLAN interfaces inactive. The subsequent bounded Phase-9
+phone gate used one AP lifetime and one port-80 product listener. It completed
+all nine UI resources and the four automatic read-only API requests, observed
+no mutation or protocol call, enforced every GC-heap checkpoint at or above
+32 KiB, preserved product storage and completed HTTP/REST/radio/file cleanup.
+The independent post-check found both WLAN interfaces inactive, no isolated
+test file and 8,319,520 bytes free GC heap.
+
+Sanitized evidence is retained in
+`../../captures/2026-09-01-dfr0975u-phase9-web-ui-gate.md`.

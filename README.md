@@ -30,7 +30,7 @@ alle Hardware- und Funkfreigaben geschlossen. MicroPython 1.28 wurde als
 eigener 16-MB-/Octal-PSRAM-Build zweimal sauber und bytegleich erzeugt; die
 geprüften Artefakte liegen unter `firmware/dfr0975u_n16r8/`. Das private,
 geräteseitig verifizierte 16-MB-Werksbackup, die statische Artefaktprüfung und
-der aktuelle vollständige Host-Test mit 1065/1065 bestandenen Tests sind
+der aktuelle vollständige Host-Test mit 1070/1070 bestandenen Tests sind
 abgeschlossen.
 Nach einer neuen hashgebundenen Freigabe wurde der Flash vollständig gelöscht
 und das Combined-Image erfolgreich geschrieben und verifiziert. Passiver
@@ -53,10 +53,11 @@ bestand mit einem realen `GET /api/v1/status`, vollständiger HTTP-200-JSON-
 Antwort, allen zehn GC-Heap-Grenzen, unveränderter Produktspeicherung und
 vollständigem HTTP-/REST-/WLAN-Cleanup. `boot.py` und `main.py` bleiben bewusst
 passiv. **Phase 8 ist damit zielseitig bestanden. Phase 9 – Web UI ist
-hostseitig implementiert und geprüft. Der neue S3-Kandidat wurde zweimal
-sauber und für alle 15 verglichenen Ausgaben bytegleich gebaut; die statische
-Artefaktprüfung ist bestanden. Neue hashgebundene Flashfreigabe und
-Zielabnahme stehen noch aus.** Die genaue
+ebenfalls abgeschlossen: Der S3-Kandidat wurde zweimal bytegleich gebaut,
+statisch geprüft, hashgebunden ohne Full Erase bei `0x10000` geschrieben und
+vollständig zurückgelesen. Der reale Handytest lieferte über einen einzigen
+Port-80-Listener 9/9 UI-Ressourcen und 4/4 automatische API-Lesezugriffe aus;
+alle Heap- und Cleanup-Gates bestanden.** Die genaue
 Phase-9-Grenze ist in `PHASE9_WEB_UI.md` dokumentiert.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
@@ -107,13 +108,13 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 0 | Finale Spezifikation | Baseline abgeschlossen; offene Reverse-Engineering-Punkte sind ausdrücklich dokumentiert |
 | 1 | Autoterm Protocol Library | Softwareumfang abgeschlossen |
 | 2 | UART Transport / Protocol Capture / Live Diagnostics | Transport-/Capture-Kern softwareseitig abgeschlossen; Browser-Live/Export bleibt Phase 11 und reale Heater-End-to-End-Abnahme Phase 13 |
-| 3 | HeaterController / Requested-/Actual-State-Machine | Hardwarefreier Controller-Kern abgeschlossen; produktiver Laufzeitloop, externe Temperatur und laufende Session-Updates bleiben offen |
+| 3 | HeaterController / Requested-/Actual-State-Machine | Hardwarefreier Controller-Kern abgeschlossen; laufende Session-Updates sind in Phase 9 sicher ergänzt, produktiver Laufzeitloop und externe Temperatur bleiben offen |
 | 4 | DS18B20 / Sensor Management / Failure Handling | Softwarekern und verriegelte MicroPython-Hülle abgeschlossen; reale Sensorabnahme folgt in Phase 13 |
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen: UTC-Zeitkern, feste Offsets, `Europe/Zurich` mit CET/CEST, Scheduler, verriegelte DS3231/I2C-Hülle, RTC-Brücke und Controller-Gateway; USB-only auf dem realen MicroPython-Ziel bestanden, reale RTC-Abnahme folgt in Phase 13 |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
 | **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
-| **9** | **Web UI** | **Hostseitig implementiert: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build und statische Artefaktprüfung bestanden; neue Flashfreigabe und Zielabnahme offen; kein Auto-Start** |
+| **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; kein Auto-Start** |
 | 10 | Setup Assistant | Nicht begonnen |
 | 11 | Events / Diagnostics / Capture Export | Einzelne Capture-/Diagnostikbausteine aus Sicherheitsgründen vorgezogen; Phase nicht abgeschlossen |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
@@ -1143,14 +1144,13 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
 7. Der begrenzte Phase-8-Ein-Listener-Lauf auf Port 80 mit realem
    `GET /api/v1/status`, HTTP 200, vollständigem JSON, allen GC-Heap-/Safety-
    Gates und komplettem Cleanup ist bestanden.
-8. Phase 9 ist hostseitig implementiert und visuell geprüft. Der
-   reproduzierbare A/B-Build und die statische Artefaktprüfung sind bestanden;
-   die separaten Artefakte liegen unter `firmware/phase9_frozen/`. Flash und
-   Zieltest benötigen eine neue hashgebundene Freigabe. Da Bootloader und
-   Partitionstabelle bytegleich zum abgenommenen Phase-8-Stand sind, ist der
-   vorgesehene Minimalpfad ein App-Flash ohne Erase bei `0x10000` mit SHA-256
-   `a228d115cc2aba8569ddad3a46b9c038ab5f06e159bae3d4ded955345b6485e6`;
-   produktiver Auto-Start bleibt aus.
+8. Phase 9 ist vollständig bestanden: A/B-Build, Artefaktprüfung, autorisierter
+   App-Flash ohne Full Erase, komplette Rückleseprüfung sowie der reale
+   Ein-Listener-Handygate mit 9/9 UI-Ressourcen, 4/4 API-Lesezugriffen, null
+   Mutationen und vollständigem Cleanup. Produktiver Auto-Start bleibt aus.
+9. Der nächste geplante Funktionsabschnitt ist Phase 10 – Setup Assistant.
+   Netzwerkzugangsdaten und Sensorzuordnungen bleiben bis dahin in der
+   Phase-9-Oberfläche absichtlich schreibgeschützt.
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und
