@@ -105,10 +105,22 @@ class _SetupWebGateway:
     __slots__ = (
         "application", "controller", "protocol_port", "manager",
         "validated", "rejected", "mutation_attempts",
-        "successful_mutations", "last_peer", "_password",
+        "successful_mutations", "last_peer", "_live_password",
+        "_expected_ap_password", "_expected_station_ssid",
+        "_expected_station_password",
     )
 
-    def __init__(self, runtime, controller, protocol_port, manager, password):
+    def __init__(
+        self,
+        runtime,
+        controller,
+        protocol_port,
+        manager,
+        live_password,
+        expected_ap_password,
+        expected_station_ssid,
+        expected_station_password,
+    ):
         from app.web_application import Phase9WebApplication
 
         self.application = Phase9WebApplication(runtime)
@@ -120,10 +132,26 @@ class _SetupWebGateway:
         self.mutation_attempts = 0
         self.successful_mutations = 0
         self.last_peer = None
-        self._password = password
+        self._live_password = live_password
+        self._expected_ap_password = expected_ap_password
+        self._expected_station_ssid = expected_station_ssid
+        self._expected_station_password = expected_station_password
 
     def clear_secret(self):
-        self._password = None
+        self._live_password = None
+        self._expected_ap_password = None
+        self._expected_station_ssid = None
+        self._expected_station_password = None
+        return None
+
+    def _assert_redacted(self, response):
+        rendered = repr(response)
+        for value in (
+            self._live_password,
+            self._expected_ap_password,
+            self._expected_station_password,
+        ):
+            _require(value not in rendered, "a Wi-Fi key leaked")
         return None
 
     def _valid_read(self, target, response):
@@ -181,11 +209,15 @@ class _SetupWebGateway:
         ):
             return False
         privileged = self.manager.snapshot()["configuration"]
+        network = privileged["network"]
+        profiles = network["known_networks"]
         return (
             privileged["system"]["setup_complete"] is True
-            and privileged["network"]["access_point"]["password"]
-            == self._password
-            and privileged["network"]["known_networks"] == []
+            and network["access_point"]["password"]
+            == self._expected_ap_password
+            and len(profiles) == 1
+            and profiles[0]["ssid"] == self._expected_station_ssid
+            and profiles[0]["password"] == self._expected_station_password
         )
 
     def handle(self, request, peer_ip=None):
@@ -209,7 +241,7 @@ class _SetupWebGateway:
                 self.rejected += 1
             _require(self.controller.requested_on is False, "Requested State changed")
             _require(self.protocol_port.calls == 0, "heater protocol was accessed")
-            _require(self._password not in repr(response), "WPA2 key leaked")
+            self._assert_redacted(response)
             return response
         if method != "GET":
             self.mutation_attempts += 1
@@ -228,19 +260,27 @@ class _SetupWebGateway:
             self.rejected += 1
         _require(self.controller.requested_on is False, "Requested State changed")
         _require(self.protocol_port.calls == 0, "heater protocol was accessed")
-        _require(self._password not in repr(response), "WPA2 key leaked")
+        self._assert_redacted(response)
         return response
 
 
 def prepare_proof(context):
     _require(context.gateway is None, "setup proof gateway already exists")
     _require(context.socket_observer is None, "socket observer already exists")
+    secrets = context.password
+    _require(
+        type(secrets) is tuple and len(secrets) == 4,
+        "setup proof secrets are malformed",
+    )
     context.gateway = _SetupWebGateway(
         context.rest_runtime,
         context.controller,
         context.protocol_port,
         context.config_manager,
-        context.password,
+        secrets[0],
+        secrets[1],
+        secrets[2],
+        secrets[3],
     )
     context.socket_observer = _TransportObserver()
     context.password = None
@@ -295,7 +335,7 @@ def continue_run(capsule, state, window_seconds):
     print(PHASE10_SETUP_PHONE_READY_TOKEN)
     print("url={}".format(ROOT_URL))
     print("window_seconds={}".format(window_seconds))
-    print("Open the root once, leave WLAN lists empty, and complete setup once.")
+    print("Open the root once, enter the agreed test WLAN values, and submit once.")
 
     memory_after_response = None
     while True:
@@ -434,13 +474,28 @@ def _emit_failure(state, error):
     return None
 
 
-def run(confirmation, temporary_password, window_seconds=DEFAULT_WINDOW_SECONDS):
+def run(
+    confirmation,
+    temporary_password,
+    expected_ap_password,
+    expected_station_ssid,
+    expected_station_password,
+    window_seconds=DEFAULT_WINDOW_SECONDS,
+):
     if confirmation != PHASE10_SETUP_PHONE_CONFIRMATION:
         raise RuntimeError("exact Phase-10 setup confirmation is required")
     window_seconds = _phase9._validate_window_seconds(window_seconds)
     from tools import phase8_full_rest_phone_smoke as base
 
     password = base._validate_password(temporary_password)
+    replacement = base._validate_password(expected_ap_password)
+    station_password = base._validate_password(expected_station_password)
+    if (
+        type(expected_station_ssid) is not str
+        or not expected_station_ssid
+        or len(expected_station_ssid.encode("utf-8")) > 32
+    ):
+        raise ValueError("expected station SSID is invalid")
     capsule = base._OwnershipCapsule()
     capsule.support = base
     stage1 = None
@@ -467,6 +522,12 @@ def run(confirmation, temporary_password, window_seconds=DEFAULT_WINDOW_SECONDS)
             "phase8_full_rest_phone_stage2_prepare",
         )
         prepare = None
+        state.context.password = (
+            password,
+            replacement,
+            expected_station_ssid,
+            station_password,
+        )
         state.context.memory_before_http_start = seam.require_heap(
             seam.memory_free(), seam.MINIMUM_PRE_BIND_HEAP_BYTES, "pre-bind"
         )

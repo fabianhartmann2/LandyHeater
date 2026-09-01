@@ -30,7 +30,7 @@
 .setup-list { display: grid; gap: .65rem; }
 .setup-network {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr 1fr auto;
   gap: .55rem;
   align-items: end;
   padding: .75rem;

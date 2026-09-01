@@ -59,13 +59,15 @@ vollständig zurückgelesen. Der reale Handytest lieferte über einen einzigen
 Port-80-Listener 9/9 UI-Ressourcen und 4/4 automatische API-Lesezugriffe aus;
 alle Heap- und Cleanup-Gates bestanden.** Die genaue
 Phase-9-Grenze ist in `PHASE9_WEB_UI.md` dokumentiert.
-**Phase 10 – Setup Assistant ist ebenfalls abgeschlossen:** Das neue App-Image
-wurde reproduzierbar gebaut, hashgebunden ohne Full Erase geschrieben und
-vollständig zurückgelesen. Der reale Ein-Listener-Handytest lieferte 11/11
-UI-Ressourcen und 5/5 API-Lesewege aus; genau ein Setup-Abschluss erzeugte
-genau einen isolierten Commit, wahrte die write-only WLAN-Grenze und bestand
-alle Heap-, Safety- und Cleanup-Gates. Details stehen in
-`PHASE10_SETUP_ASSISTANT.md`.
+**Phase 10 – Setup Assistant ist nach einer Abnahmelücke erneut
+zielseitig offen:** Der erste Ein-Listener-Handytest bestand 11/11
+UI-Ressourcen, 5/5 API-Lesewege, einen isolierten Commit sowie alle Heap-,
+Safety- und Cleanup-Gates, prüfte aber weder ein neues AP-Passwort noch ein
+Stations-WLAN. Die korrigierte UI erzwingt jetzt explizite Passwort-/Open-
+Auswahl und schrittweise Eingabeprüfung. Ihr neues App-Image wurde zweimal
+bytegleich gebaut und offline geprüft; Flash, Rücklesung und echter
+Credential-Handygate warten auf eine neue hashgebundene Freigabe. Details
+stehen in `PHASE10_SETUP_ASSISTANT.md`.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
 Innerhalb von Phase 5 sind TimeService, Scheduler, der DS3231-Registeradapter,
@@ -122,7 +124,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
 | **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
 | **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; kein Auto-Start** |
-| **10** | **Setup Assistant** | **Abgeschlossen: 9-Schritt-UI, erster/manueller Lauf, atomarer write-only WLAN-/Konfigurationsabschluss und ehrliche Hardware-Zurückstellung; reproduzierbarer A/B-Build, Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung und realer Ein-Listener-Handygate mit genau einem isolierten Setup-Commit bestanden** |
+| **10** | **Setup Assistant** | **Zielabnahme offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung sind implementiert; korrigierter A/B-Build und Artefaktprüfung bestanden. Der frühere Baseline-Gate wahrte Safety/Heap/Cleanup, prüfte aber keine neuen Zugangsdaten; neuer hashgebundener Flash, Rücklesung und echter Credential-Handygate stehen aus.** |
 | 11 | Events / Diagnostics / Capture Export | Einzelne Capture-/Diagnostikbausteine aus Sicherheitsgründen vorgezogen; Phase nicht abgeschlossen |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
 | 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten einschließlich DFR0975-U USB-only-Speicher-, manueller Recovery- und VFS/A-B-Storage-Gates sowie historische DFR0654-UART-Loopback-/RX-Vorarbeiten erledigt; Produktperipherie offen |
@@ -1155,16 +1157,18 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
    App-Flash ohne Full Erase, komplette Rückleseprüfung sowie der reale
    Ein-Listener-Handygate mit 9/9 UI-Ressourcen, 4/4 API-Lesezugriffen, null
    Mutationen und vollständigem Cleanup. Produktiver Auto-Start bleibt aus.
-9. Phase 10 ist vollständig bestanden und in
+9. Phase 10 ist softwareseitig korrigiert und in
    `PHASE10_SETUP_ASSISTANT.md` dokumentiert. Netzwerkzugangsdaten sind
-   write-only, der Abschluss ist atomar und die allgemeine Settings-API bleibt
-   für Netzwerkdaten geschlossen. Aktive Sensor-/UART-Prüfungen sind mangels
-   angeschlossener und freigegebener Produktperipherie sichtbar zurückgestellt.
-10. Frozen-Closure, reproduzierbarer DFR0975-U-A/B-Build, statische
-    Artefaktprüfung, autorisierter App-Flash ohne Full Erase, vollständige
-    Rückleseprüfung und der reale Setup-Assistent-Handygate bestanden mit
-    11/11 UI-Ressourcen, 5/5 API-Lesewegen, genau einer Mutation, genau einem
-    isolierten Commit und vollständigem Cleanup.
+   write-only, Passwort-/Open-Auswahl ist ausdrücklich, ungültige Eingaben
+   blockieren den jeweiligen Schritt, und die allgemeine Settings-API bleibt
+   für Netzwerkdaten geschlossen. Aktive Sensor-/UART-Prüfungen bleiben
+   sichtbar zurückgestellt.
+10. Frozen-Closure, reproduzierbarer DFR0975-U-A/B-Build und statische
+    Artefaktprüfung des korrigierten Images sind bestanden. Als nächstes folgt
+    nach neuer Hashfreigabe ausschließlich der app-only Flash ohne Full Erase,
+    vollständige Rücklesung und ein einmaliger Credential-Handygate mit einem
+    AP-Passwortwechsel, einem geschützten Stations-WLAN, genau einer Mutation,
+    isoliertem Commit und vollständigem Cleanup.
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und

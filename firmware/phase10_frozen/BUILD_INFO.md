@@ -1,7 +1,10 @@
 # Phase 10 frozen firmware build record
 
-Build date: 2026-09-01. Status: **offline reproducibility and artifact gates,
-authorized app-only flash, complete readback and Phase-10 target gate passed**.
+Build date: 2026-09-01. Status: **the credential-validation follow-up passed
+offline reproducibility and artifact gates; its app-only flash, readback and
+target gate are pending a new hash-bound authorization**. The earlier,
+superseded baseline image passed its narrower keep-password/empty-WLAN target
+gate and remains documented in the historical capture.
 
 No serial port, board, deploy, erase or write operation was used while
 building or verifying this candidate. The later flash was performed only
@@ -31,7 +34,7 @@ erase policy.
 | --- | --- |
 | `manifest.py` | `fbc93cab00860d4c3f589e966748afd5871b5c45eefe2e7aaea2dddb20a10df3` |
 | `FROZEN_MODULES.txt` | `e399f83a69d8a598b61d3c50114f34a3a3d4cad0681c37d670c88607f36cbcec` |
-| `CURRENT_FROZEN_SOURCES.sha256` | `c782beeca95240eac655b5efb09cf1ed808197f75254918f43e18bbbe23c3ba1` |
+| `CURRENT_FROZEN_SOURCES.sha256` | `298816981c2e688fe402be3330378a2770b753bc293c9db32a88006877f0bd11` |
 
 The closure contains exactly 42 project files, including the Phase-10 Setup
 Assistant API, UI and generated web assets. It excludes `boot.py`, `main.py`,
@@ -42,7 +45,8 @@ board configuration, credentials, persistent data, tests and tools.
 Two complete builds ran sequentially from an absent build directory at the
 same canonical absolute path ending in
 `build-DFR0975U_N16R8-PHASE10-B`. The first completed directory was retained
-as `build-DFR0975U_N16R8-PHASE10-PASS-1` before recreating the canonical path.
+as `build-DFR0975U_N16R8-PHASE10-VALIDATION-PASS-1` before recreating the
+canonical path.
 All 15 compared outputs were byte-identical: bootloader, partition table,
 application, combined image, UF2, final and combined configurations, four
 flash-argument files, flasher JSON, frozen C, ELF and map.
@@ -91,9 +95,9 @@ at `0x10000 + application size` and therefore contains no VFS bytes.
 | --- | ---: |
 | Bootloader | 19,232 B |
 | Partition table | 3,072 B |
-| Factory application | 2,044,496 B used of 3,145,728 B |
-| Application margin | 1,101,232 B (about 35%) |
-| Combined image | 2,110,032 B; exact end `0x203250` |
+| Factory application | 2,050,848 B used of 3,145,728 B |
+| Application margin | 1,094,880 B (about 35%) |
+| Combined image | 2,116,384 B; exact end `0x204b20` |
 
 The static settings prove only the intended memory configuration. Runtime
 PSRAM, internal/DMA heap and Setup Assistant behaviour remain part of the
@@ -111,32 +115,32 @@ shasum -a 256 -c SHA256SUMS
 | --- | ---: | --- |
 | `bootloader/bootloader.bin` | 19,232 B | `be074941dbcff048d22552208c318f53e9749142d77744ccfcad3744e5185985` |
 | `partition_table/partition-table.bin` | 3,072 B | `518d9ab5063af998cce24c461cfccc51ed7c6f4084c12e2fc93cd5bbb3ccf979` |
-| `micropython.bin` | 2,044,496 B | `8c8d0bca7b6d3311c20f1e5878619a898147dcdf645305dc12fcbb575278fc5d` |
-| `firmware.bin` | 2,110,032 B | `9d9488865b99cae3301e2a942adfd952efda258afdf02e260b3dd930f9bc90be` |
+| `micropython.bin` | 2,050,848 B | `d8fb33c0e43081d95744816cbbedf7b77281292d3c8458d14b1f50cf27f7b9ef` |
+| `firmware.bin` | 2,116,384 B | `648256cc2fca0430cd53d721544d971ccd5c563f6fb8b0441682aafac465f4d1` |
 
 The Phase-9 binaries remain unchanged. Its bootloader and partition-table
-bytes are identical to the Phase-10 candidate. Consequently the narrowest
-next operation is an app-only write of `micropython.bin` at `0x10000` without
-erase, bound to SHA-256
-`8c8d0bca7b6d3311c20f1e5878619a898147dcdf645305dc12fcbb575278fc5d`.
-That exact operation was subsequently authorized and completed. It did not
-enable automatic startup, UART, heater control, RTC/I2C or 1-Wire.
+bytes are identical to this candidate. Consequently the narrowest next
+operation is an app-only write of `micropython.bin` at `0x10000` without a
+full-chip erase, bound to SHA-256
+`d8fb33c0e43081d95744816cbbedf7b77281292d3c8458d14b1f50cf27f7b9ef`.
+That operation has not yet been authorized or performed. Building and
+verification did not access the board and do not enable automatic startup,
+UART, heater control, RTC/I2C or 1-Wire.
 
-## Post-flash verification and target acceptance
+## Target status
 
-The authorized operation wrote only the 2,044,496-byte application at
-`0x10000` without a full-chip erase. esptool's write verification passed,
-followed by an independent complete application readback with the exact
-retained SHA-256. Bootloader, partition table and VFS were not written.
+The earlier `8c8d0b...` baseline was authorized, fully read back and passed a
+bounded phone gate that preserved the existing AP credential and submitted no
+station WLAN. That remains valid evidence for the original transport,
+single-listener, storage and cleanup seams, but it did not exercise the user
+credential flow and is therefore no longer the final Phase-10 closure gate.
 
-The passive boot returned MicroPython 1.28.0 and the exact DFR0975-U machine
-identity with both WLAN interfaces inactive. The bounded Phase-10 phone gate
-then delivered all 11 UI resources and five initial read-only API requests
-over one port-80 product listener. One user-confirmed Setup Assistant submit
-passed the production AP-only, Origin, CSRF and generation fences, preserved
-the write-only AP credential and produced exactly one isolated configuration
-commit. No hardware probe, heater request or protocol call occurred. All heap
-and ordered HTTP/REST/radio/storage cleanup gates passed.
+The new target gate must use the retained `d8fb33c0...` application and must
+exercise one explicit AP-password replacement plus one explicit protected
+station-WLAN profile in disposable configuration storage. It must also retain
+the established one-listener, one-mutation, secret-redaction, heap, safety and
+ordered-cleanup gates. Until the new hash is authorized, flashed, completely
+read back and accepted on the DFR0975-U, Phase 10 remains target-pending.
 
 Sanitized evidence is retained in
 `../../captures/2026-09-01-dfr0975u-phase10-setup-assistant-gate.md`.

@@ -85,7 +85,7 @@ class TestPhase10FirmwareArtifacts(unittest.TestCase):
             combined[0x8000 + len(partition) : 0x10000],
             b"\xff" * (0x10000 - 0x8000 - len(partition)),
         )
-        self.assertEqual(len(application), 2_044_496)
+        self.assertEqual(len(application), 2_050_848)
         self.assertEqual(len(combined), 0x10000 + len(application))
         self.assertLess(len(application), 0x300000)
         self.assertLess(len(combined), 0x310000)

@@ -7,5 +7,7 @@ remain historical and unchanged.
 
 `app/web_assets.py` and `CURRENT_FROZEN_SOURCES.sha256` were regenerated before
 two clean, byte-identical reproducibility builds. `BUILD_INFO.md` records the
-pinned toolchain, verification and exact retained hashes. Nothing in this
-directory flashes or erases a board; a retained image is not authorization.
+pinned toolchain, verification and exact retained hashes. The currently
+retained image is the credential-validation follow-up and has not been
+flashed. Nothing in this directory flashes or erases a board; a retained image
+is not authorization.

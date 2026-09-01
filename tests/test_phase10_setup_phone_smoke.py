@@ -23,8 +23,12 @@ class _Manager:
         return {"configuration": {
             "system": {"setup_complete": self.complete},
             "network": {
-                "access_point": {"password": "test-password"},
-                "known_networks": [],
+                "access_point": {"password": "replacement-password"},
+                "known_networks": [{
+                    "id": "test",
+                    "ssid": "Test WLAN",
+                    "password": "station-password",
+                }] if self.complete else [],
             },
         }}
 
@@ -112,14 +116,17 @@ class TestPhase10SetupPhoneSmoke(unittest.TestCase):
         self.assertIn("/assets/setup.js", smoke._STATIC_TARGETS)
         self.assertIn("/api/v1/setup", smoke._API_TARGETS)
 
-    def test_gateway_allows_one_setup_commit_and_preserves_secret(self):
+    def test_gateway_allows_one_setup_commit_with_replaced_credentials(self):
         manager = _Manager()
         gateway = smoke._SetupWebGateway(
             _Runtime(manager),
             _Controller(),
             _Protocol(),
             manager,
-            "test-password",
+            "live-password",
+            "replacement-password",
+            "Test WLAN",
+            "station-password",
         )
         for target in smoke._READ_TARGETS:
             response = gateway.handle(_request(target), "192.168.4.2")

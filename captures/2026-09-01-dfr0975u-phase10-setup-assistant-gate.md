@@ -1,9 +1,17 @@
 # DFR0975-U Phase-10 Setup Assistant gate — 2026-09-01
 
+> Scope correction recorded 2026-09-01: this PASS remains valid for the
+> baseline image's single-listener, REST, isolated-storage, heap, safety and
+> cleanup seams. It preserved the existing AP credential and submitted no
+> station WLAN, so it did not exercise the real credential-entry path and no
+> longer closes Phase 10 by itself. The corrected credential-validation image
+> and its pending target gate are documented in `PHASE10_SETUP_ASSISTANT.md`.
+
 ## Status
 
-**PASS for the Phase-10 application flash, full readback and bounded real-phone
-Setup Assistant target acceptance on the DFR0975-U N16R8.**
+**PASS for the baseline Phase-10 application flash, full readback and bounded
+real-phone transport/storage acceptance on the DFR0975-U N16R8. This is not
+the final credential-entry acceptance.**
 
 The gate used the production frozen Setup Assistant, REST application,
 configuration gateway, A/B storage and the established sole port-80 listener.
