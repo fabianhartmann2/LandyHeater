@@ -19,9 +19,11 @@ from services.http_protocol import (
     MAX_HEADER_BLOCK_BYTES,
     MAX_REQUEST_LINE_BYTES,
     MAX_RESPONSE_BODY_BYTES,
+    MAX_STATIC_RESPONSE_BODY_BYTES,
     MAX_RESPONSE_HEADER_BLOCK_BYTES,
     HttpParseError,
     HttpResponseEncodeError,
+    encode_bytes_response,
     encode_json_response,
     parse_request,
 )
@@ -36,7 +38,7 @@ MAX_REQUEST_BYTES = (
     MAX_REQUEST_LINE_BYTES + 2 + MAX_HEADER_BLOCK_BYTES + MAX_BODY_BYTES
 )
 MAX_RESPONSE_WIRE_BYTES = (
-    64 + MAX_RESPONSE_HEADER_BLOCK_BYTES + MAX_RESPONSE_BODY_BYTES
+    64 + MAX_RESPONSE_HEADER_BLOCK_BYTES + MAX_STATIC_RESPONSE_BODY_BYTES
 )
 
 DEFAULT_FIRST_BYTE_TIMEOUT_MS = 1500
@@ -841,15 +843,28 @@ class MicroPythonHTTPServer:
     def _queue_application_response(self, index, client, response, now_ms):
         try:
             status = response.status
-            body = encode_json_bytes(
-                response.body,
-                max_bytes=MAX_RESPONSE_BODY_BYTES,
-            )
-            encoded = encode_json_response(
-                status,
-                body,
-                response.headers,
-            )
+            content_type = getattr(response, "content_type", None)
+            if content_type is None:
+                body = encode_json_bytes(
+                    response.body,
+                    max_bytes=MAX_RESPONSE_BODY_BYTES,
+                )
+                encoded = encode_json_response(
+                    status,
+                    body,
+                    response.headers,
+                )
+            else:
+                if type(response.body) is not bytes:
+                    raise HttpResponseEncodeError(
+                        "response_body_must_be_bytes"
+                    )
+                encoded = encode_bytes_response(
+                    status,
+                    response.body,
+                    content_type,
+                    response.headers,
+                )
         except MemoryError:
             raise MemoryError() from None
         except (StrictJSONError, HttpResponseEncodeError):

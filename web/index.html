@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#18201c">
+  <title>Landy Heater</title>
+  <link rel="stylesheet" href="/assets/base.css">
+  <link rel="stylesheet" href="/assets/components.css">
+  <link rel="stylesheet" href="/assets/session.css">
+  <script defer src="/assets/i18n.js"></script>
+  <script defer src="/assets/app.js"></script>
+  <script defer src="/assets/home.js"></script>
+  <script defer src="/assets/timers.js"></script>
+  <script defer src="/assets/settings.js"></script>
+</head>
+<body>
+  <a class="skip" href="#content" data-i18n="skip">Zum Inhalt</a>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">LH</span><div><strong>Landy Heater</strong><small data-i18n="localControl">Lokale Steuerung</small></div></div>
+    <div class="top-actions"><span id="connection" class="connection" role="status"><i></i><span data-i18n="connecting">Verbinden…</span></span><button id="refresh" class="icon-button" type="button" aria-label="Aktualisieren" data-i18n-aria="refresh">↻</button></div>
+  </header>
+
+  <main id="content" tabindex="-1">
+    <section id="view-home" class="view active" aria-labelledby="home-title">
+      <div class="section-heading"><div><p class="eyebrow" data-i18n="overview">Übersicht</p><h1 id="home-title" data-i18n="home">Home</h1></div><time id="last-update">–</time></div>
+      <article class="hero card">
+        <div class="hero-top"><div><span id="heater-badge" class="badge neutral">–</span><h2 id="heater-state">–</h2><p id="heater-detail" class="muted">–</p></div><div class="runtime"><span data-i18n="remaining">Verbleibend</span><strong id="remaining">–</strong></div></div>
+        <div id="off-actions" class="action-stack"><button id="quick-start" class="button primary" type="button" data-i18n="quickStart">Quick Start</button><button id="configure-start" class="button secondary" type="button" data-i18n="configureStart">Konfigurieren & starten</button></div>
+        <div id="running-actions" class="running-panel hidden"><div class="running-grid"><div><span data-i18n="mode">Modus</span><strong id="active-mode">–</strong></div><div><span data-i18n="target">Ziel</span><strong id="active-target">–</strong></div><div><span data-i18n="regulationSensor">Regelsensor</span><strong id="active-sensor">–</strong></div></div><div class="action-row"><button id="extend-session" class="button secondary" type="button">+15 min</button><button id="adjust-target" class="button secondary" type="button" data-i18n="adjustTarget">Temperatur ändern</button></div><div id="target-adjust-panel" class="inline-adjust hidden"><output id="adjust-target-output">20 °C</output><input id="adjust-target-range" type="range" min="5" max="30" value="20"><button id="apply-target" class="button primary compact" type="button" data-i18n="save">Speichern</button></div><button id="stop-heater" class="button danger" type="button" data-i18n="stopHeater">Heizung stoppen</button></div>
+      </article>
+
+      <div class="temperature-grid" aria-label="Temperaturen" data-i18n-aria="temperaturesLabel">
+        <article class="card metric"><span data-i18n="roofTent">Dachzelt</span><strong id="temp-roof">–</strong><small id="health-roof">–</small></article>
+        <article class="card metric"><span data-i18n="cabin">Innenraum</span><strong id="temp-cabin">–</strong><small id="health-cabin">–</small></article>
+        <article class="card metric"><span data-i18n="outside">Außen</span><strong id="temp-outside">–</strong><small id="health-outside">–</small></article>
+      </div>
+
+      <div class="home-grid">
+        <article class="card"><div class="card-heading"><h2 data-i18n="nextTimer">Nächster Timer</h2><button class="text-button" data-view-target="timers" type="button" data-i18n="allTimers">Alle Timer</button></div><div id="next-timer" class="empty" data-i18n="noTimer">Kein Timer geplant</div></article>
+        <article class="card"><div class="card-heading"><h2 data-i18n="warnings">Hinweise</h2><span id="warning-count" class="count">0</span></div><ul id="warnings" class="warning-list"><li class="empty" data-i18n="noWarnings">Keine aktuellen Hinweise</li></ul></article>
+      </div>
+    </section>
+
+    <section id="view-timers" class="view" aria-labelledby="timers-title">
+      <div class="section-heading"><div><p class="eyebrow" data-i18n="automation">Automatisierung</p><h1 id="timers-title" data-i18n="timers">Timer</h1></div><button id="add-timer" class="button primary compact" type="button" data-i18n="add">Hinzufügen</button></div>
+      <div id="timer-list" class="timer-list"></div>
+      <div class="pager"><button id="timers-prev" class="button secondary compact" type="button" data-i18n="previous">Zurück</button><span id="timers-page">–</span><button id="timers-next" class="button secondary compact" type="button" data-i18n="next">Weiter</button></div>
+    </section>
+
+    <section id="view-settings" class="view" aria-labelledby="settings-title">
+      <div class="section-heading"><div><p class="eyebrow" data-i18n="device">Gerät</p><h1 id="settings-title" data-i18n="settings">Einstellungen</h1></div></div>
+      <div id="settings-grid" class="settings-grid">
+        <details class="card" open><summary data-i18n="heater">Heizung</summary><form id="heater-settings" class="form-grid"><label><span data-i18n="quickMode">Quick-Start-Modus</span><select id="setting-mode"><option value="roof_tent_temperature" data-i18n="roofTent">Dachzelt</option><option value="cabin_temperature" data-i18n="cabin">Innenraum</option><option value="power" data-i18n="power">Leistung</option></select></label><label><span data-i18n="defaultTarget">Standardtemperatur</span><input id="setting-target" type="number" min="5" max="30" inputmode="numeric"></label><label><span data-i18n="defaultPower">Standardleistung</span><input id="setting-power" type="number" min="1" max="9" inputmode="numeric"></label><label><span data-i18n="defaultRuntime">Standardlaufzeit</span><input id="setting-runtime" type="number" min="1" inputmode="numeric"></label><label><span data-i18n="maxRuntime">Maximale Laufzeit</span><input id="setting-maximum" type="number" min="1" inputmode="numeric"></label><button class="button primary" type="submit" data-i18n="save">Speichern</button></form></details>
+        <details class="card"><summary data-i18n="network">Netzwerk</summary><div id="network-settings" class="definition-list"></div></details>
+        <details class="card"><summary data-i18n="sensors">Temperatursensoren</summary><div id="sensor-settings" class="definition-list"></div></details>
+        <details class="card"><summary data-i18n="timersRuntime">Timer & Laufzeit</summary><div id="runtime-settings" class="definition-list"></div></details>
+        <details class="card"><summary data-i18n="dateTime">Datum & Uhrzeit</summary><div id="time-settings" class="definition-list"></div></details>
+        <details class="card"><summary data-i18n="system">System</summary><div class="form-grid"><label><span data-i18n="language">Sprache</span><select id="language"><option value="de">Deutsch</option><option value="en">English</option></select></label><div id="system-settings" class="definition-list"></div></div></details>
+        <details class="card"><summary data-i18n="diagnostics">Diagnose</summary><button id="load-diagnostics" class="button secondary" type="button" data-i18n="loadDiagnostics">Diagnose laden</button><pre id="diagnostics-output" class="diagnostics">–</pre></details>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Hauptnavigation" data-i18n-aria="mainNavigation"><button class="active" data-view="home" type="button"><span aria-hidden="true">⌂</span><span data-i18n="home">Home</span></button><button data-view="timers" type="button"><span aria-hidden="true">◷</span><span data-i18n="timers">Timer</span></button><button data-view="settings" type="button"><span aria-hidden="true">⚙</span><span data-i18n="settings">Einstellungen</span></button></nav>
+
+  <dialog id="start-dialog"><form id="start-form"><div class="dialog-heading"><h2 data-i18n="configureStart">Konfigurieren & starten</h2><button class="icon-button" value="cancel" formmethod="dialog" aria-label="Schließen">×</button></div><fieldset><legend data-i18n="mode">Modus</legend><div class="segmented"><label><input type="radio" name="mode" value="roof_tent_temperature" checked><span data-i18n="roofTent">Dachzelt</span></label><label><input type="radio" name="mode" value="cabin_temperature"><span data-i18n="cabin">Innenraum</span></label><label><input type="radio" name="mode" value="power"><span data-i18n="power">Leistung</span></label></div></fieldset><label id="start-target-wrap"><span data-i18n="targetTemperature">Zieltemperatur</span><output id="start-target-output">20 °C</output><input id="start-target" type="range" min="5" max="30" value="20"></label><label id="start-power-wrap" class="hidden"><span data-i18n="powerLevel">Leistungsstufe</span><output id="start-power-output">5 / 9</output><input id="start-power" type="range" min="1" max="9" value="5"></label><label><span data-i18n="duration">Dauer</span><select id="start-duration"><option value="30">30 min</option><option value="60" selected>60 min</option><option value="90">90 min</option><option value="120">120 min</option></select></label><div class="dialog-actions"><button class="button secondary" value="cancel" formmethod="dialog" data-i18n="cancel">Abbrechen</button><button class="button primary" type="submit" data-i18n="startHeater">Heizung starten</button></div></form></dialog>
+
+  <dialog id="timer-dialog"><form id="timer-form"><div class="dialog-heading"><h2 id="timer-dialog-title" data-i18n="addTimer">Timer hinzufügen</h2><button class="icon-button" value="cancel" formmethod="dialog" aria-label="Schließen">×</button></div><input id="timer-id" type="hidden"><label><span data-i18n="name">Name</span><input id="timer-name" maxlength="80" required></label><label><span data-i18n="time">Zeit</span><input id="timer-time" type="time" required></label><fieldset><legend data-i18n="weekdays">Wochentage</legend><div id="timer-weekdays" class="weekday-picker"></div></fieldset><label><span data-i18n="mode">Modus</span><select id="timer-mode"><option value="roof_tent_temperature" data-i18n="roofTent">Dachzelt</option><option value="cabin_temperature" data-i18n="cabin">Innenraum</option><option value="power" data-i18n="power">Leistung</option></select></label><label><span data-i18n="targetOrPower">Temperatur / Leistung</span><input id="timer-target" type="number" min="1" max="30" required></label><label><span data-i18n="duration">Dauer</span><input id="timer-runtime" type="number" min="1" required></label><label class="check"><input id="timer-enabled" type="checkbox"><span data-i18n="enabled">Aktiv</span></label><div class="dialog-actions"><button class="button secondary" value="cancel" formmethod="dialog" data-i18n="cancel">Abbrechen</button><button class="button primary" type="submit" data-i18n="save">Speichern</button></div></form></dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

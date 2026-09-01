@@ -10,9 +10,11 @@ from services.http_protocol import (
     MAX_HEADER_LINE_BYTES,
     MAX_REQUEST_LINE_BYTES,
     MAX_RESPONSE_BODY_BYTES,
+    MAX_STATIC_RESPONSE_BODY_BYTES,
     MAX_TARGET_BYTES,
     HttpParseError,
     HttpResponseEncodeError,
+    encode_bytes_response,
     encode_json_response,
     parse_request,
 )
@@ -416,6 +418,30 @@ class TestSafeErrorsAndIsolation(unittest.TestCase):
 
 
 class TestHttpJsonResponseEncoder(unittest.TestCase):
+    def test_static_encoder_preserves_exact_content_type_and_larger_bound(self):
+        body = b"x" * MAX_STATIC_RESPONSE_BODY_BYTES
+        encoded = encode_bytes_response(
+            200,
+            body,
+            "text/css; charset=utf-8",
+            {"Content-Security-Policy": "default-src 'self'"},
+        )
+        self.assertIn(b"Content-Type: text/css; charset=utf-8\r\n", encoded)
+        self.assertIn(
+            b"Content-Security-Policy: default-src 'self'\r\n", encoded
+        )
+        self.assertTrue(encoded.endswith(body))
+
+        for content_type, payload, code in (
+            ("text/css; charset=utf-8", body + b"x", "response_body_too_large"),
+            ("application/octet-stream", b"x", "unsupported_response_content_type"),
+            (None, b"x", "unsupported_response_content_type"),
+        ):
+            with self.subTest(content_type=content_type, code=code):
+                with self.assertRaises(HttpResponseEncodeError) as caught:
+                    encode_bytes_response(200, payload, content_type)
+                self.assertEqual(caught.exception.code, code)
+
     def test_exact_fixed_headers_content_length_and_body(self):
         body = b'{"ok":true}'
         encoded = encode_json_response(200, body)

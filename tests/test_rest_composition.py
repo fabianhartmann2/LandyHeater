@@ -3,7 +3,11 @@ import inspect
 import unittest
 
 import app.rest_composition as composition_module
-from app.rest_composition import build_rest_http_server, build_rest_runtime
+from app.rest_composition import (
+    build_rest_http_server,
+    build_rest_runtime,
+    build_web_http_server,
+)
 from services.http_protocol import parse_request
 from services.rest_security import INGRESS_ACCESS_POINT
 
@@ -95,6 +99,9 @@ class _Controller:
 
     def requested_matches(self, *args, **kwargs):
         return False
+
+    def update_active_session(self, *args, **kwargs):
+        raise AssertionError("construction must not update a session")
 
     def public_snapshot(self):
         return {}
@@ -207,6 +214,32 @@ class TestRestComposition(unittest.TestCase):
         response = handler(request, "192.168.4.2")
         self.assertEqual(response.status, 200)
         self.assertTrue(response.body["mutation_api_available"])
+
+    def test_web_server_factory_unifies_static_ui_and_api_on_one_listener(self):
+        runtime = self._build()
+        runtime.start()
+        server = build_web_http_server(
+            runtime,
+            "192.168.4.1",
+            socket_factory=lambda: (_ for _ in ()).throw(
+                AssertionError("construction must not open a socket")
+            ),
+            ticks_ms=lambda: 10,
+            ticks_diff=lambda a, b: a - b,
+            ticks_add=lambda a, b: a + b,
+        )
+        handler = server._MicroPythonHTTPServer__request_handler
+        home = handler(parse_request(
+            b"GET / HTTP/1.1\r\nHost: 192.168.4.1\r\n\r\n"
+        ), "192.168.4.2")
+        self.assertEqual(home.status, 200)
+        self.assertEqual(home.content_type, "text/html; charset=utf-8")
+        api = handler(parse_request(
+            b"GET /api/v1/security-context HTTP/1.1\r\n"
+            b"Host: 192.168.4.1\r\n\r\n"
+        ), "192.168.4.2")
+        self.assertEqual(api.status, 200)
+        self.assertIs(type(api.body), dict)
 
     def test_tick_helpers_are_all_or_nothing(self):
         for field in ("ticks_ms", "ticks_diff", "ticks_add"):

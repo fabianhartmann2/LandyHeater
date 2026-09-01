@@ -16,6 +16,7 @@ MAX_HEADER_COUNT = 24
 MAX_BODY_BYTES = 4096
 
 MAX_RESPONSE_BODY_BYTES = 8192
+MAX_STATIC_RESPONSE_BODY_BYTES = 16 * 1024
 MAX_RESPONSE_HEADER_BLOCK_BYTES = 2048
 MAX_RESPONSE_HEADER_COUNT = 24
 
@@ -81,6 +82,14 @@ _STATUS_REASONS = {
     501: "Not Implemented",
     503: "Service Unavailable",
 }
+_RESPONSE_CONTENT_TYPES = (
+    "application/json; charset=utf-8",
+    "text/html; charset=utf-8",
+    "text/css; charset=utf-8",
+    "application/javascript; charset=utf-8",
+    "image/svg+xml",
+    "text/plain; charset=utf-8",
+)
 
 
 class HttpParseError(ValueError):
@@ -430,19 +439,22 @@ def _validate_response_header(name, value):
     return name.lower(), line
 
 
-def encode_json_response(status, body, extra_headers=None):
-    """Encode a bounded HTTP/1.1 response around already-encoded JSON bytes.
+def _encode_response(
+    status, body, content_type, extra_headers, maximum_body_bytes
+):
+    """Encode one bounded response with an allowlisted representation type.
 
     The caller cannot replace the framing or security headers.  ``body`` must
-    be immutable bytes so this layer never performs implicit JSON or text
-    serialization.
+    be immutable bytes so this layer never performs implicit serialization.
     """
 
     if type(status) is not int or status not in _STATUS_REASONS:
         _encode_error("unsupported_response_status")
     if type(body) is not bytes:
         _encode_error("response_body_must_be_bytes")
-    if len(body) > MAX_RESPONSE_BODY_BYTES:
+    if content_type not in _RESPONSE_CONTENT_TYPES:
+        _encode_error("unsupported_response_content_type")
+    if len(body) > maximum_body_bytes:
         _encode_error("response_body_too_large")
     if status in _BODYLESS_RESPONSE_STATUSES and body:
         _encode_error("response_body_not_allowed")
@@ -476,7 +488,7 @@ def encode_json_response(status, body, extra_headers=None):
     else:
         body_length = str(len(body)).encode("ascii")
         header_lines = [
-            b"Content-Type: application/json; charset=utf-8\r\n",
+            b"Content-Type: " + content_type.encode("ascii") + b"\r\n",
             b"Content-Length: " + body_length + b"\r\n",
             b"Connection: close\r\n",
             b"Cache-Control: no-store\r\n",
@@ -508,3 +520,29 @@ def encode_json_response(status, body, extra_headers=None):
     reason = _STATUS_REASONS[status]
     status_line = "HTTP/1.1 {} {}\r\n".format(status, reason).encode("ascii")
     return status_line + b"".join(header_lines) + _CRLF + body
+
+
+def encode_json_response(status, body, extra_headers=None):
+    """Encode bounded JSON bytes with the canonical Phase-8 wire format."""
+
+    return _encode_response(
+        status,
+        body,
+        "application/json; charset=utf-8",
+        extra_headers,
+        MAX_RESPONSE_BODY_BYTES,
+    )
+
+
+def encode_bytes_response(status, body, content_type, extra_headers=None):
+    """Encode one bounded static Web-UI asset without implicit conversion."""
+
+    if type(content_type) is not str:
+        _encode_error("unsupported_response_content_type")
+    return _encode_response(
+        status,
+        body,
+        content_type,
+        extra_headers,
+        MAX_STATIC_RESPONSE_BODY_BYTES,
+    )

@@ -722,6 +722,55 @@ class TestHeaterControllerRetriesAndRuntime(unittest.TestCase):
             )
         self.assertFalse(controller.requested["on"])
 
+    def test_confirmed_temperature_session_update_is_fenced_and_protocol_free(self):
+        port = RecordingProtocolPort()
+        temperatures = TemperatureManager(
+            {SENSOR_ROLE_ROOF_TENT: "28-session-update"}
+        )
+        temperatures.record_valid("28-session-update", 18, 0)
+        controller = HeaterController(
+            port,
+            maximum_runtime_minutes=45,
+            temperature_manager=temperatures,
+        )
+        controller.request_start(
+            CONTROL_MODE_ROOF_TENT_TEMPERATURE,
+            target_temperature=20,
+            runtime_minutes=30,
+        )
+        synchronize(controller, status_frame(6))
+        controller.step(20)
+        before_calls = list(port.calls)
+        revision = controller.request_revision
+
+        self.assertTrue(controller.update_active_session(
+            revision,
+            target_temperature=22,
+            extend_minutes=15,
+            now_ms=25,
+        ))
+        snapshot = controller.snapshot()
+        self.assertEqual(controller.request_revision, revision + 1)
+        self.assertEqual(snapshot["requested"]["target_temperature"], 22)
+        self.assertEqual(snapshot["requested"]["runtime_minutes"], 45)
+        self.assertEqual(snapshot["session"]["target"], 22)
+        self.assertEqual(snapshot["session"]["runtime_minutes"], 45)
+        self.assertEqual(port.calls, before_calls)
+
+        with self.assertRaises(RuntimeError):
+            controller.update_active_session(
+                revision,
+                target_temperature=23,
+                now_ms=26,
+            )
+        with self.assertRaises(ValueError):
+            controller.update_active_session(
+                revision + 1,
+                extend_minutes=15,
+                now_ms=26,
+            )
+        self.assertEqual(port.calls, before_calls)
+
     def test_off_status_during_start_attempt_keeps_original_deadline(self):
         port = RecordingProtocolPort()
         controller = HeaterController(port, maximum_runtime_minutes=5)

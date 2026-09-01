@@ -21,6 +21,7 @@ from app.manual_control_gateway import (
     ManualControlConfigurationConflictError,
     ManualControlConflictError,
     ManualControlInvariantError,
+    ManualControlSessionConflictError,
     ManualControlStateConflictError,
     ManualControlUnavailableError,
 )
@@ -64,6 +65,11 @@ _START_FIELDS = frozenset((
     "runtime_minutes",
 ))
 _QUICK_START_FIELDS = frozenset(("expected_request_revision",))
+_SESSION_UPDATE_FIELDS = frozenset((
+    "expected_request_revision",
+    "target_temperature",
+    "extend_minutes",
+))
 _SETTINGS_FIELDS = frozenset(("heater", "sensors", "time"))
 _TIMER_FIELDS = frozenset((
     "id",
@@ -452,6 +458,7 @@ class RestApplication:
             (manual_gateway, "request_start"),
             (manual_gateway, "request_quick_start"),
             (manual_gateway, "request_stop"),
+            (manual_gateway, "request_session_update"),
             (manual_gateway, "snapshot"),
             (config_manager, "public_status"),
             (configured_runtime, "snapshot"),
@@ -1327,6 +1334,55 @@ class RestApplication:
                 {"changed": changed, "heater": self._controller_public()},
             )
 
+        if path == API_PREFIX + "/heater/session":
+            if method != "PATCH":
+                raise _RestProblem(
+                    405,
+                    "method_not_allowed",
+                    "Method not allowed",
+                    {"Allow": "PATCH"},
+                )
+            self._authorize_mutation(request)
+            generation = self._required_generation(request)
+            body = self._json_object(request, _SESSION_UPDATE_FIELDS)
+            try:
+                _require_integer(
+                    "expected_request_revision",
+                    body["expected_request_revision"],
+                )
+                target = body["target_temperature"]
+                extension = body["extend_minutes"]
+                if target is not None:
+                    _require_integer("target_temperature", target, 5, 30)
+                if type(extension) is not int or extension not in (0, 15):
+                    raise ValueError("invalid extension")
+                if target is None and extension == 0:
+                    raise ValueError("empty session update")
+            except ValueError:
+                raise _RestProblem(
+                    422,
+                    "validation_failed",
+                    "Request validation failed",
+                ) from None
+            self._assert_not_reentered()
+            changed = self.__manual_gateway.request_session_update(
+                generation,
+                body["expected_request_revision"],
+                target_temperature=target,
+                extend_minutes=extension,
+            )
+            if type(changed) is not bool:
+                raise ManualControlInvariantError(
+                    "session update result is malformed"
+                )
+            self.__mutations += 1
+            return self._success(
+                200,
+                request_id,
+                {"updated": changed, "heater": self._controller_public()},
+                {"ETag": _config_etag(self._current_generation())},
+            )
+
         if path == API_PREFIX + "/settings":
             if method == "GET":
                 self._authorize_read(request)
@@ -1563,6 +1619,12 @@ class RestApplication:
             ) from None
         except ManualControlStateConflictError:
             raise _RestProblem(409, "heater_start_conflict", "Heater cannot start in its current state") from None
+        except ManualControlSessionConflictError:
+            raise _RestProblem(
+                409,
+                "heater_session_conflict",
+                "Active heater session cannot be changed",
+            ) from None
         except ManualControlConflictError:
             raise _RestProblem(409, "control_precondition_failed", "Requested State changed") from None
         except (ManualControlUnavailableError, ConfigurationStateError):

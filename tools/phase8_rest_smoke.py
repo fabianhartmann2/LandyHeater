@@ -303,6 +303,9 @@ class _Controller:
     def requested_matches(self, *arguments):
         return False
 
+    def update_active_session(self, *arguments, **keywords):
+        raise RuntimeError("synthetic smoke has no active session")
+
     def public_snapshot(self):
         return {
             "phase": "synchronized",

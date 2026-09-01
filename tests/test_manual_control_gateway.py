@@ -9,6 +9,7 @@ from app.manual_control_gateway import (
     ManualControlConflictError,
     ManualControlGateway,
     ManualControlInvariantError,
+    ManualControlSessionConflictError,
     ManualControlStateConflictError,
     ManualControlUnavailableError,
 )
@@ -160,6 +161,28 @@ class FakeController:
             and self._source == source
             and (ignore_deadline or not_after_ms is None)
         )
+
+    def update_active_session(
+        self,
+        expected_request_revision,
+        target_temperature=None,
+        extend_minutes=0,
+        now_ms=None,
+    ):
+        self.calls.append((
+            "update_session",
+            expected_request_revision,
+            target_temperature,
+            extend_minutes,
+            now_ms,
+        ))
+        if expected_request_revision != self._revision or not self._on:
+            raise ValueError("active session changed")
+        if target_temperature is not None:
+            self._target = target_temperature
+        self._runtime += extend_minutes
+        self._revision += 1
+        return True
 
     def force_on(self, source="manual", increment=True):
         self._on = True
@@ -368,6 +391,36 @@ class TestManualControlGateway(unittest.TestCase):
         self.assertFalse(controller.requested_on)
         self.assertEqual(scheduler.calls, 1)
         self.assertEqual(gateway.snapshot()["stops"], 1)
+
+    def test_session_update_requires_exact_authority_and_remains_protocol_free(self):
+        gateway, controller, scheduler, config, _, ticks = build_gateway()
+        controller.force_on()
+        revision = controller.request_revision
+        self.assertTrue(gateway.request_session_update(
+            7,
+            revision,
+            target_temperature=21,
+            extend_minutes=15,
+        ))
+        self.assertEqual(controller.request_revision, revision + 1)
+        self.assertEqual(controller._target, 21)
+        self.assertEqual(controller._runtime, 45)
+        self.assertEqual(scheduler.calls, 0)
+        self.assertEqual(ticks, [1000])
+
+        with self.assertRaises(ManualControlSessionConflictError):
+            gateway.request_session_update(
+                7,
+                revision,
+                target_temperature=22,
+            )
+        config.generation = 8
+        with self.assertRaises(ManualControlConfigurationConflictError):
+            gateway.request_session_update(
+                7,
+                revision + 1,
+                target_temperature=22,
+            )
 
     def test_stop_error_preserves_authoritative_off_truth(self):
         gateway, controller, scheduler, _, _, _ = build_gateway()

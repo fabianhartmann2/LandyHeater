@@ -32,6 +32,10 @@ class ManualControlStateConflictError(ManualControlConflictError):
     pass
 
 
+class ManualControlSessionConflictError(ManualControlConflictError):
+    pass
+
+
 class ManualControlUnavailableError(ManualControlError):
     pass
 
@@ -99,6 +103,7 @@ class ManualControlGateway:
             "manual_start_available",
             "request_start",
             "requested_matches",
+            "update_active_session",
         ):
             if not callable(getattr(controller, name, None)):
                 raise ValueError("controller must provide {}()".format(name))
@@ -577,6 +582,82 @@ class ManualControlGateway:
             if self.__controller.requested_on is not False:
                 self.__faulted = True
                 self.__last_error = "manual_stop_failed"
+            raise
+        finally:
+            self._finish_operation(primary_error)
+
+    def request_session_update(
+        self,
+        expected_configuration_generation,
+        expected_requested_revision,
+        target_temperature=None,
+        extend_minutes=0,
+    ):
+        """Apply one fenced active-session update through Requested State."""
+
+        self._begin_operation()
+        primary_error = None
+        try:
+            if self.__faulted:
+                raise ManualControlUnavailableError(
+                    "manual control gateway is faulted"
+                )
+            self._configuration_snapshot(expected_configuration_generation)
+            _require_integer(
+                "expected_requested_revision", expected_requested_revision
+            )
+            if (
+                self.__controller.request_revision
+                != expected_requested_revision
+                or self.__controller.requested_on is not True
+            ):
+                raise ManualControlSessionConflictError(
+                    "active Requested State changed"
+                )
+            now_ms = self._now()
+            self._confirm_configuration_authority(
+                expected_configuration_generation
+            )
+            changed = self.__controller.update_active_session(
+                expected_requested_revision,
+                target_temperature=target_temperature,
+                extend_minutes=extend_minutes,
+                now_ms=now_ms,
+            )
+            if type(changed) is not bool:
+                raise ManualControlInvariantError(
+                    "session update returned a non-boolean"
+                )
+            expected_revision = (
+                expected_requested_revision + 1
+                if changed else expected_requested_revision
+            )
+            if (
+                self.__controller.request_revision != expected_revision
+                or self.__controller.requested_on is not True
+            ):
+                raise ManualControlInvariantError(
+                    "session update readback differs"
+                )
+            self._confirm_configuration_authority(
+                expected_configuration_generation
+            )
+            return changed
+        except ManualControlError as error:
+            primary_error = error
+            raise
+        except ValueError:
+            primary_error = ManualControlSessionConflictError(
+                "active session update exceeds its safe bounds"
+            )
+            raise primary_error from None
+        except RuntimeError:
+            primary_error = ManualControlSessionConflictError(
+                "active session cannot be changed"
+            )
+            raise primary_error from None
+        except BaseException as error:
+            primary_error = error
             raise
         finally:
             self._finish_operation(primary_error)

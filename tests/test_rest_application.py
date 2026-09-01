@@ -15,6 +15,7 @@ from app.manual_control_gateway import (
     ManualControlConfigurationConflictError,
     ManualControlConflictError,
     ManualControlInvariantError,
+    ManualControlSessionConflictError,
     ManualControlStateConflictError,
     ManualControlUnavailableError,
 )
@@ -367,6 +368,35 @@ class FakeManualGateway:
                 self.controller.value["request_revision"] + 1, False
             )
         return self.stop_changed
+
+    def request_session_update(
+        self,
+        generation,
+        revision,
+        target_temperature=None,
+        extend_minutes=0,
+    ):
+        self.calls.append((
+            "session_update",
+            generation,
+            revision,
+            target_temperature,
+            extend_minutes,
+        ))
+        self._raise("session_update")
+        self.controller.value = controller_snapshot(revision + 1, True)
+        session = self.controller.value["session"]
+        if target_temperature is not None:
+            self.controller.value["requested"]["mode"] = "temperature"
+            self.controller.value["requested"]["target_temperature"] = target_temperature
+            self.controller.value["requested"]["power_level"] = None
+            session["mode"] = "temperature"
+            session["target"] = target_temperature
+        if extend_minutes:
+            self.controller.value["requested"]["runtime_minutes"] += extend_minutes
+            session["runtime_minutes"] += extend_minutes
+            session["expires_at_ms"] += extend_minutes * 60000
+        return True
 
     def snapshot(self):
         return {
@@ -988,6 +1018,56 @@ class TestRestManualMutations(unittest.TestCase):
             },
         ))
         self.assertEqual(with_json_type.status, 422)
+
+    def test_active_session_patch_is_exact_fenced_and_bounded(self):
+        body = (
+            b'{"expected_request_revision":3,"target_temperature":null,'
+            b'"extend_minutes":15}'
+        )
+        response = self.fixture.app.handle(json_request(
+            "PATCH",
+            "/api/v1/heater/session",
+            body,
+            self.fixture.mutation_headers(7),
+        ))
+        self.assertEqual(response.status, 200)
+        self.assertTrue(response.body["updated"])
+        self.assertEqual(response.headers["ETag"], '"config-7"')
+        self.assertEqual(self.fixture.manual.calls, [
+            ("session_update", 7, 3, None, 15)
+        ])
+
+        for invalid in (
+            b'{"expected_request_revision":3,"target_temperature":null,'
+            b'"extend_minutes":0}',
+            b'{"expected_request_revision":3,"target_temperature":31,'
+            b'"extend_minutes":0}',
+            b'{"expected_request_revision":3,"target_temperature":20,'
+            b'"extend_minutes":10}',
+        ):
+            fixture = Fixture()
+            rejected = fixture.app.handle(json_request(
+                "PATCH",
+                "/api/v1/heater/session",
+                invalid,
+                fixture.mutation_headers(7),
+            ))
+            self.assertEqual(rejected.status, 422)
+            self.assertEqual(fixture.manual.calls, [])
+
+        fixture = Fixture()
+        fixture.manual.failures["session_update"] = (
+            ManualControlSessionConflictError("private")
+        )
+        conflict = fixture.app.handle(json_request(
+            "PATCH",
+            "/api/v1/heater/session",
+            body,
+            fixture.mutation_headers(7),
+        ))
+        self.assertEqual(conflict.status, 409)
+        self.assertEqual(error_code(conflict), "heater_session_conflict")
+        self.assertNotIn("private", repr(conflict.body))
 
     def test_stop_failure_after_requested_off_reports_committed_truth(self):
         self.fixture.controller.value = controller_snapshot(3, True)

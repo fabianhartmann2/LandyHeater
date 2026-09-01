@@ -1000,6 +1000,109 @@ class HeaterController:
             self._request_revision += 1
         return changed
 
+    def update_active_session(
+        self,
+        expected_request_revision,
+        target_temperature=None,
+        extend_minutes=0,
+        now_ms=None,
+    ):
+        """Adjust one confirmed same-mode session without direct protocol I/O."""
+
+        _require_ticks(expected_request_revision)
+        _require_ticks(now_ms)
+        if (
+            isinstance(extend_minutes, bool)
+            or not isinstance(extend_minutes, int)
+            or extend_minutes not in (0, 15)
+        ):
+            raise ValueError("extend_minutes must be 0 or 15")
+        if target_temperature is not None and (
+            isinstance(target_temperature, bool)
+            or not isinstance(target_temperature, int)
+            or target_temperature < 5
+            or target_temperature > 30
+        ):
+            raise ValueError("target_temperature must be 5 to 30")
+        if target_temperature is None and extend_minutes == 0:
+            raise ValueError("session update is empty")
+        if self._request_revision != expected_request_revision:
+            raise RuntimeError("Requested State revision changed")
+        session = self._session
+        if (
+            not self._requested.on
+            or session is None
+            or session.expired
+            or not session.confirmed_active
+            or self._control_attempt is not None
+            or self._control_fault is not None
+            or self._restart_blocked
+        ):
+            raise RuntimeError("active session is not safely adjustable")
+        if (
+            session.mode != self._requested.mode
+            or session.runtime_minutes != self._requested.runtime_minutes
+        ):
+            raise RuntimeError("active session truth differs")
+        if self._ticks_diff(session.expires_at_ms, now_ms) <= 0:
+            raise RuntimeError("active session already expired")
+
+        current_target = self._requested.target_temperature
+        if self._requested.mode == CONTROL_MODE_POWER:
+            if target_temperature is not None:
+                raise ValueError("power sessions have no temperature target")
+            if session.target != self._requested.power_level:
+                raise RuntimeError("active power session truth differs")
+        elif session.target != current_target:
+            raise RuntimeError("active temperature session truth differs")
+
+        next_target = (
+            current_target
+            if target_temperature is None
+            else target_temperature
+        )
+        next_runtime = session.runtime_minutes + extend_minutes
+        if next_runtime > self.maximum_runtime_minutes:
+            raise ValueError("extended runtime exceeds configured maximum")
+        next_expiry = session.expires_at_ms
+        if extend_minutes:
+            next_expiry = self._ticks_add(
+                session.expires_at_ms, extend_minutes * 60 * 1000
+            )
+            _require_ticks(next_expiry)
+        changed = (
+            next_target != current_target
+            or next_runtime != session.runtime_minutes
+        )
+        if not changed:
+            return False
+
+        next_revision = self._request_revision + 1
+        self._requested.update_active_session(
+            next_target,
+            next_runtime,
+            self.maximum_runtime_minutes,
+        )
+        session.target = (
+            self._requested.power_level
+            if self._requested.mode == CONTROL_MODE_POWER
+            else next_target
+        )
+        session.runtime_minutes = next_runtime
+        session.expires_at_ms = next_expiry
+        self._request_revision = next_revision
+        self._emit_event(
+            "session_updated",
+            now_ms,
+            {
+                "session_id": session.session_id,
+                "target_temperature": next_target,
+                "runtime_minutes": next_runtime,
+                "request_revision": next_revision,
+            },
+        )
+        return True
+
     def retry_control_fault(self, now_ms):
         """Explicitly authorize one new bounded control-attempt generation.
 

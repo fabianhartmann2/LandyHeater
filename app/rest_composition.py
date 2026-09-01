@@ -247,3 +247,32 @@ def build_rest_http_server(
         ticks_diff=ticks_diff,
         ticks_add=ticks_add,
     )
+
+
+def build_web_http_server(
+    rest_runtime,
+    ap_bind_address,
+    port=80,
+    socket_factory=None,
+    ticks_ms=None,
+    ticks_diff=None,
+    ticks_add=None,
+):
+    """Build one inert listener for both frozen UI assets and ``/api/v1``."""
+
+    if not callable(getattr(rest_runtime, "handle", None)):
+        raise ValueError("rest_runtime must provide handle(request, peer_ip)")
+    from adapters.micropython_http_server import MicroPythonHTTPServer
+    from app.web_application import Phase9WebApplication
+
+    application = Phase9WebApplication(rest_runtime)
+    return MicroPythonHTTPServer(
+        application,
+        ap_bind_address,
+        port=port,
+        socket_factory=socket_factory,
+        request_handler=application.handle,
+        ticks_ms=ticks_ms,
+        ticks_diff=ticks_diff,
+        ticks_add=ticks_add,
+    )

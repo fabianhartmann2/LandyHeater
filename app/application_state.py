@@ -161,6 +161,28 @@ class RequestedHeaterState:
     def request_stop(self):
         self._on = False
 
+    def update_active_session(
+        self,
+        target_temperature,
+        runtime_minutes,
+        maximum_runtime_minutes,
+    ):
+        """Update same-mode active-session intent without changing power."""
+
+        if not self._on:
+            raise RuntimeError("Requested State is not active")
+        validate_start_request(
+            self._mode,
+            target_temperature,
+            self._power_level,
+            runtime_minutes,
+            self._source,
+            maximum_runtime_minutes,
+        )
+        self._target_temperature = target_temperature
+        self._runtime_minutes = runtime_minutes
+        return None
+
     def snapshot(self):
         return {
             "on": self._on,

@@ -42,10 +42,12 @@ class Clock:
 
 
 class Response:
-    def __init__(self, status=200, body=None, headers=None):
+    def __init__(self, status=200, body=None, headers=None, content_type=None):
         self.status = status
         self.body = {"ok": True} if body is None else body
         self.headers = {} if headers is None else headers
+        if content_type is not None:
+            self.content_type = content_type
 
 
 class FakeApplication:
@@ -1106,6 +1108,22 @@ class TestFaultContainment(unittest.TestCase):
             fixture.server.snapshot()["last_error"],
             "response_contract_failed",
         )
+
+    def test_static_byte_response_uses_same_bounded_listener(self):
+        client = FakeClientSocket([get_request("/assets/app.js")])
+        app = FakeApplication(Response(
+            body=b'"use strict";',
+            headers={"Content-Security-Policy": "default-src 'self'"},
+            content_type="application/javascript; charset=utf-8",
+        ))
+        fixture = ServerFixture([client], application=app).start()
+        fixture.pump(lambda: client.closed)
+        head, body = bytes(client.written).split(b"\r\n\r\n", 1)
+        self.assertIn(
+            b"Content-Type: application/javascript; charset=utf-8", head
+        )
+        self.assertIn(b"Content-Security-Policy: default-src 'self'", head)
+        self.assertEqual(body, b'"use strict";')
 
     def test_committed_mutation_is_never_misreported_by_encoder_500(self):
         committed = []

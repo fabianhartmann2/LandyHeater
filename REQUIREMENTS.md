@@ -583,9 +583,9 @@ Timer listing shall be bounded and paged, with at most eight timers returned in
 one response. Resource paths shall address every timer ID accepted by the
 persistent configuration schema without ambiguity.
 
-Session PATCH, events, live protocol logs and export endpoints are deliberately
-deferred beyond Phase 8. Their eventual version-1 implementation remains in
-scope, but they shall not weaken or bypass this boundary.
+Events, live protocol logs and export endpoints remain deliberately deferred
+beyond Phase 8. Their eventual version-1 implementation remains in scope, but
+they shall not weaken or bypass this boundary.
 
 ### 27.2 Mutation security and listener ingress
 
@@ -720,6 +720,14 @@ specified >=32-KiB GC-heap checkpoints, unchanged production storage, no
 heater/protocol activity and ordered HTTP/REST/radio/file cleanup. Evidence is
 in `captures/2026-09-01-dfr0975u-phase8-full-rest-gate.md`. This releases
 Phase 9 but does not enable automatic startup or any electrical peripheral.
+
+### 27.8 Phase-9 session extension
+
+Phase 9 adds `PATCH /api/v1/heater/session` for a same-mode target-temperature
+change and/or an exact `+15 min` extension. It is subject to the Phase-8
+mutation boundary, the current configuration generation and the exact
+Requested-State revision. It may act only on a confirmed, non-expired session,
+must respect the configured maximum runtime and must not perform protocol I/O.
 
 ## 28. Web interface
 
