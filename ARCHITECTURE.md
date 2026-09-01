@@ -4,7 +4,7 @@
 **Status:** Phase-8 components implemented; single-listener full-product
 harness host-validated; DFR0654 target capacity-blocked; DFR0975-U S3 profile,
 first flash, passive boot, USB-only memory, manual recovery and isolated VFS
-A/B-storage gates verified; target acceptance open
+A/B-storage plus bounded WLAN/DHCP gates verified; target acceptance open
 
 **Runtime:** MicroPython on ESP32
 
@@ -1045,8 +1045,9 @@ authorized complete first flash, passive MicroPython identity and separate
 idle GC/PSRAM/internal/internal-DMA gates passed. No classic-ESP32 image or pin
 assumption transfers. Manual physical-button ROM recovery and isolated VFS/A-B
 storage passed; unattended USB control-line recovery is not reliable. Radio
-and full product target acceptance remain open, and the internal/DMA gates
-must also pass later under bounded WLAN load.
+association and DHCP subsequently passed in a separate no-listener gate with
+complete cleanup. Full product target acceptance remains open, and the
+internal/DMA gates must also pass under the bounded Phase-8 product load.
 The bounded state and migration boundary are recorded in
 `captures/2026-08-30-phase8-single-listener-project-state.md` and
 `DFR0975U_MIGRATION.md`.

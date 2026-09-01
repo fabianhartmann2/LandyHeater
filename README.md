@@ -37,8 +37,12 @@ MicroPython-1.28-USB-Boot, 8-MiB-PSRAM sowie getrennte interne und DMA-fähige
 Speichergates sind bestanden. Auch manueller ROM-Recovery über `BOOT`/`RST`,
 die vollständige 12,9375-MiB-VFS und ein isolierter echter A/B-Storage-
 Roundtrip mit vollständigem Cleanup sind bestätigt; beide WLAN-Schnittstellen
-blieben aus. Der automatische USB-Control-Line-Reset ist auf diesem Board
-hingegen nicht zuverlässig und wird nicht als Recovery-Pfad angenommen. Der
+blieben aus. Anschließend bestand das neue Board auch den getrennten
+Phase-7-WLAN-/DHCP-Gate: genau ein stabiler WPA2-Handyclient erhielt
+`192.168.4.2/24` mit Router `192.168.4.1`; es wurde kein HTTP-Listener geladen
+und beide Funkinterfaces waren danach wieder aus. Der automatische
+USB-Control-Line-Reset ist auf diesem Board hingegen nicht zuverlässig und
+wird nicht als Recovery-Pfad angenommen. Der
 vollständige Migrationsstand steht in `DFR0975U_MIGRATION.md`; die älteren
 DFR0654-Versuche bleiben historische Evidenz in
 `captures/2026-08-30-phase8-single-listener-project-state.md` und
@@ -99,7 +103,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen: UTC-Zeitkern, feste Offsets, `Europe/Zurich` mit CET/CEST, Scheduler, verriegelte DS3231/I2C-Hülle, RTC-Brücke und Controller-Gateway; USB-only auf dem realen MicroPython-Ziel bestanden, reale RTC-Abnahme folgt in Phase 13 |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
-| **8** | **REST API** | **Komponenten implementiert: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; isolierter REST-Smoke und minimaler Frozen-AP+HTTP-Handytest bestanden; Ein-Listener-Full-Product-Runner hostseitig fokussiert geprüft, DFR0654 aber am 32-KiB-Zielgate blockiert; DFR0975-U-Profil, reproduzierbare S3/PSRAM-Artefakte, erster Full-Flash, passiver Boot, Speicher-, Recovery- und VFS/A-B-Storage-Gates bestanden; vollständige Produktzielabnahme offen** |
+| **8** | **REST API** | **Komponenten implementiert: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; isolierter REST-Smoke und minimaler Frozen-AP+HTTP-Handytest bestanden; Ein-Listener-Full-Product-Runner hostseitig fokussiert geprüft, DFR0654 aber am 32-KiB-Zielgate blockiert; DFR0975-U-Profil, reproduzierbare S3/PSRAM-Artefakte, erster Full-Flash, passiver Boot, Speicher-, Recovery-, VFS/A-B-Storage- und getrennter WLAN/DHCP-Gate bestanden; vollständige Produktzielabnahme offen** |
 | 9 | Web UI | Nicht freigegeben, bis die gemeinsame Wi-Fi-/HTTP-/Produktclosure die Zielabnahme besteht |
 | 10 | Setup Assistant | Nicht begonnen |
 | 11 | Events / Diagnostics / Capture Export | Einzelne Capture-/Diagnostikbausteine aus Sicherheitsgründen vorgezogen; Phase nicht abgeschlossen |
@@ -1119,9 +1123,10 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
 5. Manueller ROM-Recovery über `BOOT`/`RST` und der isolierte
    VFS/A-B-Storage-Gate sind bestanden. Automatischer USB-Control-Line-Recovery
    gilt als unzuverlässig; physischer Tastenzugang bleibt zwingend.
-6. Als Nächstes folgen separat geplante S3-UART-/Level-Interface- und
-   Funk-/DHCP-Gates. Der alte DFR0654-RX-/Loopbackpfad wird nicht übernommen.
-7. Zum Abschluss genau einen begrenzten Phase-8-Ein-Listener-Lauf auf Port 80
+6. Der getrennte Funk-/DHCP-Gate ist bestanden. Der S3-UART-/Level-Interface-
+   Gate bleibt separat offen; der alte DFR0654-RX-/Loopbackpfad wird nicht
+   übernommen.
+7. Als nächster Netzwerk-Gate genau einen begrenzten Phase-8-Ein-Listener-Lauf auf Port 80
    mit realem `GET /api/v1/status` durchführen. Nur HTTP 200, vollständiges
    JSON, alle Speicher-/Safety-Gates und kompletter Cleanup zählen als Pass.
 8. **Phase 9 – Web UI bleibt bis zu diesem Zielpass nicht freigegeben.**

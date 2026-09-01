@@ -101,8 +101,12 @@ diagnostic file was persisted to the board. Exact evidence is in
 The retained artifact does not authorize another erase or flash. Manual
 `BOOT`/`RST` ROM recovery and isolated VFS/A-B storage subsequently passed;
 automatic USB control-line recovery is not reliable and physical button access
-must remain available. S3 UART/level interface, functional radio/DHCP and
-Phase-8 product acceptance remain separate later gates. Internal and DMA
+must remain available. The separate no-listener phone AP/DHCP gate passed with
+one stable WPA2 client, the expected `/24` lease and complete radio cleanup.
+S3 UART/level interface and Phase-8 product acceptance remain separate later
+gates. Internal and DMA
 headroom must be measured again under the bounded WLAN/product load. Exact
 recovery/storage evidence is in
 `../../captures/2026-09-01-dfr0975u-usb-recovery-storage-gate.md`.
+Exact WLAN/DHCP evidence is in
+`../../captures/2026-09-01-dfr0975u-wlan-dhcp-gate.md`.

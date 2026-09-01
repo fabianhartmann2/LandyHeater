@@ -39,9 +39,9 @@ Priorities, in order:
   ESP32-S3-WROOM-1U-N16R8, 16 MB flash and 8 MB Octal PSRAM
 - Its exact USB identity, fail-closed board profile, reproducible firmware,
   authorized first flash, passive boot, idle PSRAM/internal-memory, manual
-  recovery and isolated VFS/A-B-storage gates are verified; automatic USB
-  control-line recovery is unreliable, while radio and full runtime target
-  acceptance remain open
+  recovery, isolated VFS/A-B-storage and bounded WLAN/DHCP gates are verified;
+  automatic USB control-line recovery is unreliable, while full runtime
+  target acceptance remains open
 - Exact production board is not fixed until the successor passes target
   acceptance
 - Hardware-specific pins and peripheral IDs must therefore be isolated in `board_config.py`

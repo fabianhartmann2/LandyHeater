@@ -12,7 +12,9 @@ complete flash was erased and the verified combined image was written. Passive
 MicroPython identity and separate USB-only GC, PSRAM, internal and
 internal-DMA memory gates passed. Manual ROM recovery and isolated real VFS
 A/B storage also passed; automatic USB control-line recovery is not reliable.
-Functional radio and Phase-8 target acceptance remain open.
+The bounded Phase-7 phone AP association and DHCP gate also passed with exact
+client addressing and complete radio cleanup. Phase-8 target acceptance
+remains open.
 
 Official references:
 
@@ -91,7 +93,8 @@ that original board.
 | Passive boot and exact custom MicroPython identity | complete; MicroPython 1.28.0 and exact machine string confirmed without soft reset |
 | USB recovery | manual `BOOT`/`RST` ROM entry and physical-reset return complete; automatic USB control-line entry/return is unreliable and not accepted |
 | VFS and isolated Phase-6 A/B storage | complete: full 12.9375-MiB VFS, bounded real write/readback, generation/recovery checks and exact cleanup |
-| Functional radio and Phase-8 HTTP target gates | open |
+| Functional WLAN/DHCP | complete: one stable WPA2 phone client, `192.168.4.2/24`, router `192.168.4.1`, no listener, complete radio cleanup |
+| Phase-8 HTTP target gate | open |
 
 The profile migration intentionally does not generalize the old
 `rx_only_transport`, UART loopback or UART capture path by changing constants.
@@ -179,7 +182,9 @@ antenna improves RF placement but is unrelated to the Phase-8 heap failure.
 6. Confirm passive `boot.py`/`main.py`, PSRAM, heap, flash/VFS and both radios
    initially inactive.
 7. Revalidate UART lock/loopback and RX-only neutralization with no heater.
-8. Revalidate AP association and automatic DHCP.
+8. Revalidate AP association and automatic DHCP. **Complete on the received
+   DFR0975-U; evidence is in
+   `captures/2026-09-01-dfr0975u-wlan-dhcp-gate.md`.**
 9. Run the single-listener Phase-8 full-product acceptance exactly once.
 
 Phase 8 passes only with a real complete HTTP 200 JSON response from
