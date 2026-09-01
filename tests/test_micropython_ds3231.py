@@ -85,9 +85,9 @@ def fake_machine_module():
 def approved_board():
     return mock.patch.multiple(
         board_config,
-        I2C_ID=0,
-        I2C_SDA_PIN=21,
-        I2C_SCL_PIN=22,
+        I2C_ID=1,
+        I2C_SDA_PIN=10,
+        I2C_SCL_PIN=11,
         I2C_PINS_APPROVED=True,
         I2C_FREQUENCY_HZ=100000,
         I2C_TIMEOUT_US=50000,
@@ -136,7 +136,7 @@ class TestMicroPythonDS3231(unittest.TestCase):
             return real_import(name, *args, **kwargs)
 
         with mock.patch("builtins.__import__", side_effect=guard):
-            with self.assertRaisesRegex(RuntimeError, "not configured"):
+            with self.assertRaisesRegex(RuntimeError, "not been electrically"):
                 open_ds3231_from_board_config()
         self.assertEqual(attempted, [])
 
@@ -151,9 +151,9 @@ class TestMicroPythonDS3231(unittest.TestCase):
             sys.modules, {"machine": fake_machine_module()}
         ):
             port = open_ds3231_from_board_config()
-        self.assertEqual([pin.number for pin in FakePin.instances], [21, 22])
+        self.assertEqual([pin.number for pin in FakePin.instances], [10, 11])
         i2c = FakeI2C.instances[0]
-        self.assertEqual(i2c.i2c_id, 0)
+        self.assertEqual(i2c.i2c_id, 1)
         self.assertEqual(
             i2c.kwargs,
             {

@@ -2,7 +2,8 @@
 
 **Version:** 1.1  
 **Status:** Phase-8 components implemented; single-listener full-product
-harness host-validated; DFR0654 target capacity-blocked; target acceptance open
+harness host-validated; DFR0654 target capacity-blocked; DFR0975-U S3 profile
+and preflash artifacts verified; target acceptance open
 
 **Runtime:** MicroPython on ESP32
 
@@ -143,11 +144,15 @@ those phases, but the responsibility boundaries must remain.
 ## 4. Hardware abstraction
 
 `board_config.py` shall be the authoritative source for a selected board
-profile. The current DFR0654 implementation still contains explicit identity
-guards in RX-only transport, capture/loopback tools, target runners and tests;
-the DFR0975-U migration must make those guards profile-aware rather than only
-changing pin constants. Board-specific safety validation remains explicit and
-fail-closed.
+profile. The active profile is bound to the physically confirmed DFR0975-U
+V1.0 and `ESP32-S3-WROOM-1U-N16R8`; intended GPIO routes are present, while
+every electrical/radio approval remains closed. Phase-7/8 target runners also
+require the exact custom MicroPython machine identity. The historical DFR0654
+validation branch remains available for regression checks. Its RX-only,
+capture and loopback tools deliberately stay DFR0654-only because their
+pin-neutralization behavior is not transferable; they reject the active S3
+profile until a distinct S3 UART gate is implemented. Board-specific safety
+validation remains explicit and fail-closed.
 
 Example configuration categories:
 
@@ -1033,8 +1038,11 @@ real RestApplication response is not modified by the observer.
 The latest DFR0654 run reached the single-listener path but retained only
 32,880 bytes at the proof-before-listen checkpoint and fell below the required
 32 KiB at the following checkpoint before READY. This is not a Phase-8 pass.
-The selected DFR0975-U N16R8 successor requires a separate ESP32-S3/Octal-PSRAM
-firmware and board profile; no classic-ESP32 image or pin assumption transfers.
+The selected DFR0975-U N16R8 successor now has a separate fail-closed board
+profile and reproducibly verified ESP32-S3/Octal-PSRAM preflash artifact set.
+It has not yet been flashed, and no classic-ESP32 image or pin assumption
+transfers. Runtime PSRAM/internal-memory, passive-boot, radio, storage and full
+product target acceptance remain open.
 The bounded state and migration boundary are recorded in
 `captures/2026-08-30-phase8-single-listener-project-state.md` and
 `DFR0975U_MIGRATION.md`.

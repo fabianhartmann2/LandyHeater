@@ -24,10 +24,19 @@ wurde daher keine Produktanfrage zugelassen und kein Phase-8-PASS erzeugt.
 
 Als Nachfolgeboard ist ein DFRobot FireBeetle 2 ESP32-S3-U
 **DFR0975-U N16R8** mit 16 MB Flash, 8 MB PSRAM und externer Antenne ausgewählt.
-Die S3-Migration ist noch nicht implementiert und benötigt ein eigenes
-Boardprofil, neue Pins und eine neue Firmware. Der vollständige Stand ist in
-`captures/2026-08-30-phase8-single-listener-project-state.md` festgehalten;
-die älteren Versuche bleiben historische Evidenz in
+Das eingetroffene V1.0-Board mit `ESP32-S3-WROOM-1U-N16R8` ist USB-/ROM-seitig
+identifiziert. Das neue S3-Profil enthält geprüfte Pin-/Denylisten, lässt aber
+alle Hardware- und Funkfreigaben geschlossen. MicroPython 1.28 wurde als
+eigener 16-MB-/Octal-PSRAM-Build zweimal sauber und bytegleich erzeugt; die
+geprüften, noch nie geflashten Artefakte liegen unter
+`firmware/dfr0975u_n16r8/`. Das private, geräteseitig verifizierte 16-MB-
+Werksbackup, die statische Artefaktprüfung und der vollständige Host-Test mit
+1046/1046 bestandenen Tests sind abgeschlossen; der Flash-Stopp bleibt bis zu
+einer neuen hashgebundenen Freigabe bestehen. Danach stehen zuerst der
+getrennte PSRAM-/interne-Speichertest und der passive USB-Boot an. Der
+vollständige Migrationsstand steht in `DFR0975U_MIGRATION.md`; die älteren
+DFR0654-Versuche bleiben historische Evidenz in
+`captures/2026-08-30-phase8-single-listener-project-state.md` und
 `captures/2026-08-25-phase8-full-rest-progress.md`.
 `boot.py` und `main.py` bleiben bewusst passiv; **Phase 8 ist weiterhin offen
 und Phase 9 – Web UI ist nicht freigegeben**.
@@ -85,7 +94,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen: UTC-Zeitkern, feste Offsets, `Europe/Zurich` mit CET/CEST, Scheduler, verriegelte DS3231/I2C-Hülle, RTC-Brücke und Controller-Gateway; USB-only auf dem realen MicroPython-Ziel bestanden, reale RTC-Abnahme folgt in Phase 13 |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
-| **8** | **REST API** | **Komponenten implementiert: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; isolierter REST-Smoke und minimaler Frozen-AP+HTTP-Handytest bestanden; Ein-Listener-Full-Product-Runner hostseitig 24/24 fokussiert geprüft, DFR0654 aber am 32-KiB-Zielgate blockiert; S3/PSRAM-Migration und vollständige Produktzielabnahme offen** |
+| **8** | **REST API** | **Komponenten implementiert: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; isolierter REST-Smoke und minimaler Frozen-AP+HTTP-Handytest bestanden; Ein-Listener-Full-Product-Runner hostseitig fokussiert geprüft, DFR0654 aber am 32-KiB-Zielgate blockiert; DFR0975-U-Profil und reproduzierbare S3/PSRAM-Preflash-Artefakte verifiziert, Laufzeit- und vollständige Produktzielabnahme offen** |
 | 9 | Web UI | Nicht freigegeben, bis die gemeinsame Wi-Fi-/HTTP-/Produktclosure die Zielabnahme besteht |
 | 10 | Setup Assistant | Nicht begonnen |
 | 11 | Events / Diagnostics / Capture Export | Einzelne Capture-/Diagnostikbausteine aus Sicherheitsgründen vorgezogen; Phase nicht abgeschlossen |
@@ -149,7 +158,7 @@ Unit-Tests als hardwareseitig freigegeben.
   Live-Diagnose auch für noch nicht zugeordnete Sensoren
 - Schutz vor dem unbestätigten 85-°C-Einschaltwert, ohne ein späteres reales
   85-°C-Messergebnis zu verbieten
-- eigene 1-Wire-Pinfreigabe, die bei `ONEWIRE_PIN=None` und
+- eigene 1-Wire-Pinfreigabe, die auch bei eingetragener S3-Route GPIO4 mit
   `ONEWIRE_PIN_APPROVED=False` weiterhin sicher verriegelt ist
 - lazy MicroPython-1.28-Hülle für `machine.Pin`, `onewire` und `ds18x20`,
   ohne Hardwarezugriff beim Import oder beim Konstruktor des Adapterkerns
@@ -168,9 +177,9 @@ Unit-Tests als hardwareseitig freigegeben.
 - getrennte UTC-Persistenzrevision und kurzlebige Korrektursperre: Erst nach
   exakter TimeService-Bestätigung darf der gestagte RTC-Wert vertrauenswürdig
   werden; re-entrant aufgerufene Korrekturen werden sichtbar abgewiesen
-- eigene I2C-Pinfreigabe sowie lazy MicroPython-Hülle; bei
-  `I2C_SDA_PIN=None`, `I2C_SCL_PIN=None` und `I2C_PINS_APPROVED=False` bleibt
-  jeder Hardwarezugriff gesperrt
+- eigene I2C-Pinfreigabe sowie lazy MicroPython-Hülle; bei eingetragenem
+  I2C1 SDA10/SCL11 und `I2C_PINS_APPROVED=False` bleibt jeder Hardwarezugriff
+  gesperrt
 - kooperative RTC-/TimeService-Brücke mit genauer Revisionsbestätigung, ohne
   dass eine alte RTC-Antwort eine neuere NTP-/Browserkorrektur überschreibt
 - maximal 32 atomar validierte Wochentimer mit Montag als Wochentag `0`
@@ -276,7 +285,7 @@ Unit-Tests als hardwareseitig freigegeben.
   vollständige gemeinsame Produktabnahme als gelöst oder fortbestehend zu
   bewerten
 - Erhaltung unbekannter Bytes und Befehle
-- 1000 bestandene CPython-Tests für die derzeit implementierten Softwarepfade
+- 1046 bestandene CPython-Tests für die derzeit implementierten Softwarepfade
 
 `boot.py` und `main.py` aktivieren absichtlich noch keine Hardware. Der neue
 Controller, Scheduler und Gateway sind unter CPython miteinander integriert,
@@ -830,8 +839,17 @@ landy-heater/
 │   ├── 2026-08-11-phase8-wifi-http-capacity-blocked.md
 │   ├── 2026-08-25-phase8-full-rest-progress.md
 │   ├── 2026-08-30-phase8-single-listener-project-state.md
+│   ├── 2026-09-01-dfr0975u-preflash-gate.md
+│   ├── 2026-09-01-dfr0975u-usb-identity.md
 │   ├── 2026-08-09-heater-off-status.md
 │   └── 2026-08-09-heater-init-response.md
+├── firmware/
+│   └── dfr0975u_n16r8/
+│       ├── artifacts/
+│       ├── boards/DFR0975U_N16R8/
+│       ├── BUILD_INFO.md
+│       ├── README.md
+│       └── dependencies.lock.esp32s3
 ├── protocol/
 │   ├── __init__.py
 │   ├── crc16.py
@@ -854,6 +872,7 @@ landy-heater/
 │   └── time_service.py
 ├── tools/
 │   ├── __init__.py
+│   ├── dfr0975u_memory_probe.py
 │   ├── phase5_integration_smoke.py
 │   ├── phase5_software_smoke.py
 │   ├── phase6_config_smoke.py
@@ -873,6 +892,8 @@ landy-heater/
 │   ├── test_configuration_api_gateway.py
 │   ├── test_configuration_bootstrap.py
 │   ├── test_configuration_storage.py
+│   ├── test_dfr0975u_firmware_artifacts.py
+│   ├── test_dfr0975u_memory_probe.py
 │   ├── test_ds18b20_adapter.py
 │   ├── test_ds3231_adapter.py
 │   ├── test_frames.py
@@ -923,38 +944,40 @@ landy-heater/
 
 Bestätigt beziehungsweise vorgesehen sind:
 
-- bisher bestätigtes Board: DFRobot FireBeetle 2 ESP32-E V1.0, SKU DFR0654
-- ausgewähltes Nachfolgeboard: DFRobot FireBeetle 2 ESP32-S3-U,
-  DFR0975-U N16R8 mit 16 MB Flash, 8 MB PSRAM und externer Antenne
-- bisher bestätigtes MicroPython-Ziel `ESP32_GENERIC`, stabile Version 1.28.0;
-  der neue S3-Build und das Boardprofil sind noch nicht implementiert
-- bisherige DFR0654-UART2-Belegung: TX GPIO17 (`D10/17`),
-  RX GPIO16 (`D11/16`); auf dem S3 vollständig neu zu validieren
+- historisch bestätigter Prototyp: DFRobot FireBeetle 2 ESP32-E V1.0,
+  DFR0654 mit `ESP32_GENERIC` MicroPython 1.28.0
+- aktives Nachfolgeprofil: eingetroffenes DFRobot FireBeetle 2 ESP32-S3-U
+  V1.0, DFR0975-U mit `ESP32-S3-WROOM-1U-N16R8`, 16 MB Flash, 8 MB Octal-
+  PSRAM und angeschlossener externer Antenne
+- neuer, zweifach bytegleich erzeugter MicroPython-1.28-Build
+  `DFR0975U_N16R8` auf Basis `ESP32_GENERIC_S3`/`SPIRAM_OCT`; statisch
+  verifiziert und noch nie geflasht
+- geplante S3-Routen: UART2 TX14/RX13, active-high TX-Gate GPIO12 mit späterem
+  externem Pull-down, I2C1 SDA10/SCL11 und 1-Wire GPIO4; alle elektrischen
+  Freigaben, Protokoll-TX und WLAN bleiben `False`
 - geeigneter 5-V-↔-3,3-V-Pegelwandler für die Autoterm-UART
 - drei DS18B20-Sensoren
 - DS3231-RTC
 - geeigneter DC/DC-Wandler vom 12-V-Bordnetz
 
 Die DFR0975-U-Auswahl und die zwingend getrennte S3-Firmware-, Pin-, PSRAM-,
-Recovery- und Abnahmefolge sind in `DFR0975U_MIGRATION.md` festgehalten. Bis
-das neue Board eingetroffen und geprüft ist, bleiben Konfiguration und
-Firmware wahrheitsgemäß auf dem DFR0654-Stand.
+Recovery- und Abnahmefolge sind in `DFR0975U_MIGRATION.md` festgehalten. Die
+genauen Builddaten und Artefakte liegen unter `firmware/dfr0975u_n16r8/`.
 Die geprüften Alternativboards und Auswahlkriterien stehen in
 `ESP32_BOARD_OPTIONS.md`.
 
-Die UART-Pins sind entsprechend der offiziellen DFR0654-Dokumentation in
-`board_config.py` eingetragen. Sensor- und RTC-Pins bleiben auf `None`. Für
-1-Wire müssen später zusätzlich `ONEWIRE_PIN_APPROVED=True`, ein konfliktfreier
-ausgangsfähiger GPIO und die festen Timinggrenzen bestätigt sein; der
-dedizierte Validator sperrt UART-, USB/REPL-, Flash-, Boot-Strapping- und
-Input-only-Pins.
+`board_config.py` ist auf die physisch bestätigte S3-Identität gebunden. Für
+1-Wire muss später zusätzlich `ONEWIRE_PIN_APPROVED=True`, der externe 4,7-kΩ-
+Pull-up und die konfliktfreie reale Verdrahtung bestätigt sein; der Validator
+sperrt PMIC-, UART0-, USB-, Flash/PSRAM-, Boot-Strapping-, LED-, Taster-,
+Kamera- und JTAG-Routen.
 Für I2C gilt eine getrennte, ebenso strikte Freigabe: SDA/SCL müssen
 verschieden, ausgangsfähig und konfliktfrei sein; ID, 100-kHz-Frequenz,
-Timeout und DS3231-Adresse `0x68` sind fest validiert. Im ausgelieferten Stand
-bleiben `I2C_SDA_PIN=None`, `I2C_SCL_PIN=None` und
-`I2C_PINS_APPROVED=False`. Die DS3231-Factory scheitert deshalb vor dem Import
-von `machine` und öffnet keinen GPIO oder Bus.
-Beim festgelegten ESP32_GENERIC/MicroPython-1.28-Stand besitzt `machine.I2C`
+Timeout und DS3231-Adresse `0x68` sind fest validiert. GPIO1/2 bleiben wegen
+des V1.0-AXP313A-PMIC-Busses ausgeschlossen. Im ausgelieferten Stand bleiben
+SDA10/SCL11 zugeordnet, aber `I2C_PINS_APPROVED=False`; die DS3231-Factory
+scheitert deshalb vor dem Import von `machine` und öffnet keinen GPIO oder Bus.
+Beim festgelegten ESP32_GENERIC_S3/MicroPython-1.28-Stand besitzt `machine.I2C`
 außerdem kein nutzbares `deinit()`: Die Hülle schließt daher logisch, gibt SDA
 und SCL als Eingänge ohne Pull frei und verhindert eine weitere Nutzung ihres
 Ports. Der Legacy-I2C-Treiber kann einzelne Transaktionen trotz konfiguriertem
@@ -969,22 +992,23 @@ bewusst geänderte beziehungsweise ersetzte Low-Level-Konfiguration mit
 `UART_PROTOCOL_TX_ENABLED = True` kann diesen Transport für einen späteren
 Meilenstein autorisieren. Die neue laufzeitseitige Safe-Factory akzeptiert
 diesen Zustand dagegen ausdrücklich nicht und räumt einen unerwartet
-TX-fähigen Transport wieder auf. Im aktuellen Projekt bleibt der Wert `False`;
-nur der getrennte, manuell bestätigte Board-Loopback schreibt einmalig ein
-festes Muster, das kein Autoterm-Frame ist. `main.py` importiert weder
-Protokoll noch `machine` und öffnet keine Hardware.
+TX-fähigen Transport wieder auf. Auf dem DFR0975-U erfordert ein späteres TX
+zusätzlich das freigegebene active-high Hardwaregate an GPIO12 mit physischem
+Pull-down und geeigneter Tri-State-/Pegelstufe. Im aktuellen Projekt bleiben
+sowohl Protokoll-TX als auch Gate- und UART-Pinfreigabe `False`. `main.py`
+importiert weder Protokoll noch `machine` und öffnet keine Hardware.
 
-Der passive Capture-Pfad verwendet eine eigene Factory. Dieser Factory-Aufruf
-ordnet UART2 während seiner Erzeugung kurz GPIO17 als TX zu; anschließend wird
-GPIO17 sofort wieder als `Pin.IN` ohne Pull konfiguriert. Das entfernt die
-UART-Alternativfunktion und macht den Pin hochohmig. Diese Maßnahme ist nur
-zusätzlicher Schutz: Beim passiven Mitschnitt muss GPIO17/D10 physisch
-unverbunden bleiben. Der Pfad darf nach einem frischen Safe-Boot exklusiv als
-einziger UART2-Nutzer laufen. Seine öffentliche API bietet weder `write()`,
-`send_frame()`, `init()` noch `sendbreak()`.
+Der passive Capture- und Loopbackpfad bleibt ausdrücklich DFR0654-spezifisch.
+Dort ordnet die Factory UART2 während ihrer Erzeugung kurz GPIO17 als TX zu
+und neutralisiert ihn anschließend als `Pin.IN` ohne Pull. Diese Annahme ist
+nicht auf den S3 übertragen: Die alten Werkzeuge lehnen das aktive DFR0975-U-
+Profil ab. Ein neuer RX-/Loopbacktest folgt erst nach einem eigenen,
+unbeschalteten S3-Gate; bis dahin wird keine UART-Hardware geöffnet.
 
 Der schrittweise USB- und Loopback-Ablauf steht in
-[FIREBEETLE_BRINGUP.md](FIREBEETLE_BRINGUP.md).
+[FIREBEETLE_BRINGUP.md](FIREBEETLE_BRINGUP.md) und gilt als historische
+DFR0654-Anleitung; die S3-Abfolge steht in
+[DFR0975U_MIGRATION.md](DFR0975U_MIGRATION.md).
 
 Die UART-Anbindung orientiert sich an der stabilen MicroPython-1.28-API:
 
@@ -1076,69 +1100,26 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
 
 ## Nächster Schritt
 
-1. Noch nichts zwischen Heizung, Wandler und ESP32 verbinden. Der fotografierte
-   Wandler ist als vierkanalige MOSFET-Schaltung eingeordnet, aber die konkrete
-   RX-Ader im eingebauten Kabel ist auf den Fotos nicht sicher zuzuordnen.
-2. Der USB-only-Phase-5-Softwaretest aus `FIREBEETLE_BRINGUP.md`, Stufe B.1,
-   ist auf dem realen DFR0654 bestanden. Die vier Speicherwerte und der
-   Abschlusstoken sind in
-   `captures/2026-08-10-phase5-esp32-software-smoke.md` gesichert.
-3. Die MicroPython-Hülle für den DS18B20-Pfad ist softwareseitig fertig. Vor
-   ihrem ersten realen Aufruf müssen ein freier DFR0654-GPIO, dreiadrige
-   Sensorversorgung, gemeinsame Masse und ein externer Pull-up von ungefähr
-   4,7 kΩ nach 3,3 V elektrisch bestätigt werden. Bis dahin bleiben
-   `ONEWIRE_PIN=None`, `ONEWIRE_PIN_APPROVED=False` und `main.py` passiv.
-4. Der verriegelte DS3231-/I2C-Pfad, die RTC-/TimeService-Brücke und das
-   synchrone Scheduler-/Controller-Gateway sind softwareseitig fertig. Der
-   erweiterte USB-only-V2-Smoke einschließlich CET/CEST-Grenzen bestand am
-   11. August 2026 auf dem realen DFR0654 mit 4/4 Durchläufen und dem
-   Abschlusstoken `PHASE5_USB_SMOKE_PASS_V2`; die aktuelle Evidenz steht in
-   `captures/2026-08-11-phase5-dst-esp32-smoke.md`.
-5. Damit ist der softwareseitige Funktionsumfang von **Phase 5** abgeschlossen.
-   Bis Phase 13 bleiben I2C-Pins, 1-Wire und DS3231 physisch unverbunden und
-   `main.py` passiv. Der produktive Composition-Root und Laufzeitloop bleiben
-   bis zur dafür vorgesehenen Integrationsstufe ebenfalls bewusst inaktiv.
-6. **Phase 6 – Configuration Storage** ist softwareseitig abgeschlossen. Der
-   reale USB-only-Flash-Smoke bestand 4/4 mit dem Token
-   `PHASE6_USB_CONFIG_SMOKE_PASS_V1`; Generationen, Schreibzähler, Heap,
-   Cleanup und Safe-Boot sind in
-   `captures/2026-08-11-phase6-config-esp32-smoke.md` festgehalten. Der
-   produktive Boot-/Mainloop-Pfad bleibt dennoch passiv.
-7. **Phase 7 – Wi-Fi AP + Client + mDNS** ist softwareseitig abgeschlossen.
-   Der reale Kapazitätslauf bestand mit 32 Timern, acht WLAN-Profilen und
-   7.888 kanonischen Bytes; der getrennte Funklauf bestätigte WPA2-AP,
-   Direct-IP, begrenzten STA-Versuch, Funk-Cleanup und Safe-Boot. Der echte
-   Handytest bestätigte zusätzlich die WPA2-Assoziation und DHCP-Adresse
-   `192.168.4.2/24` mit Gateway `192.168.4.1`. Die Details stehen in den drei
-   Phase-7-Dateien unter `captures/`. Der produktive
-   Bootpfad bleibt trotzdem passiv und das gespeicherte AP-Passwort weiterhin
-   unprovisioniert.
-8. Die **Phase-8-Komponenten** und Stufe B.7 sind implementiert beziehungsweise
-   USB-only 4/4 bestanden. Der echte AP-first/lazy-HTTP-Lauf auf der Frozen-
-   Firmware bestand mit `PHASE8_PHONE_HTTP_SMOKE_PASS_V1`, einem Handy-Peer und
-   vollständiger Antwort; er umfasste aber nur den festen Read-only-Prüfhandler.
-   Die Full-REST-Abnahme ist inzwischen auf einen einzigen produktiven
-   Port-80-Listener ohne vorherige HTTP-Probe reduziert und hostseitig an 24
-   getrennten Grenzen geprüft. Auf dem DFR0654 scheiterte der reale Aufbau vor
-   READY am folgenden 32-KiB-Heapcheckpoint; es wurde keine Anfrage zugelassen.
-   Die vollständige `RestApplication`-/ConfigManager-/Storage-
-   Produktzielabnahme bleibt deshalb offen. Als Nächstes folgt der sichere
-   Bring-up des ausgewählten DFR0975-U N16R8, danach genau ein neuer
-   hashgebundener Ein-Listener-Abnahmelauf; nur dessen vollständiger
-   Post-Cleanup-PASS zählt.
-   `boot.py`, `main.py` und der produktive Runtime-Start bleiben passiv.
-9. **Phase 9 – Web UI ist nicht freigegeben.** Session-PATCH, Events,
-   Live-Protokolllog und Exporte werden ebenfalls nicht nachträglich in Phase 8
-   gezogen, sondern bleiben ihren späteren Phasen zugeordnet.
-10. Weitere Lifecycle-Captures wie Starting, Running und Shutdown nur separat
-   und im normalen sicheren Heizungsbetrieb erfassen; sie sind für den
-   Softwaretest nicht erforderlich, aber vor realer TX-Freigabe nötig.
-11. Vor der elektrischen Integration mindestens ein Multimeter für
-   Durchgangs- und Gleichspannungsprüfung beschaffen oder ausleihen und den
-   vorhandenen 3,3-V-Knoten zum Raspberry-RX eindeutig identifizieren.
-12. Erst nach bestandener Prüfung den passiven Tap planen: GPIO16 über 10 kΩ an
-   den bestätigten 3,3-V-RX-Knoten, nur gemeinsame Signalmasse; GPIO17, 3V3 und
-   5V bleiben frei. FireBeetle zuerst einschalten und zuletzt ausschalten.
+1. DFR0975-U weiter ausschließlich über USB betreiben; Heizung, Fahrzeugstrom,
+   UART, RTC/I2C, 1-Wire und Sensoren bleiben unverbunden.
+2. Der vertrauliche 16-MB-Werksbackup-Read, geräteseitige Digest und die
+   Offline-Layoutprüfung sind bestanden; das Image bleibt außerhalb von Git.
+3. Die unter `firmware/dfr0975u_n16r8/` abgelegten Artefakte, Quellen, Layouts
+   und Prüfsummen sind vollständig abgeglichen. Das Combined-Image enthält
+   keine VFS; app-only ist beim unveränderten Werksboard kein zulässiger
+   Erstflash.
+4. Vor jeder Schreiboperation einen Bericht mit exakter Image-Prüfsumme und
+   vollständigem Flashumfang vorlegen und eine neue ausdrückliche Freigabe
+   einholen. Bis dahin gilt der Flash-Stopp.
+5. Nach einem genehmigten Flash zuerst passiven USB-Boot sowie MicroPython-
+   Identität prüfen und GC, PSRAM, internen 8-Bit-Heap und DMA-fähigen internen
+   Heap getrennt messen. WLAN und alle Produktperipherien bleiben dabei aus.
+6. Erst danach folgen einzeln genehmigte USB-Recovery-, VFS/Storage-, S3-UART-
+   und Funkgates. Der alte DFR0654-RX-/Loopbackpfad wird nicht übernommen.
+7. Zum Abschluss genau einen begrenzten Phase-8-Ein-Listener-Lauf auf Port 80
+   mit realem `GET /api/v1/status` durchführen. Nur HTTP 200, vollständiges
+   JSON, alle Speicher-/Safety-Gates und kompletter Cleanup zählen als Pass.
+8. **Phase 9 – Web UI bleibt bis zu diesem Zielpass nicht freigegeben.**
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und

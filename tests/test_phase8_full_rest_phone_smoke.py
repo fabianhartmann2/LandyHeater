@@ -238,6 +238,47 @@ class TestPhase8FullRestPhoneSmoke(unittest.TestCase):
         wifi_module._WIFI_LEASED = False
         wifi_module._WIFI_LEASE_POISONED = False
 
+    def test_platform_guard_requires_exact_dfr0975u_build_tuple(self):
+        fake_sys = types.SimpleNamespace(
+            implementation=types.SimpleNamespace(
+                name="micropython", version=(1, 28, 0)
+            ),
+            platform="esp32",
+        )
+        uname = types.SimpleNamespace(machine=smoke.EXPECTED_MACHINE_NAME)
+        with mock.patch.object(smoke, "_sys", fake_sys), mock.patch(
+            "os.uname", return_value=uname
+        ):
+            self.assertIs(smoke._verify_platform(board_config), True)
+            with mock.patch.object(
+                board_config, "MICROPYTHON_VARIANT", "SPIRAM"
+            ):
+                with self.assertRaisesRegex(RuntimeError, "profile differs"):
+                    smoke._verify_platform(board_config)
+            with mock.patch(
+                "os.uname",
+                return_value=types.SimpleNamespace(
+                    machine="Generic ESP32 module"
+                ),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "identity differs"):
+                    smoke._verify_platform(board_config)
+
+    def test_hardware_lock_guard_checks_assigned_but_unapproved_routes(self):
+        self.assertIs(smoke._verify_hardware_locks(board_config), True)
+        for name, value in (
+            ("UART_PROTOCOL_TX_ENABLED", True),
+            ("UART_PINS_APPROVED", True),
+            ("UART_TX_GATE_ACTIVE_LEVEL", 0),
+            ("ONEWIRE_PIN", None),
+            ("I2C_SCL_PIN", None),
+        ):
+            with self.subTest(name=name), mock.patch.object(
+                board_config, name, value
+            ):
+                with self.assertRaises(RuntimeError):
+                    smoke._verify_hardware_locks(board_config)
+
     @staticmethod
     def _wifi_runtime(clock):
         return (

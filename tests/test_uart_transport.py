@@ -541,7 +541,7 @@ class FakeBoardConfig:
 
 
 class TestUARTFactory(unittest.TestCase):
-    def test_real_board_config_builds_official_dfr0654_uart2_profile(self):
+    def test_real_board_config_builds_dfr0975u_uart2_profile_when_approved(self):
         created = []
 
         def uart_factory(*args, **kwargs):
@@ -549,26 +549,37 @@ class TestUARTFactory(unittest.TestCase):
             created.append(uart)
             return uart
 
-        transport = open_from_board_config(
-            board_config,
-            uart_factory,
-            ticks_ms=lambda: 0,
-            ticks_diff=lambda current, previous: current - previous,
-        )
+        with mock.patch.object(board_config, "UART_PINS_APPROVED", True):
+            transport = open_from_board_config(
+                board_config,
+                uart_factory,
+                ticks_ms=lambda: 0,
+                ticks_diff=lambda current, previous: current - previous,
+            )
         uart = created[0]
         self.assertEqual(uart.constructor_args, (2,))
-        self.assertEqual(uart.constructor_kwargs["tx"], 17)
-        self.assertEqual(uart.constructor_kwargs["rx"], 16)
+        self.assertEqual(uart.constructor_kwargs["tx"], 14)
+        self.assertEqual(uart.constructor_kwargs["rx"], 13)
         self.assertEqual(uart.constructor_kwargs["baudrate"], 9600)
+
+    def test_real_board_uart_factory_is_locked_before_pin_approval(self):
+        with self.assertRaisesRegex(RuntimeError, "not been electrically"):
+            open_from_board_config(
+                board_config,
+                FakeUART,
+                ticks_ms=lambda: 0,
+                ticks_diff=lambda current, previous: current - previous,
+            )
 
     def test_real_board_transport_blocks_protocol_tx(self):
         uart = FakeUART()
-        transport = open_from_board_config(
-            board_config,
-            lambda *args, **kwargs: uart,
-            ticks_ms=lambda: 0,
-            ticks_diff=lambda current, previous: current - previous,
-        )
+        with mock.patch.object(board_config, "UART_PINS_APPROVED", True):
+            transport = open_from_board_config(
+                board_config,
+                lambda *args, **kwargs: uart,
+                ticks_ms=lambda: 0,
+                ticks_diff=lambda current, previous: current - previous,
+            )
         with self.assertRaises(UARTTransportTxDisabledError):
             transport.send_frame(build_init_request())
         self.assertEqual(uart.writes, [])
@@ -631,12 +642,13 @@ class TestUARTFactory(unittest.TestCase):
                 ticks_diff=lambda current, previous: current - previous,
             )
 
-        transport = open_from_board_config(
-            board_config,
-            FakeUART,
-            ticks_ms=lambda: 0,
-            ticks_diff=lambda current, previous: current - previous,
-        )
+        with mock.patch.object(board_config, "UART_PINS_APPROVED", True):
+            transport = open_from_board_config(
+                board_config,
+                FakeUART,
+                ticks_ms=lambda: 0,
+                ticks_diff=lambda current, previous: current - previous,
+            )
         with self.assertRaises(AttributeError):
             transport.tx_enabled = True
         with self.assertRaises(UARTTransportTxDisabledError):

@@ -3,9 +3,13 @@
 ## Decision and status
 
 The selected successor to the DFR0654 is the **DFRobot FireBeetle 2
-ESP32-S3-U, SKU DFR0975-U, module variant N16R8**. The board has been selected
-but has not yet arrived or been validated. The current `board_config.py`,
-firmware and safety evidence therefore continue to describe the DFR0654.
+ESP32-S3-U, SKU DFR0975-U, module variant N16R8**. The board arrived and passed
+the non-writing USB identity gate on 2026-09-01. The active `board_config.py`
+now describes this exact received board with every electrical/radio approval
+closed. A path-bound reproducible MicroPython S3 artifact set is retained
+under `firmware/dfr0975u_n16r8/`. It has passed static inspection but has not
+been flashed. Runtime memory, passive-boot, storage, radio and Phase-8 target
+acceptance remain open.
 
 Official references:
 
@@ -16,6 +20,30 @@ Official references:
 
 The evaluated alternatives and selection criteria are recorded in
 `ESP32_BOARD_OPTIONS.md`.
+
+## Received hardware identity (2026-09-01)
+
+The received board was inspected with only USB and its external 2.4-GHz
+antenna connected. Heater, vehicle power, UART, I2C, 1-Wire, RTC, sensors and
+loopback wiring remained disconnected.
+
+- physical SKU: `DFR0975-U`;
+- PCB revision: `V1.0`;
+- module marking: `ESP32-S3-WROOM-1U-N16R8`;
+- external antenna: connected before any future radio test;
+- USB identity: Espressif USB Serial/JTAG, VID `0x303a`, PID `0x1001`;
+- ROM identity: ESP32-S3 QFN56, silicon revision 0.1, 40-MHz crystal;
+- detected embedded PSRAM: 8 MB, 3.3-V interface;
+- detected SPI flash: 16 MB, Quad-SPI mode.
+
+The single ROM query used esptool.py 4.7.0 with `--no-stub flash-id`, followed
+by a hard reset. It did not erase or write flash and did not start Wi-Fi,
+Bluetooth or application GPIOs. Silicon revision 0.1 is not the PCB revision.
+The physical module marking is the evidence for the `1U` external-antenna
+variant; USB VID/PID alone cannot distinguish the DFRobot board SKU.
+
+Sanitized evidence and the remaining non-claims are recorded in
+`captures/2026-09-01-dfr0975u-usb-identity.md`.
 
 ## Why this board
 
@@ -45,22 +73,77 @@ The following must **not** be copied or flashed onto the ESP32-S3:
 Historical DFR0654 artifacts remain useful only as evidence and rollback for
 that original board.
 
-## Required implementation work
+## Migration-gate status
 
-1. Verify the received SKU, hardware revision, `ESP32-S3-WROOM-1U-N16R8`
-   module, flash size, PSRAM size/mode and external antenna path.
-2. Add a separate DFR0975-U board profile; preserve DFR0654 support.
-3. Replace DFR0654-only guards in board configuration, RX-only transport,
-   protocol capture, loopback tools, target runners and tests with explicit
-   profile-aware validation.
-4. Select and validate new 3.3-V GPIOs for UART TX/RX, I2C SDA/SCL and 1-Wire.
-   Avoid USB, boot-strapping, flash/PSRAM-reserved and board-reserved pins.
-5. Build MicroPython 1.28 for `ESP32_GENERIC_S3` using the Octal-SPIRAM
-   (`spiram-oct`) variant and the existing frozen project closure.
-6. Generate and pin a new S3 bootloader, partition table, application,
-   combined image, rollback image, hashes, sizes and flash commands.
-7. Prove PSRAM detection/use and retain explicit internal/native memory
-   headroom for Wi-Fi/lwIP.
+| Gate | Status on 2026-09-01 |
+| --- | --- |
+| Physical SKU, V1.0 revision, 1U-N16R8 module, antenna, flash and ROM PSRAM identity | complete, read-only evidence retained |
+| Confidential factory recovery image | complete: 16 MiB read plus independent device digest; owner-only outside Git |
+| Active DFR0975-U profile and S3 GPIO allow/deny rules | complete; every approval remains `False` |
+| Legacy DFR0654 preservation | validation branch retained; DFR0654-only RX/capture/loopback tools deliberately reject the active S3 profile until a later S3 UART gate |
+| Phase-7/8 platform guards | bound to the exact custom MicroPython machine identity and S3 profile |
+| MicroPython 1.28 S3/Octal-PSRAM build | complete; two clean canonical builds matched for 15/15 outputs |
+| 16-MiB bootloader, partition table, app, combined image and hashes | retained and statically verified; not flashed |
+| PSRAM/internal memory | build configuration proved offline; separate runtime GC, PSRAM, internal and internal-DMA measurements require an approved flash |
+| Passive boot, USB recovery, storage, radio and Phase-8 HTTP target gates | open |
+
+The profile migration intentionally does not generalize the old
+`rx_only_transport`, UART loopback or UART capture path by changing constants.
+Those paths contain DFR0654-specific pin-neutralization assumptions and stay
+fail-closed until a disconnected S3-specific UART/level-interface test is
+designed and separately approved.
+
+## Fail-closed V1.0 pin plan
+
+The V1.0 schematic and the received board identity support the following
+planned profile. These assignments document the intended route; they are not
+electrically approved merely because they appear in source. Every peripheral
+approval and protocol-transmit flag remains `False` until its separate
+USB-only hardware gate succeeds.
+
+| Function | ESP32-S3 GPIO | Board label | Initial state |
+| --- | ---: | --- | --- |
+| Heater UART2 TX | 14 | D10 | disconnected and disabled |
+| Heater UART2 RX | 13 | D11 | disconnected |
+| Heater TX buffer enable | 12 | D12 | unapproved; external pull-down required |
+| DS3231 I2C1 SDA | 10 | A4 | unapproved |
+| DS3231 I2C1 SCL | 11 | A5 | unapproved |
+| DS18B20 1-Wire bus | 4 | A0 | unapproved |
+
+The eventual heater TX interface must be a protected, tri-state-capable level
+stage. GPIO12 is an active-high enable and requires a physical pull-down so
+reset, boot and absent firmware keep the heater-facing output high impedance.
+Software protocol TX remains a separate lock.
+
+GPIO1/2 are deliberately not used for the RTC on V1.0 because they already
+carry the onboard AXP313A power-management I2C bus. GPIO0/3/45/46 are
+strapping-related; GPIO19/20 are native USB; GPIO26-37 belong to module
+flash/Octal-PSRAM routing; GPIO43/44 are UART0/recovery; GPIO21 and GPIO47 are
+the onboard LED and key. Camera/GDI/JTAG-only routes are also excluded from
+the initial product profile.
+
+## Firmware and memory gates
+
+The custom MicroPython build target is `DFR0975U_N16R8`, derived from
+`ESP32_GENERIC_S3` with Octal PSRAM. Its header declares 16 MiB flash. The
+layout contains a 3-MiB factory app at `0x10000` and an explicit 12.9375-MiB
+LittleFS VFS at `0x310000`; there is no OTA slot. The 1,964,688-byte app leaves
+1,181,040 bytes, about 38%, in its slot. Exact inputs, hashes and the
+path-bound A/B proof are in `firmware/dfr0975u_n16r8/BUILD_INFO.md`.
+
+The resolved configuration enables 8-MiB Octal PSRAM at 80 MHz, performs the
+boot memory test, fails if PSRAM is absent, prefers PSRAM for allocations over
+8 KiB and reserves 32 KiB internally. These are build facts, not runtime
+acceptance. After an explicitly approved first flash, the USB-only memory gate
+must separately require:
+
+- at least 32 KiB free MicroPython GC heap;
+- at least 7 MiB and no more than the nominal 8 MiB registered PSRAM;
+- at least 32 KiB free and a 32-KiB largest block in internal 8-bit heap;
+- the same 32-KiB free/largest limits for DMA-capable internal 8-bit heap.
+
+The internal and DMA values must later be sampled again under the bounded
+Phase-7/8 WLAN load; an idle-boot pass does not prove Wi-Fi/lwIP headroom.
 
 ## External antenna
 
@@ -79,12 +162,15 @@ antenna improves RF placement but is unrelated to the Phase-8 heap failure.
 1. USB only; heater, vehicle UART, I2C and 1-Wire disconnected.
 2. Establish ROM download/recovery and read board identity before flashing.
 3. Back up the new board's factory contents if useful for recovery.
-4. Flash only the newly verified S3 image using its generated layout.
-5. Confirm passive `boot.py`/`main.py`, PSRAM, heap, flash/VFS and both radios
+4. Present the exact artifact/backup report and obtain a fresh hash-bound
+   approval that names the complete first-flash operation; app-only is not a
+   valid first-board path.
+5. Flash only the newly approved S3 image and complete layout.
+6. Confirm passive `boot.py`/`main.py`, PSRAM, heap, flash/VFS and both radios
    initially inactive.
-6. Revalidate UART lock/loopback and RX-only neutralization with no heater.
-7. Revalidate AP association and automatic DHCP.
-8. Run the single-listener Phase-8 full-product acceptance exactly once.
+7. Revalidate UART lock/loopback and RX-only neutralization with no heater.
+8. Revalidate AP association and automatic DHCP.
+9. Run the single-listener Phase-8 full-product acceptance exactly once.
 
 Phase 8 passes only with a real complete HTTP 200 JSON response from
 `GET http://192.168.4.1/api/v1/status`, every mandatory >=32-KiB checkpoint,

@@ -155,6 +155,45 @@ class TestPhase7NetworkSmoke(unittest.TestCase):
         wifi._WIFI_LEASED = False
         wifi._WIFI_LEASE_POISONED = False
 
+    def test_platform_guard_requires_exact_dfr0975u_build_tuple(self):
+        implementation = types.SimpleNamespace(
+            name="micropython", version=(1, 28, 0)
+        )
+        uname = types.SimpleNamespace(machine=smoke.EXPECTED_MACHINE_NAME)
+        with mock.patch.object(sys, "implementation", implementation), \
+             mock.patch.object(sys, "platform", "esp32"), \
+             mock.patch("os.uname", return_value=uname):
+            self.assertIs(smoke._verify_platform(board_config), True)
+            with mock.patch.object(
+                board_config, "MICROPYTHON_BUILD_BOARD", "ESP32_GENERIC_S3"
+            ):
+                with self.assertRaisesRegex(RuntimeError, "profile differs"):
+                    smoke._verify_platform(board_config)
+            with mock.patch(
+                "os.uname",
+                return_value=types.SimpleNamespace(
+                    machine="Generic ESP32 module"
+                ),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "identity differs"):
+                    smoke._verify_platform(board_config)
+
+    def test_hardware_lock_guard_checks_assigned_but_unapproved_routes(self):
+        self.assertIs(smoke._verify_hardware_locks(board_config), True)
+        for name, value in (
+            ("UART_PINS_APPROVED", True),
+            ("UART_TX_GATE_APPROVED", True),
+            ("ONEWIRE_PIN_APPROVED", True),
+            ("I2C_PINS_APPROVED", True),
+            ("ONEWIRE_PIN", None),
+            ("I2C_SDA_PIN", None),
+        ):
+            with self.subTest(name=name), mock.patch.object(
+                board_config, name, value
+            ):
+                with self.assertRaises(RuntimeError):
+                    smoke._verify_hardware_locks(board_config)
+
     def _run_fake(self, fake, iterations=1, memory=(100000, 90000, 85000)):
         output = io.StringIO()
         with mock.patch.dict(sys.modules, {"network": fake}):

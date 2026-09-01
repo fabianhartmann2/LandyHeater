@@ -1673,10 +1673,15 @@ def continue_run(capsule, state, temporary_password, window_seconds):
             and _wifi_lease_released(core.wifi_module)
             and core.board_config.WIFI_RADIO_APPROVED is False
             and core.board_config.UART_PROTOCOL_TX_ENABLED is False
-            and core.board_config.ONEWIRE_PIN is None
+            and core.board_config.UART_PINS_APPROVED is False
+            and core.board_config.UART_TX_GATE_PIN == 12
+            and core.board_config.UART_TX_GATE_ACTIVE_LEVEL == 1
+            and core.board_config.UART_TX_GATE_APPROVED is False
+            and core.board_config.ONEWIRE_PIN == 4
             and core.board_config.ONEWIRE_PIN_APPROVED is False
-            and core.board_config.I2C_SDA_PIN is None
-            and core.board_config.I2C_SCL_PIN is None
+            and core.board_config.I2C_ID == 1
+            and core.board_config.I2C_SDA_PIN == 10
+            and core.board_config.I2C_SCL_PIN == 11
             and core.board_config.I2C_PINS_APPROVED is False
             and controller.requested_on is False
             and controller.request_revision == 0

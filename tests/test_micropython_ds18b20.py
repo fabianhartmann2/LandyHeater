@@ -478,7 +478,7 @@ class TestMicroPythonDS18B20Factory(unittest.TestCase):
             return real_import(name, *args, **kwargs)
 
         with mock.patch("builtins.__import__", side_effect=guarded_import):
-            with self.assertRaisesRegex(RuntimeError, "not configured"):
+            with self.assertRaisesRegex(RuntimeError, "not been electrically"):
                 open_ds18b20_adapter_from_board_config(TemperatureManager())
         self.assertEqual(hardware_imports, [])
         self.assertEqual(FactoryPin.instances, [])

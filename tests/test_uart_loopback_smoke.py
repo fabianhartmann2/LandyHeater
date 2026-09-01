@@ -77,22 +77,21 @@ class LoopbackUART:
 
 
 def config_with(**overrides):
-    names = (
-        "BOARD_SKU",
-        "UART_ID",
-        "UART_TX_PIN",
-        "UART_RX_PIN",
-        "UART_BAUDRATE",
-        "UART_BITS",
-        "UART_PARITY",
-        "UART_STOP_BITS",
-        "UART_PROTOCOL_TX_ENABLED",
-        "UART_DRIVER_TIMEOUT_MS",
-        "UART_DRIVER_TIMEOUT_CHAR_MS",
-        "UART_INVERT",
-        "UART_RX_BUFFER_SIZE",
-    )
-    values = {name: getattr(board_config, name) for name in names}
+    values = {
+        "BOARD_SKU": "DFR0654",
+        "UART_ID": 2,
+        "UART_TX_PIN": 17,
+        "UART_RX_PIN": 16,
+        "UART_BAUDRATE": 9600,
+        "UART_BITS": 8,
+        "UART_PARITY": None,
+        "UART_STOP_BITS": 1,
+        "UART_PROTOCOL_TX_ENABLED": False,
+        "UART_DRIVER_TIMEOUT_MS": 0,
+        "UART_DRIVER_TIMEOUT_CHAR_MS": 0,
+        "UART_INVERT": 0,
+        "UART_RX_BUFFER_SIZE": 512,
+    }
     values.update(overrides)
     values["require_uart_configuration"] = lambda: None
     return SimpleNamespace(**values)
@@ -102,11 +101,12 @@ def run_with(
     uart,
     clock=None,
     confirmation=LOOPBACK_CONFIRMATION,
-    config_module=board_config,
+    config_module=None,
     timeout_ms=20,
     quiet_ms=10,
 ):
     clock = clock or FakeClock()
+    config_module = config_with() if config_module is None else config_module
     return run(
         confirmation,
         uart_factory=lambda: uart,
@@ -147,7 +147,7 @@ class TestUARTLoopbackSmoke(unittest.TestCase):
         machine_module = ModuleType("machine")
         machine_module.UART = CapturingUART
         with mock.patch.dict(sys.modules, {"machine": machine_module}):
-            uart = _open_loopback_uart(board_config)
+            uart = _open_loopback_uart(config_with())
 
         self.assertIs(uart, created[0])
         self.assertEqual(uart.constructor_args, (2,))
@@ -170,6 +170,16 @@ class TestUARTLoopbackSmoke(unittest.TestCase):
         self.assertTrue(uart.deinitialized)
         self.assertEqual(result["board_sku"], "DFR0654")
         self.assertEqual((result["tx_pin"], result["rx_pin"]), (17, 16))
+
+    def test_active_s3_profile_is_rejected_before_uart_open(self):
+        opened = []
+        with self.assertRaises(RuntimeError):
+            run(
+                LOOPBACK_CONFIRMATION,
+                uart_factory=lambda: opened.append(True),
+                config_module=board_config,
+            )
+        self.assertEqual(opened, [])
 
     def test_echo_may_arrive_in_multiple_chunks(self):
         uart = LoopbackUART(max_read_bytes=3)

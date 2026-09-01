@@ -22,6 +22,7 @@ STATUS_PATH = "/api/v1/status"
 STATUS_URL = "http://192.168.4.1/api/v1/status"
 
 DEFAULT_WINDOW_SECONDS = 180
+EXPECTED_MACHINE_NAME = "DFRobot DFR0975-U N16R8 with ESP32S3"
 
 _STAGE1_MODULE = "tools.phase8_full_rest_phone_stage1"
 _STAGE2_SEAM_MODULE = "tools.phase8_full_rest_phone_stage2_seam"
@@ -91,11 +92,16 @@ def _verify_platform(board_config):
     )
     machine_name = getattr(os.uname(), "machine", "")
     _support_require(
-        type(machine_name) is str and "esp32" in machine_name.lower(),
-        "ESP32 machine identity is missing",
+        machine_name == EXPECTED_MACHINE_NAME,
+        "DFR0975-U firmware machine identity differs",
     )
     _support_require(
-        board_config.MICROPYTHON_TARGET == "ESP32_GENERIC"
+        board_config.BOARD_SKU == "DFR0975-U"
+        and board_config.BOARD_HARDWARE_REVISION == "1.0"
+        and board_config.BOARD_MODULE == "ESP32-S3-WROOM-1U-N16R8"
+        and board_config.MICROPYTHON_TARGET == "ESP32_GENERIC_S3"
+        and board_config.MICROPYTHON_VARIANT == "SPIRAM_OCT"
+        and board_config.MICROPYTHON_BUILD_BOARD == "DFR0975U_N16R8"
         and board_config.MICROPYTHON_VERSION == "1.28.0",
         "board firmware profile differs",
     )
@@ -114,13 +120,21 @@ def _verify_hardware_locks(board_config):
         "UART protocol transmission is not locked",
     )
     _support_require(
-        board_config.ONEWIRE_PIN is None
+        board_config.UART_PINS_APPROVED is False
+        and board_config.UART_TX_GATE_PIN == 12
+        and board_config.UART_TX_GATE_ACTIVE_LEVEL == 1
+        and board_config.UART_TX_GATE_APPROVED is False,
+        "UART pins or TX gate are not locked",
+    )
+    _support_require(
+        board_config.ONEWIRE_PIN == 4
         and board_config.ONEWIRE_PIN_APPROVED is False,
         "1-Wire is not locked",
     )
     _support_require(
-        board_config.I2C_SDA_PIN is None
-        and board_config.I2C_SCL_PIN is None
+        board_config.I2C_ID == 1
+        and board_config.I2C_SDA_PIN == 10
+        and board_config.I2C_SCL_PIN == 11
         and board_config.I2C_PINS_APPROVED is False,
         "I2C is not locked",
     )

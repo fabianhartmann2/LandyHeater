@@ -1,0 +1,11 @@
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="boards/DFR0975U_N16R8/partitions-16MiB.csv"
+
+# This image is board-specific: missing Octal PSRAM is a hardware mismatch,
+# not a configuration that should be silently accepted.
+CONFIG_SPIRAM_IGNORE_NOTFOUND=
+

@@ -1,0 +1,8 @@
+# Exact DFR0975-U N16R8 layout. There is one factory application and no OTA
+# slot. The 3 MiB application region leaves growth room for frozen modules;
+# the remaining 0xCF0000 bytes are an explicit MicroPython LittleFS VFS.
+# Name,   Type, SubType, Offset,   Size,       Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x300000,
+vfs,      data, fat,     0x310000, 0xCF0000,
