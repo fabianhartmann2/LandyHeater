@@ -48,6 +48,35 @@ Requested State und die bestätigte Session. Sie sendet keinen UART-Befehl,
 wechselt keinen Modus und erlaubt keine Leistungsänderung während einer
 Power-Session.
 
+## UI-/API-Abnahmegrenze
+
+Die folgenden automatisch beim UI-Start verwendeten Lese-Endpunkte wurden auf
+dem realen DFR0975-U über den gemeinsamen Port-80-Listener vollständig
+ausgeliefert:
+
+- `GET /api/v1/security-context`;
+- `GET /api/v1/status`;
+- `GET /api/v1/settings`;
+- `GET /api/v1/timers?offset=0&limit=8`.
+
+Die UI-Anbindung der folgenden Aktionen ist durch die Hosttests einschließlich
+Routing, Payload, CSRF-/Revisionsgrenzen und Fehlerpfaden geprüft:
+
+- `POST /api/v1/heater/start` und `/api/v1/heater/quick-start`;
+- `POST /api/v1/heater/stop`;
+- `PATCH /api/v1/heater/session` für `+15 min` und Zieltemperatur;
+- `PATCH /api/v1/settings`;
+- `POST /api/v1/timers` sowie `PUT` und `DELETE` auf Timerressourcen;
+- `GET /api/v1/diagnostics` über die ausdrückliche Diagnose-Schaltfläche.
+
+Diese schreibenden Aktionen wurden im realen Phase-9-Handygate absichtlich
+nicht ausgelöst: Heizung und Produktperipherie waren unverbunden, der Gate
+erlaubte ausschließlich `GET` und bestätigte null Mutationen. Damit ist die
+reale UI-/API-Leseintegration abgenommen; die Schreibintegration ist
+softwareseitig abgenommen, aber reale Heizungsaktionen bleiben gesperrt und
+ungetestet. Auch der automatische UI-/WLAN-Start nach einem Reset bleibt
+deaktiviert.
+
 ## Prüfung und Freigabegrenzen
 
 Der Quellstand wird unter CPython über die bestehenden HTTP-, REST-,
