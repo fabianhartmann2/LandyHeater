@@ -1,11 +1,12 @@
 # Phase 10 frozen firmware build record
 
-Build date: 2026-09-01. Status: **offline reproducibility and artifact gates
-passed; flash and Phase-10 target acceptance are still pending**.
+Build date: 2026-09-01. Status: **offline reproducibility and artifact gates,
+authorized app-only flash, complete readback and Phase-10 target gate passed**.
 
 No serial port, board, deploy, erase or write operation was used while
-building or verifying this candidate. A flash requires a new authorization
-that names the exact application hash, offset and erase policy.
+building or verifying this candidate. The later flash was performed only
+after a separate authorization naming the exact application hash, offset and
+erase policy.
 
 ## Pinned inputs
 
@@ -118,4 +119,24 @@ bytes are identical to the Phase-10 candidate. Consequently the narrowest
 next operation is an app-only write of `micropython.bin` at `0x10000` without
 erase, bound to SHA-256
 `8c8d0bca7b6d3311c20f1e5878619a898147dcdf645305dc12fcbb575278fc5d`.
-It is not authorized by this record.
+That exact operation was subsequently authorized and completed. It did not
+enable automatic startup, UART, heater control, RTC/I2C or 1-Wire.
+
+## Post-flash verification and target acceptance
+
+The authorized operation wrote only the 2,044,496-byte application at
+`0x10000` without a full-chip erase. esptool's write verification passed,
+followed by an independent complete application readback with the exact
+retained SHA-256. Bootloader, partition table and VFS were not written.
+
+The passive boot returned MicroPython 1.28.0 and the exact DFR0975-U machine
+identity with both WLAN interfaces inactive. The bounded Phase-10 phone gate
+then delivered all 11 UI resources and five initial read-only API requests
+over one port-80 product listener. One user-confirmed Setup Assistant submit
+passed the production AP-only, Origin, CSRF and generation fences, preserved
+the write-only AP credential and produced exactly one isolated configuration
+commit. No hardware probe, heater request or protocol call occurred. All heap
+and ordered HTTP/REST/radio/storage cleanup gates passed.
+
+Sanitized evidence is retained in
+`../../captures/2026-09-01-dfr0975u-phase10-setup-assistant-gate.md`.

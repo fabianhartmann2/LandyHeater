@@ -1,9 +1,10 @@
 # Phase 10 – Setup Assistant
 
-Stand: 2026-09-01. Der softwareseitige Setup-Assistent ist implementiert und
-hostseitig geprüft. Das DFR0975-U-Firmwareartefakt wurde zweimal sauber und
-bytegleich gebaut und statisch geprüft. Flash und Zieltest sind noch nicht
-erfolgt und benötigen eine eigene hashgebundene Freigabe.
+Stand: 2026-09-01. **Phase 10 ist hostseitig und auf dem DFR0975-U
+abgeschlossen.** Der Setup-Assistent ist implementiert, das Firmwareartefakt
+wurde zweimal sauber und bytegleich gebaut, statisch geprüft, hashgebunden
+geschrieben und vollständig zurückgelesen. Der begrenzte reale Handytest des
+neunstufigen Assistenten ist bestanden.
 
 ## Geführter Ablauf
 
@@ -92,7 +93,7 @@ Ihr Test vergleicht sie deshalb nicht mehr irrtümlich mit den weiterentwickelte
 Phase-10-Arbeitsdateien, sondern prüft Vollständigkeit, Hashformat und die im
 Phase-9-Buildbericht fixierte Ledger-SHA-256.
 
-## Firmwareartefakt und noch offene Abnahme
+## Firmwareartefakt und Zielabnahme
 
 Die Phase-10-Frozen-Closure bindet 42 Quelldateien. Beide sauberen Builds
 lieferten für alle 15 verglichenen Ausgaben identische Bytes. Bootloader und
@@ -103,10 +104,16 @@ Image-, 16-MB-/Octal-PSRAM-, Partitionierungs-, Größen- und Combined-Layout-
 Gates sind bestanden. Details und retained artifacts stehen unter
 `firmware/phase10_frozen/`.
 
-Vor dem Zieltest sind noch notwendig:
+Der app-only Flash bei `0x10000` ohne Full Erase wurde exakt auf diesen Hash
+freigegeben, geschrieben und über die vollständige Rücklesung aller 2.044.496
+Bytes bestätigt. Der reale Handytest lieferte 11/11 UI-Ressourcen und 5/5
+API-Lesewege aus. Genau ein Setup-Abschluss erzeugte genau einen isolierten
+A/B-Konfigurationscommit, setzte `setup_complete=true`, erhielt das vorhandene
+write-only AP-Passwort und ließ die Stations-WLAN-Liste leer. Alle
+Heap-, Requested-State-, Protokoll-, Produktstorage- und Cleanup-Gates
+bestanden; die unabhängige Nachkontrolle fand beide WLANs aus und keine
+Testdatei.
 
-1. neue, exakt auf Hash, Offset `0x10000` und **ohne Erase** gebundene
-   Flashfreigabe;
-2. vollständige Rückleseprüfung des Anwendungsbereichs;
-3. ein begrenzter Handytest des 9-Schritt-Assistenten mit demselben bekannten
-   Testpasswort; kein wiederholter Funk-/Status-Test ohne neue Evidenzfrage.
+Die aktive elektrische Abnahme von RTC, Sensoren und Autoterm bleibt bewusst
+Phase 13. Der genaue Zielnachweis steht in
+`captures/2026-09-01-dfr0975u-phase10-setup-assistant-gate.md`.
