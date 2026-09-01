@@ -36,12 +36,14 @@ class FakeGC:
         return 500_000
 
 
-class FakeESP32:
-    calls = []
-
+class FakeESP:
     @staticmethod
     def flash_size():
         return 16 * 1024 * 1024
+
+
+class FakeESP32:
+    calls = []
 
     @classmethod
     def idf_heap_info(cls, capabilities):
@@ -79,6 +81,7 @@ class TestDFR0975UMemoryProbe(unittest.TestCase):
             config_module=FakeConfig,
             os_module=FakeOS,
             sys_module=FakeSys,
+            esp_module=FakeESP,
             esp32_module=FakeESP32,
             gc_module=FakeGC,
         )
@@ -106,6 +109,7 @@ class TestDFR0975UMemoryProbe(unittest.TestCase):
                 config_module=FakeConfig,
                 os_module=FakeOS,
                 sys_module=FakeSys,
+                esp_module=FakeESP,
                 esp32_module=FakeESP32,
                 gc_module=FakeGC,
             )
@@ -119,6 +123,7 @@ class TestDFR0975UMemoryProbe(unittest.TestCase):
                 config_module=UnsafeConfig,
                 os_module=FakeOS,
                 sys_module=FakeSys,
+                esp_module=FakeESP,
                 esp32_module=FakeESP32,
                 gc_module=FakeGC,
             )
@@ -126,7 +131,7 @@ class TestDFR0975UMemoryProbe(unittest.TestCase):
         self.assertEqual(FakeGC.collected, 0)
 
     def test_missing_psram_and_wrong_flash_fail_closed(self):
-        class WrongFlash(FakeESP32):
+        class WrongFlash(FakeESP):
             @staticmethod
             def flash_size():
                 return 4 * 1024 * 1024
@@ -137,7 +142,8 @@ class TestDFR0975UMemoryProbe(unittest.TestCase):
                 config_module=FakeConfig,
                 os_module=FakeOS,
                 sys_module=FakeSys,
-                esp32_module=WrongFlash,
+                esp_module=WrongFlash,
+                esp32_module=FakeESP32,
                 gc_module=FakeGC,
             )
 
@@ -156,6 +162,7 @@ class TestDFR0975UMemoryProbe(unittest.TestCase):
                 config_module=FakeConfig,
                 os_module=FakeOS,
                 sys_module=FakeSys,
+                esp_module=FakeESP,
                 esp32_module=MissingPSRAM,
                 gc_module=FakeGC,
             )
@@ -172,6 +179,7 @@ class TestDFR0975UMemoryProbe(unittest.TestCase):
                 config_module=FakeConfig,
                 os_module=WrongOS,
                 sys_module=FakeSys,
+                esp_module=FakeESP,
                 esp32_module=FakeESP32,
                 gc_module=FakeGC,
             )
@@ -191,6 +199,7 @@ class TestDFR0975UMemoryProbe(unittest.TestCase):
                 config_module=FakeConfig,
                 os_module=FakeOS,
                 sys_module=FakeSys,
+                esp_module=FakeESP,
                 esp32_module=LowDMA,
                 gc_module=FakeGC,
             )

@@ -1,6 +1,7 @@
 # DFR0975-U N16R8 MicroPython firmware
 
-Status: **reproducibly built and statically verified; not flashed**.
+Status: **reproducibly built, statically verified, fully flashed after exact
+authorization, and USB-only memory-gate verified**.
 
 This directory contains the board overlay and retained build artifacts for the
 physically confirmed DFRobot FireBeetle 2 ESP32-S3-U, SKU `DFR0975-U`, PCB
@@ -87,18 +88,17 @@ matched byte-for-byte for all 15 compared outputs.
 No build instruction in this directory invokes `deploy`, `erase`, `flash` or
 `write_flash`.
 
-## Mandatory next gate
+## First-flash result and next gates
 
-Before any write, verify `artifacts/SHA256SUMS`, the private factory backup,
-the physical N16R8 identity, the partition layout and USB-only wiring, then
-obtain a fresh explicit approval bound to the exact image hash and operation.
-That approval must state whether the factory flash is fully erased or which
-complete bootloader/partition/application/VFS regions are replaced; app-only
-flashing is not an accepted first-board path.
+The exact combined image was fully flashed after a fresh hash-bound approval
+and esptool write verification. Passive USB identity matched MicroPython 1.28.0
+and the custom DFR0975-U machine string. The corrected transient memory probe
+reported 8 MiB PSRAM, 8,216,128 B GC free, 274,191 B internal free and
+266,475 B internal-DMA free; both WLAN interfaces remained inactive. No
+diagnostic file was persisted to the board. Exact evidence is in
+`../../captures/2026-09-01-dfr0975u-first-flash-memory-gate.md`.
 
-After an approved flash, the first boot must remain USB-only and passive. Run
-`tools/dfr0975u_memory_probe.py` before enabling a radio or peripheral. It
-must verify the exact firmware identity and report the MicroPython GC heap,
-PSRAM, general internal 8-bit heap and DMA-capable internal heap separately.
-Only later, separately authorized radio/storage/safety gates may advance
-Phase 8.
+The retained artifact does not authorize another erase or flash. USB recovery,
+VFS/storage, S3 UART/level interface, functional radio/DHCP and Phase-8 product
+acceptance remain separate later gates. Internal and DMA headroom must be
+measured again under the bounded WLAN/product load.

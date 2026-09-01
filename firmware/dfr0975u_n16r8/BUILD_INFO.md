@@ -140,10 +140,13 @@ Missing Octal PSRAM fails the boot configuration instead of being ignored.
 The linker report showed 192,633 bytes free DIRAM; this is only a static link
 fact, not runtime heap proof.
 
-The actual 8-MiB PSRAM registration, MicroPython GC capacity, internal IDF
-heap and DMA-capable internal IDF heap remain a postflash USB-only gate. The
-prepared `../../tools/dfr0975u_memory_probe.py` performs those measurements
-separately without enabling a radio or product peripheral.
+The postflash USB-only gate subsequently confirmed 8-MiB PSRAM registration,
+8,216,128 bytes free MicroPython GC capacity, 274,191 bytes free internal IDF
+heap and 266,475 bytes free DMA-capable internal IDF heap. Both largest
+internal blocks were 196,608 bytes. The corrected
+`../../tools/dfr0975u_memory_probe.py` measures the physical flash through
+`esp` and the distinct IDF heaps through `esp32`; it enabled no radio or
+product peripheral. Loaded WLAN headroom remains a later target gate.
 
 ## Retained artifacts
 

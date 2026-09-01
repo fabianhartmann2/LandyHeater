@@ -7,8 +7,10 @@ ESP32-S3-U, SKU DFR0975-U, module variant N16R8**. The board arrived and passed
 the non-writing USB identity gate on 2026-09-01. The active `board_config.py`
 now describes this exact received board with every electrical/radio approval
 closed. A path-bound reproducible MicroPython S3 artifact set is retained
-under `firmware/dfr0975u_n16r8/`. It has passed static inspection but has not
-been flashed. Runtime memory, passive-boot, storage, radio and Phase-8 target
+under `firmware/dfr0975u_n16r8/`. After a fresh hash-bound authorization, the
+complete flash was erased and the verified combined image was written. Passive
+MicroPython identity and separate USB-only GC, PSRAM, internal and
+internal-DMA memory gates passed. Storage, functional radio and Phase-8 target
 acceptance remain open.
 
 Official references:
@@ -83,9 +85,10 @@ that original board.
 | Legacy DFR0654 preservation | validation branch retained; DFR0654-only RX/capture/loopback tools deliberately reject the active S3 profile until a later S3 UART gate |
 | Phase-7/8 platform guards | bound to the exact custom MicroPython machine identity and S3 profile |
 | MicroPython 1.28 S3/Octal-PSRAM build | complete; two clean canonical builds matched for 15/15 outputs |
-| 16-MiB bootloader, partition table, app, combined image and hashes | retained and statically verified; not flashed |
-| PSRAM/internal memory | build configuration proved offline; separate runtime GC, PSRAM, internal and internal-DMA measurements require an approved flash |
-| Passive boot, USB recovery, storage, radio and Phase-8 HTTP target gates | open |
+| 16-MiB bootloader, partition table, app, combined image and hashes | retained, statically verified, fully flashed after exact approval and write-verified |
+| PSRAM/internal memory | complete for idle USB-only gate: 8 MiB PSRAM, 8,216,128 B GC free, 274,191 B internal free and 266,475 B internal-DMA free; loaded WLAN gate remains later |
+| Passive boot and exact custom MicroPython identity | complete; MicroPython 1.28.0 and exact machine string confirmed without soft reset |
+| USB recovery, storage, functional radio and Phase-8 HTTP target gates | open |
 
 The profile migration intentionally does not generalize the old
 `rx_only_transport`, UART loopback or UART capture path by changing constants.
@@ -133,14 +136,18 @@ path-bound A/B proof are in `firmware/dfr0975u_n16r8/BUILD_INFO.md`.
 
 The resolved configuration enables 8-MiB Octal PSRAM at 80 MHz, performs the
 boot memory test, fails if PSRAM is absent, prefers PSRAM for allocations over
-8 KiB and reserves 32 KiB internally. These are build facts, not runtime
-acceptance. After an explicitly approved first flash, the USB-only memory gate
-must separately require:
+8 KiB and reserves 32 KiB internally. The separately measured USB-only runtime
+gate required:
 
 - at least 32 KiB free MicroPython GC heap;
 - at least 7 MiB and no more than the nominal 8 MiB registered PSRAM;
 - at least 32 KiB free and a 32-KiB largest block in internal 8-bit heap;
 - the same 32-KiB free/largest limits for DMA-capable internal 8-bit heap.
+
+It passed with 8,216,128 bytes GC free, the complete 8-MiB PSRAM region,
+274,191 bytes internal free and 266,475 bytes internal-DMA free. Both largest
+internal blocks were 196,608 bytes. Exact first-flash and runtime evidence is
+recorded in `captures/2026-09-01-dfr0975u-first-flash-memory-gate.md`.
 
 The internal and DMA values must later be sampled again under the bounded
 Phase-7/8 WLAN load; an idle-boot pass does not prove Wi-Fi/lwIP headroom.

@@ -86,6 +86,7 @@ def run(
     config_module=None,
     os_module=None,
     sys_module=None,
+    esp_module=None,
     esp32_module=None,
     gc_module=None,
 ):
@@ -146,13 +147,18 @@ def run(
             "{} must remain false".format(name),
         )
 
+    if esp_module is None:
+        import esp as esp_module
     if esp32_module is None:
         import esp32 as esp32_module
     if gc_module is None:
         import gc as gc_module
 
-    for name in ("flash_size", "idf_heap_info"):
-        _require(callable(getattr(esp32_module, name, None)), "esp32 API missing")
+    _require(callable(getattr(esp_module, "flash_size", None)), "esp API missing")
+    _require(
+        callable(getattr(esp32_module, "idf_heap_info", None)),
+        "esp32 API missing",
+    )
     for name in ("collect", "mem_free", "mem_alloc"):
         _require(callable(getattr(gc_module, name, None)), "gc API missing")
 
@@ -165,7 +171,7 @@ def run(
     )
     _require(type(gc_alloc) is int and gc_alloc >= 0, "GC allocated heap invalid")
 
-    flash_bytes = esp32_module.flash_size()
+    flash_bytes = esp_module.flash_size()
     _require(flash_bytes == _EXPECTED_FLASH_BYTES, "physical flash is not 16 MB")
 
     internal = _aggregate_regions(

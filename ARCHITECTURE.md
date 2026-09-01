@@ -2,8 +2,9 @@
 
 **Version:** 1.1  
 **Status:** Phase-8 components implemented; single-listener full-product
-harness host-validated; DFR0654 target capacity-blocked; DFR0975-U S3 profile
-and preflash artifacts verified; target acceptance open
+harness host-validated; DFR0654 target capacity-blocked; DFR0975-U S3 profile,
+first flash, passive boot and USB-only memory gate verified; target acceptance
+open
 
 **Runtime:** MicroPython on ESP32
 
@@ -1039,10 +1040,11 @@ The latest DFR0654 run reached the single-listener path but retained only
 32,880 bytes at the proof-before-listen checkpoint and fell below the required
 32 KiB at the following checkpoint before READY. This is not a Phase-8 pass.
 The selected DFR0975-U N16R8 successor now has a separate fail-closed board
-profile and reproducibly verified ESP32-S3/Octal-PSRAM preflash artifact set.
-It has not yet been flashed, and no classic-ESP32 image or pin assumption
-transfers. Runtime PSRAM/internal-memory, passive-boot, radio, storage and full
-product target acceptance remain open.
+profile and reproducibly verified ESP32-S3/Octal-PSRAM artifact set. Its
+authorized complete first flash, passive MicroPython identity and separate
+idle GC/PSRAM/internal/internal-DMA gates passed. No classic-ESP32 image or pin
+assumption transfers. Radio, storage and full product target acceptance remain
+open; the internal/DMA gates must also pass later under bounded WLAN load.
 The bounded state and migration boundary are recorded in
 `captures/2026-08-30-phase8-single-listener-project-state.md` and
 `DFR0975U_MIGRATION.md`.
