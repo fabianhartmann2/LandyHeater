@@ -1,9 +1,8 @@
 # Landy Heater — Requirements Specification
 
 **Version:** 1.1  
-**Status:** Phase-8 REST component profile implemented; single-listener
-full-product harness host-validated; DFR0654 capacity-blocked; target
-acceptance open
+**Status:** Phase-8 single-listener full-product target acceptance passed on
+DFR0975-U; Phase 9 released but not started; automatic startup disabled
 
 **Target:** ESP32 + MicroPython  
 **Project:** Migration of the existing Raspberry Pi / Node-RED Autoterm/Planar heater controller
@@ -39,11 +38,11 @@ Priorities, in order:
   ESP32-S3-WROOM-1U-N16R8, 16 MB flash and 8 MB Octal PSRAM
 - Its exact USB identity, fail-closed board profile, reproducible firmware,
   authorized first flash, passive boot, idle PSRAM/internal-memory, manual
-  recovery, isolated VFS/A-B-storage and bounded WLAN/DHCP gates are verified;
-  automatic USB control-line recovery is unreliable, while full runtime
-  target acceptance remains open
-- Exact production board is not fixed until the successor passes target
-  acceptance
+  recovery, isolated VFS/A-B-storage, bounded WLAN/DHCP and Phase-8
+  full-product target gates are verified; automatic USB control-line recovery
+  remains unreliable
+- DFR0975-U N16R8 is the selected continued-integration target; its S3
+  UART/level interface and product peripherals still require Phase-13 gates
 - Hardware-specific pins and peripheral IDs must therefore be isolated in `board_config.py`
 - One UART is required for the heater in version 1
 - One 1-Wire bus is required for three DS18B20 sensors
@@ -707,11 +706,20 @@ and passed ordered cleanup while every measured heap point remained above
 sample heap separately between the completed response and cleanup. Freezing
 the project modules changes the premise of the earlier dynamic-import heap
 failure, but does not by itself prove the full composition. Its P1 target
-acceptance remains open and shall not enable `main.py` or release Phase 9.
+acceptance remained open at that point and did not enable `main.py` or release
+Phase 9.
 
 The subsequent single-listener DFR0654 run measured 32,880 bytes before listen
 and fell below the same 32-KiB floor at the following checkpoint before READY.
 It therefore remains a failed capacity measurement, not a product acceptance.
+
+The subsequent single DFR0975-U run passed this exact acceptance in one AP
+lifetime with one phone peer, one port-80 listener and one real
+`GET /api/v1/status`. It proved a complete HTTP 200 JSON wire, all ten
+specified >=32-KiB GC-heap checkpoints, unchanged production storage, no
+heater/protocol activity and ordered HTTP/REST/radio/file cleanup. Evidence is
+in `captures/2026-09-01-dfr0975u-phase8-full-rest-gate.md`. This releases
+Phase 9 but does not enable automatic startup or any electrical peripheral.
 
 ## 28. Web interface
 
@@ -1002,9 +1010,10 @@ with a real phone, as recorded in
 the required application/configuration/storage composition and is not that
 acceptance. The preceding eager-import, ready-only and Wi-Fi-only measurements
 remain historical evidence in
-`captures/2026-08-11-phase8-wifi-http-capacity-blocked.md`. The CPython suite
-contains 1000 passing tests, but host tests and the narrow phone probe cannot
-override the missing full-product target-capacity acceptance.
+`captures/2026-08-11-phase8-wifi-http-capacity-blocked.md`. Host tests and the
+narrow phone probe did not override the previously missing acceptance; the
+later DFR0975-U single-listener run now supplies that full-product evidence in
+`captures/2026-09-01-dfr0975u-phase8-full-rest-gate.md`.
 
 ## 43. Acceptance criteria
 

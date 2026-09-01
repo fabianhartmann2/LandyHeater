@@ -47,8 +47,12 @@ vollständige Migrationsstand steht in `DFR0975U_MIGRATION.md`; die älteren
 DFR0654-Versuche bleiben historische Evidenz in
 `captures/2026-08-30-phase8-single-listener-project-state.md` und
 `captures/2026-08-25-phase8-full-rest-progress.md`.
-`boot.py` und `main.py` bleiben bewusst passiv; **Phase 8 ist weiterhin offen
-und Phase 9 – Web UI ist nicht freigegeben**.
+Der anschließend genau einmal ausgeführte DFR0975-U-Phase-8-Ein-Listener-Gate
+bestand mit einem realen `GET /api/v1/status`, vollständiger HTTP-200-JSON-
+Antwort, allen zehn GC-Heap-Grenzen, unveränderter Produktspeicherung und
+vollständigem HTTP-/REST-/WLAN-Cleanup. `boot.py` und `main.py` bleiben bewusst
+passiv. **Phase 8 ist damit zielseitig bestanden; Phase 9 – Web UI ist
+freigegeben, aber noch nicht begonnen.**
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
 Innerhalb von Phase 5 sind TimeService, Scheduler, der DS3231-Registeradapter,
@@ -103,8 +107,8 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen: UTC-Zeitkern, feste Offsets, `Europe/Zurich` mit CET/CEST, Scheduler, verriegelte DS3231/I2C-Hülle, RTC-Brücke und Controller-Gateway; USB-only auf dem realen MicroPython-Ziel bestanden, reale RTC-Abnahme folgt in Phase 13 |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
-| **8** | **REST API** | **Komponenten implementiert: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; isolierter REST-Smoke und minimaler Frozen-AP+HTTP-Handytest bestanden; Ein-Listener-Full-Product-Runner hostseitig fokussiert geprüft, DFR0654 aber am 32-KiB-Zielgate blockiert; DFR0975-U-Profil, reproduzierbare S3/PSRAM-Artefakte, erster Full-Flash, passiver Boot, Speicher-, Recovery-, VFS/A-B-Storage- und getrennter WLAN/DHCP-Gate bestanden; vollständige Produktzielabnahme offen** |
-| 9 | Web UI | Nicht freigegeben, bis die gemeinsame Wi-Fi-/HTTP-/Produktclosure die Zielabnahme besteht |
+| **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
+| 9 | Web UI | Durch den Phase-8-Zielpass freigegeben; noch nicht begonnen, kein Auto-Start |
 | 10 | Setup Assistant | Nicht begonnen |
 | 11 | Events / Diagnostics / Capture Export | Einzelne Capture-/Diagnostikbausteine aus Sicherheitsgründen vorgezogen; Phase nicht abgeschlossen |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
@@ -699,9 +703,8 @@ Frozen-Kapazitätsfirmware sah der kleine Handy-Runner damit einen echten Peer
 unter `192.168.4.2`, validierte eine Anfrage, schrieb zwei Antworten vollständig
 und emittierte `PHASE8_PHONE_HTTP_SMOKE_PASS_V1`. Er verwendete jedoch einen
 festen Read-only-Radio-Check statt `RestApplication`, ConfigManager und
-Storage. Die vollständige P1-Produktzielabnahme bleibt deshalb offen; der
-frühere Heapblocker ist nach dem Frozen-Build weder bestätigt noch vollständig
-ausgeräumt. Der neue enge Pass steht in
+Storage. Er war deshalb noch keine vollständige P1-Produktzielabnahme. Der
+enge historische Pass steht in
 `captures/2026-08-11-phase8-frozen-phone-http-esp32-smoke.md`; die früheren
 eager-/ready-only-Nicht-Abnahmen bleiben unverändert in
 `captures/2026-08-11-phase8-wifi-http-capacity-blocked.md`. `boot.py` und
@@ -714,9 +717,13 @@ die vollständige Produktclosure und der Produktionsadapter geladen; der eine
 reale `GET /api/v1/status` ist zugleich IPv4-/TCP-, Routing-,
 RestApplication-, Wire- und Close-Beweis. Auf dem DFR0654 blieb dieser Aufbau
 vor `listen` mit 32.880 Bytes nur 112 Bytes über dem 32-KiB-Gate und fiel am
-folgenden Pflicht-Checkpoint vor READY darunter. Deshalb ist Phase 8 weiterhin
-offen und die Migration auf den ausgewählten DFR0975-U N16R8 vorgesehen.
-Details und unveränderte Sicherheitsgrenzen stehen in
+folgenden Pflicht-Checkpoint vor READY darunter. Der nach der Migration genau
+einmal ausgeführte DFR0975-U-Lauf bestand dagegen die vollständige
+Ein-Listener-Produktzielabnahme: ein echter Statusrequest, komplette
+HTTP-200-JSON-Antwort, alle zehn GC-Heap-Gates und geordnetes Cleanup. Phase 8
+ist damit bestanden. Die neue Evidenz steht in
+`captures/2026-09-01-dfr0975u-phase8-full-rest-gate.md`; die historische
+DFR0654-Grenze bleibt in
 `captures/2026-08-30-phase8-single-listener-project-state.md`.
 
 ## Umfang des Protokoll-Service
@@ -852,6 +859,8 @@ landy-heater/
 │   ├── 2026-09-01-dfr0975u-first-flash-memory-gate.md
 │   ├── 2026-09-01-dfr0975u-usb-identity.md
 │   ├── 2026-09-01-dfr0975u-usb-recovery-storage-gate.md
+│   ├── 2026-09-01-dfr0975u-wlan-dhcp-gate.md
+│   ├── 2026-09-01-dfr0975u-phase8-full-rest-gate.md
 │   ├── 2026-08-09-heater-off-status.md
 │   └── 2026-08-09-heater-init-response.md
 ├── firmware/
@@ -1126,10 +1135,11 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
 6. Der getrennte Funk-/DHCP-Gate ist bestanden. Der S3-UART-/Level-Interface-
    Gate bleibt separat offen; der alte DFR0654-RX-/Loopbackpfad wird nicht
    übernommen.
-7. Als nächster Netzwerk-Gate genau einen begrenzten Phase-8-Ein-Listener-Lauf auf Port 80
-   mit realem `GET /api/v1/status` durchführen. Nur HTTP 200, vollständiges
-   JSON, alle Speicher-/Safety-Gates und kompletter Cleanup zählen als Pass.
-8. **Phase 9 – Web UI bleibt bis zu diesem Zielpass nicht freigegeben.**
+7. Der begrenzte Phase-8-Ein-Listener-Lauf auf Port 80 mit realem
+   `GET /api/v1/status`, HTTP 200, vollständigem JSON, allen GC-Heap-/Safety-
+   Gates und komplettem Cleanup ist bestanden.
+8. **Als nächstes kann Phase 9 – Web UI geplant und implementiert werden;
+   produktiver Auto-Start bleibt bis zu einer eigenen Freigabe aus.**
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und

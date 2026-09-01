@@ -13,8 +13,9 @@ MicroPython identity and separate USB-only GC, PSRAM, internal and
 internal-DMA memory gates passed. Manual ROM recovery and isolated real VFS
 A/B storage also passed; automatic USB control-line recovery is not reliable.
 The bounded Phase-7 phone AP association and DHCP gate also passed with exact
-client addressing and complete radio cleanup. Phase-8 target acceptance
-remains open.
+client addressing and complete radio cleanup. The subsequent one-listener
+Phase-8 full-product target acceptance passed with a real HTTP 200 status
+response, every required GC-heap gate and complete cleanup.
 
 Official references:
 
@@ -89,12 +90,12 @@ that original board.
 | Phase-7/8 platform guards | bound to the exact custom MicroPython machine identity and S3 profile |
 | MicroPython 1.28 S3/Octal-PSRAM build | complete; two clean canonical builds matched for 15/15 outputs |
 | 16-MiB bootloader, partition table, app, combined image and hashes | retained, statically verified, fully flashed after exact approval and write-verified |
-| PSRAM/internal memory | complete for idle USB-only gate: 8 MiB PSRAM, 8,216,128 B GC free, 274,191 B internal free and 266,475 B internal-DMA free; loaded WLAN gate remains later |
+| PSRAM/internal memory | idle USB-only gate complete: 8 MiB PSRAM, 8,216,128 B GC free, 274,191 B internal free and 266,475 B internal-DMA free; all ten specified GC-heap gates passed under the Phase-8 product load; a numeric loaded internal/DMA sample remains a separate robustness measurement |
 | Passive boot and exact custom MicroPython identity | complete; MicroPython 1.28.0 and exact machine string confirmed without soft reset |
 | USB recovery | manual `BOOT`/`RST` ROM entry and physical-reset return complete; automatic USB control-line entry/return is unreliable and not accepted |
 | VFS and isolated Phase-6 A/B storage | complete: full 12.9375-MiB VFS, bounded real write/readback, generation/recovery checks and exact cleanup |
 | Functional WLAN/DHCP | complete: one stable WPA2 phone client, `192.168.4.2/24`, router `192.168.4.1`, no listener, complete radio cleanup |
-| Phase-8 HTTP target gate | open |
+| Phase-8 HTTP target gate | complete: one product listener on port 80, one real HTTP 200 JSON status response, all ten GC-heap boundaries, unchanged product storage and ordered cleanup |
 
 The profile migration intentionally does not generalize the old
 `rx_only_transport`, UART loopback or UART capture path by changing constants.
@@ -186,11 +187,14 @@ antenna improves RF placement but is unrelated to the Phase-8 heap failure.
    DFR0975-U; evidence is in
    `captures/2026-09-01-dfr0975u-wlan-dhcp-gate.md`.**
 9. Run the single-listener Phase-8 full-product acceptance exactly once.
+   **Complete; evidence is in
+   `captures/2026-09-01-dfr0975u-phase8-full-rest-gate.md`.**
 
 Phase 8 passes only with a real complete HTTP 200 JSON response from
 `GET http://192.168.4.1/api/v1/status`, every mandatory >=32-KiB checkpoint,
-unchanged storage/heater safety and complete ordered cleanup. Phase 9 remains
-blocked until that proof exists.
+unchanged storage/heater safety and complete ordered cleanup. That proof now
+exists; Phase 9 is released but not started, and automatic startup remains
+disabled.
 
 ## Vehicle boundary
 

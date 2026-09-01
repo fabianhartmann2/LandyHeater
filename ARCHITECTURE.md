@@ -1,10 +1,9 @@
 # Landy Heater — Software Architecture
 
 **Version:** 1.1  
-**Status:** Phase-8 components implemented; single-listener full-product
-harness host-validated; DFR0654 target capacity-blocked; DFR0975-U S3 profile,
-first flash, passive boot, USB-only memory, manual recovery and isolated VFS
-A/B-storage plus bounded WLAN/DHCP gates verified; target acceptance open
+**Status:** Phase-8 single-listener full-product target acceptance passed on
+the DFR0975-U; DFR0654 remains historical capacity evidence; Phase 9 released
+but not started and automatic product startup remains disabled
 
 **Runtime:** MicroPython on ESP32
 
@@ -1022,9 +1021,8 @@ passed on the DFR0654 with four bounded iterations before its closure was
 removed. On the frozen candidate, a minimal AP-first/lazy-HTTP run also served
 one valid request from a real phone and passed cleanup. Because that runner
 used a fixed probe handler instead of the complete application/configuration
-closure, the full P1 product target acceptance remains open. Product
-`boot.py`/`main.py` stays passive and Web UI implementation is not released
-until that combined acceptance passes.
+closure, it was not the full P1 product target acceptance. Product
+`boot.py`/`main.py` stayed passive.
 
 The active full-product acceptance harness now uses exactly one HTTP listener.
 Its first stage starts the production AP and confirms direct address plus one
@@ -1046,8 +1044,14 @@ idle GC/PSRAM/internal/internal-DMA gates passed. No classic-ESP32 image or pin
 assumption transfers. Manual physical-button ROM recovery and isolated VFS/A-B
 storage passed; unattended USB control-line recovery is not reliable. Radio
 association and DHCP subsequently passed in a separate no-listener gate with
-complete cleanup. Full product target acceptance remains open, and the
-internal/DMA gates must also pass under the bounded Phase-8 product load.
+complete cleanup. The subsequent single DFR0975-U full-product run served and
+validated one real `GET /api/v1/status` through the sole port-80 listener,
+kept all ten specified GC-heap checkpoints at or above 32 KiB, preserved
+product storage and passed ordered HTTP/REST/radio cleanup. Phase-8 target
+acceptance is complete and Phase 9 is released, while automatic startup and
+all electrical peripheral approvals remain closed. A numeric internal/DMA
+sample under a broader sustained workload remains a separate robustness gate.
 The bounded state and migration boundary are recorded in
 `captures/2026-08-30-phase8-single-listener-project-state.md` and
-`DFR0975U_MIGRATION.md`.
+`DFR0975U_MIGRATION.md`; the successful target evidence is in
+`captures/2026-09-01-dfr0975u-phase8-full-rest-gate.md`.

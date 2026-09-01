@@ -1,7 +1,7 @@
 # DFR0975-U N16R8 MicroPython firmware
 
 Status: **reproducibly built, statically verified, fully flashed after exact
-authorization, and USB-only memory-gate verified**.
+authorization, and Phase-8 full-product target gate verified**.
 
 This directory contains the board overlay and retained build artifacts for the
 physically confirmed DFRobot FireBeetle 2 ESP32-S3-U, SKU `DFR0975-U`, PCB
@@ -103,10 +103,14 @@ The retained artifact does not authorize another erase or flash. Manual
 automatic USB control-line recovery is not reliable and physical button access
 must remain available. The separate no-listener phone AP/DHCP gate passed with
 one stable WPA2 client, the expected `/24` lease and complete radio cleanup.
-S3 UART/level interface and Phase-8 product acceptance remain separate later
-gates. Internal and DMA
-headroom must be measured again under the bounded WLAN/product load. Exact
+The subsequent one-listener Phase-8 full-product gate passed with one real
+HTTP 200 JSON status response, every specified GC-heap checkpoint and complete
+cleanup. S3 UART/level interface remains a separate later gate; a numeric
+internal/DMA sample under a broader sustained workload remains a separate
+robustness measurement. Exact
 recovery/storage evidence is in
 `../../captures/2026-09-01-dfr0975u-usb-recovery-storage-gate.md`.
 Exact WLAN/DHCP evidence is in
 `../../captures/2026-09-01-dfr0975u-wlan-dhcp-gate.md`.
+Exact Phase-8 target evidence is in
+`../../captures/2026-09-01-dfr0975u-phase8-full-rest-gate.md`.

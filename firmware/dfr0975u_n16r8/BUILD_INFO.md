@@ -1,7 +1,7 @@
 # DFR0975-U N16R8 build record
 
-Build date: 2026-09-01. Status: **offline artifact gate passed; never
-flashed**.
+Build date: 2026-09-01. Status: **offline artifact gate passed, fully flashed
+after exact authorization, and Phase-8 full-product target gate passed**.
 
 ## Pinned inputs
 
@@ -146,7 +146,9 @@ heap and 266,475 bytes free DMA-capable internal IDF heap. Both largest
 internal blocks were 196,608 bytes. The corrected
 `../../tools/dfr0975u_memory_probe.py` measures the physical flash through
 `esp` and the distinct IDF heaps through `esp32`; it enabled no radio or
-product peripheral. Loaded WLAN headroom remains a later target gate.
+product peripheral. All ten specified MicroPython GC-heap checkpoints later
+passed under the single-listener Phase-8 product load. A numeric loaded
+internal/DMA sample remains a separate robustness measurement.
 
 ## Retained artifacts
 
