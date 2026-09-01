@@ -8,6 +8,17 @@ intentionally deferred to a controlled composition rebuild.
 """
 
 _SETTINGS_GROUPS = frozenset(("heater", "sensors", "time"))
+_SETUP_GROUPS = frozenset(("heater", "sensors", "time", "network", "checks"))
+_SETUP_CHECKS = frozenset(("sensors", "autoterm"))
+_SETUP_CHECK_STATES = frozenset(("reviewed", "deferred"))
+_SETUP_NETWORK_FIELDS = frozenset(("access_point", "known_networks"))
+_SETUP_AP_FIELDS = frozenset(("password_action", "password"))
+_SETUP_PROFILE_FIELDS = frozenset((
+    "id",
+    "ssid",
+    "password_action",
+    "password",
+))
 _TIMER_FIELDS = frozenset((
     "id",
     "name",
@@ -86,6 +97,78 @@ def _contains_secret_field(value):
             if _contains_secret_field(item):
                 return True
     return False
+
+
+def _setup_password(action, supplied, existing, allow_open, name):
+    """Apply a write-only credential instruction without exposing a secret."""
+
+    allowed = ("keep", "replace", "open") if allow_open else (
+        "keep",
+        "replace",
+    )
+    if action not in allowed:
+        raise ValueError("{} password action is invalid".format(name))
+    if action == "keep":
+        if supplied is not None or existing is None:
+            raise ValueError("{} has no password to preserve".format(name))
+        return existing
+    if action == "open":
+        if supplied is not None:
+            raise ValueError("{} open network has a password".format(name))
+        return None
+    if type(supplied) is not str:
+        raise ValueError("{} replacement password is missing".format(name))
+    return supplied
+
+
+def _stage_setup_network(value, previous):
+    """Build the privileged network document from write-only UI actions."""
+
+    _exact_dict("setup network", value, _SETUP_NETWORK_FIELDS)
+    access_point = _exact_dict(
+        "setup access point", value["access_point"], _SETUP_AP_FIELDS
+    )
+    previous_access_point = previous["access_point"]
+    staged_access_point = {
+        "ssid": previous_access_point["ssid"],
+        "password": _setup_password(
+            access_point["password_action"],
+            access_point["password"],
+            previous_access_point["password"],
+            False,
+            "access point",
+        ),
+    }
+
+    profiles = value["known_networks"]
+    if type(profiles) is not list or len(profiles) > 8:
+        raise ValueError("setup known networks are malformed")
+    previous_by_id = {
+        profile["id"]: profile for profile in previous["known_networks"]
+    }
+    staged_profiles = []
+    for profile in profiles:
+        _exact_dict("setup known network", profile, _SETUP_PROFILE_FIELDS)
+        previous_profile = previous_by_id.get(profile["id"])
+        existing_password = (
+            None if previous_profile is None else previous_profile["password"]
+        )
+        staged_profiles.append({
+            "id": profile["id"],
+            "ssid": profile["ssid"],
+            "password": _setup_password(
+                profile["password_action"],
+                profile["password"],
+                existing_password,
+                True,
+                "known network",
+            ),
+        })
+    return {
+        "hostname": previous["hostname"],
+        "access_point": staged_access_point,
+        "known_networks": staged_profiles,
+    }
 
 
 def _validate_candidate(value, readback=False):
@@ -419,6 +502,52 @@ class ConfigurationAPIGateway:
             previous = _clone_json(candidate)
             for group, value in patch.items():
                 candidate[group] = _clone_json(value)
+            return self._commit_candidate(
+                generation, previous, candidate
+            )
+        except BaseException as error:
+            primary_error = error
+            raise
+        finally:
+            self._finish_operation(primary_error)
+
+    def complete_setup(self, setup, expected_generation):
+        """Atomically persist the complete wizard document and close setup.
+
+        Wi-Fi credentials enter only as write-only actions.  ``keep`` copies a
+        credential inside this privileged boundary; no secret is ever returned
+        to REST or the browser.  Hardware checks are explicit acknowledgements
+        rather than claims of hardware success and are deliberately not stored
+        in the product configuration.
+        """
+
+        self._begin_operation(require_healthy=True)
+        primary_error = None
+        try:
+            try:
+                _exact_dict("setup", setup, _SETUP_GROUPS)
+                checks = _exact_dict(
+                    "setup checks", setup["checks"], _SETUP_CHECKS
+                )
+                for state in checks.values():
+                    if state not in _SETUP_CHECK_STATES:
+                        raise ValueError("setup check state is invalid")
+                generation, candidate = self._privileged_snapshot(
+                    expected_generation
+                )
+                previous = _clone_json(candidate)
+                for group in ("heater", "sensors", "time"):
+                    candidate[group] = _clone_json(setup[group])
+                candidate["network"] = _stage_setup_network(
+                    setup["network"], previous["network"]
+                )
+                candidate["system"]["setup_complete"] = True
+            except ConfigurationAPIError:
+                raise
+            except (KeyError, TypeError, ValueError):
+                raise ConfigurationAPIValidationError(
+                    "setup candidate is invalid"
+                ) from None
             return self._commit_candidate(
                 generation, previous, candidate
             )

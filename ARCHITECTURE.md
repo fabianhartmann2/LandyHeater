@@ -1016,6 +1016,22 @@ Watchdog / hardening / integration tests
 
 No later phase should be allowed to bypass the responsibility boundaries established above.
 
+### Phase-10 setup boundary
+
+The Setup Assistant is a client-side nine-step transaction over a dedicated
+configuration boundary. `GET /api/v1/setup` projects public configuration and
+already-held runtime observations only; it never initiates radio, 1-Wire, I2C
+or UART work. `PUT /api/v1/setup` accepts the complete candidate and commits it
+once through `ConfigurationAPIGateway`, with the same generation fence,
+scheduler disarm and verified readback as every durable settings mutation.
+
+Network secrets use write-only actions (`keep`, `replace`, and, for station
+profiles only, `open`). Only the privileged gateway may resolve `keep` against
+the secret snapshot. The general settings endpoint remains unable to mutate
+network data. Hardware observations are not durable acceptance evidence:
+`reviewed` and `deferred` are setup acknowledgements, while real peripheral
+acceptance remains under the Phase-13 electrical and target gates.
+
 The REST components are implemented, and the isolated Phase-8 USB-only smoke
 passed on the DFR0654 with four bounded iterations before its closure was
 removed. On the frozen candidate, a minimal AP-first/lazy-HTTP run also served

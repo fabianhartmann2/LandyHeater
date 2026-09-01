@@ -4,10 +4,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-CANDIDATE = ROOT / "firmware" / "phase9_frozen"
+CANDIDATE = ROOT / "firmware" / "phase10_frozen"
 
 
-class TestPhase9FrozenSources(unittest.TestCase):
+class TestPhase10FrozenSources(unittest.TestCase):
     def test_candidate_is_exact_bounded_source_closure(self):
         files = (CANDIDATE / "FROZEN_MODULES.txt").read_text(
             encoding="utf-8"
@@ -21,9 +21,7 @@ class TestPhase9FrozenSources(unittest.TestCase):
         for relative in files:
             self.assertTrue((ROOT / relative).is_file(), relative)
 
-    def test_historical_source_ledger_is_complete_and_well_formed(self):
-        """The Phase-9 ledger pins history, not later phase working files."""
-
+    def test_source_ledger_matches_current_phase10_closure(self):
         entries = {}
         for line in (CANDIDATE / "CURRENT_FROZEN_SOURCES.sha256").read_text(
             encoding="utf-8"
@@ -35,20 +33,18 @@ class TestPhase9FrozenSources(unittest.TestCase):
         ).splitlines()
         self.assertEqual(list(entries), files)
         for relative, digest in entries.items():
-            self.assertEqual(len(digest), 64, relative)
-            self.assertTrue(all(value in "0123456789abcdef" for value in digest))
-        build_info = (CANDIDATE / "BUILD_INFO.md").read_text(encoding="utf-8")
-        ledger_digest = hashlib.sha256(
-            (CANDIDATE / "CURRENT_FROZEN_SOURCES.sha256").read_bytes()
-        ).hexdigest()
-        self.assertIn(ledger_digest, build_info)
+            actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+            self.assertEqual(actual, digest, relative)
 
-    def test_phase8_retained_manifest_is_not_relabelled(self):
-        old = (ROOT / "firmware" / "phase8_frozen" / "manifest.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertNotIn("web_application.py", old)
-        self.assertNotIn("web_assets.py", old)
+    def test_build_record_pins_phase10_input_files(self):
+        build_info = (CANDIDATE / "BUILD_INFO.md").read_text(encoding="utf-8")
+        for name in (
+            "manifest.py",
+            "FROZEN_MODULES.txt",
+            "CURRENT_FROZEN_SOURCES.sha256",
+        ):
+            digest = hashlib.sha256((CANDIDATE / name).read_bytes()).hexdigest()
+            self.assertIn(digest, build_info, name)
 
 
 if __name__ == "__main__":

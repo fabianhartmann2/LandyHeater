@@ -50,11 +50,13 @@ class TestPhase9WebApplication(unittest.TestCase):
             "/assets/base.css",
             "/assets/components.css",
             "/assets/session.css",
+            "/assets/setup.css",
             "/assets/i18n.js",
             "/assets/app.js",
             "/assets/home.js",
             "/assets/timers.js",
             "/assets/settings.js",
+            "/assets/setup.js",
         ):
             with self.subTest(path=path):
                 response = self.app.handle(request(target=path), PEER)
@@ -95,6 +97,20 @@ class TestPhase9WebApplication(unittest.TestCase):
 
     def test_generated_frozen_assets_match_the_readable_sources_exactly(self):
         self.assertEqual(OUTPUT.read_bytes(), render())
+
+    def test_setup_assistant_is_local_bounded_and_uses_the_setup_api(self):
+        index = self.app.handle(request(), PEER).body
+        setup = self.app.handle(
+            request(target="/assets/setup.js"), PEER
+        ).body
+        self.assertIn(b'id="setup-dialog"', index)
+        self.assertEqual(index.count(b"data-setup-step="), 9)
+        self.assertIn(b'"/api/v1/setup"', setup)
+        self.assertIn(b'password_action', setup)
+        self.assertIn(b'"deferred"', setup)
+        self.assertNotIn(b"localStorage", setup)
+        self.assertNotIn(b"http://", setup)
+        self.assertNotIn(b"https://", setup)
 
 
 if __name__ == "__main__":

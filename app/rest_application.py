@@ -71,6 +71,7 @@ _SESSION_UPDATE_FIELDS = frozenset((
     "extend_minutes",
 ))
 _SETTINGS_FIELDS = frozenset(("heater", "sensors", "time"))
+_SETUP_FIELDS = frozenset(("heater", "sensors", "time", "network", "checks"))
 _TIMER_FIELDS = frozenset((
     "id",
     "name",
@@ -452,6 +453,7 @@ class RestApplication:
             (configuration_gateway, "timers_snapshot"),
             (configuration_gateway, "snapshot"),
             (configuration_gateway, "patch_settings"),
+            (configuration_gateway, "complete_setup"),
             (configuration_gateway, "create_timer"),
             (configuration_gateway, "replace_timer"),
             (configuration_gateway, "delete_timer"),
@@ -1151,6 +1153,72 @@ class RestApplication:
             "network": configuration["network"],
         }
 
+    def _setup_snapshot(self, now_ms):
+        """Return setup data from existing in-memory owners without probing I/O."""
+
+        settings = self._settings_snapshot(
+            self.__configuration_gateway.settings_snapshot()
+        )
+        temperature = self.__temperature_manager.snapshot(now_ms)
+        discovered = temperature.get("discovered_rom_ids")
+        if type(discovered) not in (list, tuple) or len(discovered) > 3:
+            raise ValueError("setup sensor discovery state is malformed")
+        discovered = list(discovered)
+        for rom_id in discovered:
+            if type(rom_id) is not str:
+                raise ValueError("setup sensor ROM ID is malformed")
+        assignments = temperature.get("assignments")
+        if type(assignments) is not dict:
+            raise ValueError("setup sensor assignments are malformed")
+        temperatures = self._temperature_public(temperature)
+        sensor_rows = []
+        for rom_id in discovered:
+            role = None
+            reading = None
+            for candidate_role in ("roof_tent", "cabin", "outside"):
+                if assignments.get(candidate_role) == rom_id:
+                    role = candidate_role
+                    reading = temperatures[candidate_role]
+                    break
+            sensor_rows.append({
+                "rom_id": rom_id,
+                "role": role,
+                "value_c": None if reading is None else reading["value_c"],
+                "health": "unassigned" if reading is None else reading["health"],
+            })
+
+        clock = self._clock_public(self.__time_service.snapshot(now_ms))
+        controller = self._controller_public()
+        communication = controller["actual"].get("communication")
+        setup = dict(settings)
+        setup["checks"] = {
+            "rtc": {
+                "state": "available" if clock["valid"] else "not_ready",
+                "valid": clock["valid"],
+                "health": clock["health"],
+                "rtc_health": clock["rtc_health"],
+                "source": clock["source"],
+                "local": clock["local"],
+            },
+            "sensors": {
+                "state": "observed" if discovered else "not_run",
+                "discovered": sensor_rows,
+                "active_probe_performed": False,
+            },
+            "autoterm": {
+                "state": (
+                    "observed"
+                    if communication not in (None, "unknown")
+                    else "not_run"
+                ),
+                "communication": communication,
+                "initialized": controller["actual"].get("initialized"),
+                "synchronized": controller["actual"].get("synchronized"),
+                "active_test_performed": False,
+            },
+        }
+        return setup
+
     @staticmethod
     def _confirmed_timer(result, timer_id):
         RestApplication._configuration_result(result)
@@ -1424,6 +1492,39 @@ class RestApplication:
                     {"ETag": _config_etag(result["generation"])},
                 )
             raise _RestProblem(405, "method_not_allowed", "Method not allowed", {"Allow": "GET, PATCH"})
+
+        if path == API_PREFIX + "/setup":
+            if method == "GET":
+                self._authorize_read(request)
+                value = self._setup_snapshot(now_ms)
+                return self._success(
+                    200,
+                    request_id,
+                    value,
+                    {"ETag": _config_etag(value["generation"])},
+                )
+            if method == "PUT":
+                self._authorize_mutation(request)
+                generation = self._required_generation(request)
+                setup = self._json_object(request, _SETUP_FIELDS)
+                self._assert_not_reentered()
+                result = self.__configuration_gateway.complete_setup(
+                    setup, generation
+                )
+                self.__mutations += 1
+                data = self._settings_from_result(result)
+                return self._success(
+                    200,
+                    request_id,
+                    data,
+                    {"ETag": _config_etag(result["generation"])},
+                )
+            raise _RestProblem(
+                405,
+                "method_not_allowed",
+                "Method not allowed",
+                {"Allow": "GET, PUT"},
+            )
 
         if path == API_PREFIX + "/timers":
             if method == "GET":

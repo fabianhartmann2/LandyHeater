@@ -34,6 +34,22 @@ def timer(timer_id="morning", power=5):
     }
 
 
+def setup_document(configuration, ap_action="replace", ap_password="NewSecret92"):
+    return {
+        "heater": copy.deepcopy(configuration["heater"]),
+        "sensors": copy.deepcopy(configuration["sensors"]),
+        "time": copy.deepcopy(configuration["time"]),
+        "network": {
+            "access_point": {
+                "password_action": ap_action,
+                "password": ap_password,
+            },
+            "known_networks": [],
+        },
+        "checks": {"sensors": "deferred", "autoterm": "deferred"},
+    }
+
+
 class FakeScheduler:
     def __init__(self):
         self.armed = True
@@ -96,6 +112,82 @@ def build_gateway(configuration=None):
 
 
 class TestConfigurationAPIGateway(unittest.TestCase):
+    def test_setup_completion_is_atomic_secret_redacted_and_disarmed(self):
+        configuration = default_configuration()
+        gateway, manager, store, _, scheduler, _, _ = build_gateway(
+            configuration
+        )
+        setup = setup_document(configuration)
+        setup["network"]["known_networks"] = [{
+            "id": "camp",
+            "ssid": "Camp WiFi",
+            "password_action": "replace",
+            "password": "StationSecret92",
+        }]
+
+        result = gateway.complete_setup(setup, 2)
+
+        self.assertTrue(result["changed"])
+        self.assertTrue(result["configuration"]["system"]["setup_complete"])
+        self.assertFalse(scheduler.armed)
+        self.assertEqual(len(store.commit_calls), 1)
+        privileged = manager.snapshot()["configuration"]
+        self.assertEqual(
+            privileged["network"]["access_point"]["password"],
+            "NewSecret92",
+        )
+        self.assertEqual(
+            privileged["network"]["known_networks"][0]["password"],
+            "StationSecret92",
+        )
+        rendered = repr(result)
+        self.assertNotIn("NewSecret92", rendered)
+        self.assertNotIn("StationSecret92", rendered)
+        self.assertNotIn("'password':", rendered)
+
+    def test_setup_rerun_preserves_existing_write_only_credentials(self):
+        configuration = default_configuration()
+        configuration["network"]["access_point"]["password"] = "ExistingAP92"
+        configuration["network"]["known_networks"] = [{
+            "id": "home",
+            "ssid": "Home WiFi",
+            "password": "ExistingSTA92",
+        }]
+        gateway, manager, _, _, _, _, _ = build_gateway(configuration)
+        setup = setup_document(configuration, "keep", None)
+        setup["network"]["known_networks"] = [{
+            "id": "home",
+            "ssid": "Renamed WiFi",
+            "password_action": "keep",
+            "password": None,
+        }]
+
+        gateway.complete_setup(setup, 2)
+
+        privileged = manager.snapshot()["configuration"]["network"]
+        self.assertEqual(
+            privileged["access_point"]["password"], "ExistingAP92"
+        )
+        self.assertEqual(
+            privileged["known_networks"][0]["password"], "ExistingSTA92"
+        )
+        self.assertEqual(
+            privileged["known_networks"][0]["ssid"], "Renamed WiFi"
+        )
+
+    def test_setup_rejects_false_check_claims_and_missing_keep_secret(self):
+        configuration = default_configuration()
+        gateway, _, store, _, scheduler, _, _ = build_gateway(configuration)
+        invalid = setup_document(configuration, "keep", None)
+        invalid["checks"]["sensors"] = "passed"
+        with self.assertRaises(ConfigurationAPIValidationError):
+            gateway.complete_setup(invalid, 2)
+        invalid["checks"]["sensors"] = "deferred"
+        with self.assertRaises(ConfigurationAPIValidationError):
+            gateway.complete_setup(invalid, 2)
+        self.assertEqual(store.commit_calls, [])
+        self.assertTrue(scheduler.armed)
+
     def test_public_settings_redact_all_wifi_passwords(self):
         configuration = default_configuration()
         configuration["network"]["access_point"]["password"] = "AP-secret-123"

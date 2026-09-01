@@ -1,6 +1,7 @@
 import ast
 import copy
 import inspect
+import json
 import unittest
 
 import app.rest_application as rest_module
@@ -270,6 +271,35 @@ class FakeConfigurationGateway:
             "configuration": copy.deepcopy(self.configuration),
         }
 
+    def complete_setup(self, setup, generation):
+        self.calls.append(("complete_setup", copy.deepcopy(setup), generation))
+        self._raise("complete_setup")
+        for key in ("heater", "sensors", "time"):
+            self.configuration[key] = copy.deepcopy(setup[key])
+        self.configuration["system"]["setup_complete"] = True
+        public_network = {
+            "hostname": "heater",
+            "access_point": {
+                "ssid": "Landy Heater",
+                "password_configured": True,
+            },
+            "known_networks": [],
+        }
+        for profile in setup["network"]["known_networks"]:
+            public_network["known_networks"].append({
+                "id": profile["id"],
+                "ssid": profile["ssid"],
+                "password_configured": profile["password_action"] != "open",
+            })
+        self.configuration["network"] = public_network
+        self.manager.generation += 1
+        return {
+            "changed": True,
+            "generation": self.manager.generation,
+            "restart_required": True,
+            "configuration": copy.deepcopy(self.configuration),
+        }
+
     def create_timer(self, value, generation):
         self.calls.append(("create_timer", copy.deepcopy(value), generation))
         self._raise("create_timer")
@@ -421,7 +451,16 @@ class FakeTemperatureManager:
                 "present": True,
                 "rom": "secret-device-id",
             }
-        return {"sensors": sensors, "last_error": "private-driver-text"}
+        return {
+            "sensors": sensors,
+            "assignments": {
+                "roof_tent": None,
+                "cabin": None,
+                "outside": None,
+            },
+            "discovered_rom_ids": (),
+            "last_error": "private-driver-text",
+        }
 
 
 class FakeTimeService:
@@ -703,6 +742,24 @@ class TestRestReadRoutes(unittest.TestCase):
         self.assertEqual(timers.body["limit"], 1)
         self.assertEqual([item["id"] for item in timers.body["items"]], ["evening"])
         self.assertEqual(timers.headers["ETag"], '"config-7"')
+
+    def test_setup_read_is_inert_redacted_and_reports_unperformed_checks(self):
+        response = self.fixture.app.handle(
+            make_request(target="/api/v1/setup")
+        )
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.headers["ETag"], '"config-7"')
+        self.assertTrue(response.body["system"]["setup_complete"])
+        self.assertEqual(response.body["checks"]["sensors"]["state"], "not_run")
+        self.assertFalse(
+            response.body["checks"]["sensors"]["active_probe_performed"]
+        )
+        self.assertFalse(
+            response.body["checks"]["autoterm"]["active_test_performed"]
+        )
+        self.assertNotIn("password", repr(response.body).replace(
+            "password_configured", ""
+        ))
 
     def test_timer_item_decodes_utf8_id_and_rejects_encoded_slash(self):
         self.fixture.configuration.timers.append(timer("küche", "Küche"))
@@ -1099,6 +1156,44 @@ class TestRestManualMutations(unittest.TestCase):
 class TestRestConfigurationMutations(unittest.TestCase):
     def setUp(self):
         self.fixture = Fixture()
+
+    def test_setup_completion_requires_mutation_guards_and_delegates_once(self):
+        configuration = self.fixture.configuration.configuration
+        setup = {
+            "heater": copy.deepcopy(configuration["heater"]),
+            "sensors": copy.deepcopy(configuration["sensors"]),
+            "time": copy.deepcopy(configuration["time"]),
+            "network": {
+                "access_point": {
+                    "password_action": "replace",
+                    "password": "PrivateSetup92",
+                },
+                "known_networks": [{
+                    "id": "home",
+                    "ssid": "Home WiFi",
+                    "password_action": "open",
+                    "password": None,
+                }],
+            },
+            "checks": {"sensors": "deferred", "autoterm": "deferred"},
+        }
+        body = json.dumps(setup, separators=(",", ":")).encode("utf-8")
+        response = self.fixture.app.handle(json_request(
+            "PUT",
+            "/api/v1/setup",
+            body,
+            self.fixture.mutation_headers(7),
+        ))
+        self.assertEqual(response.status, 200)
+        self.assertTrue(response.body["system"]["setup_complete"])
+        self.assertEqual(response.headers["ETag"], '"config-8"')
+        self.assertEqual(self.fixture.configuration.calls[0][0], "complete_setup")
+        self.assertNotIn("PrivateSetup92", repr(response.body))
+
+        rejected = Fixture().app.handle(json_request(
+            "PUT", "/api/v1/setup", body, {}
+        ))
+        self.assertEqual(rejected.status, 403)
 
     def test_settings_patch_delegates_complete_groups_and_returns_public_readback(self):
         body = b'{"time":{"timezone":"UTC"}}'
