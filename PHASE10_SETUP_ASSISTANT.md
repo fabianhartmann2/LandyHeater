@@ -1,12 +1,13 @@
 # Phase 10 – Setup Assistant
 
-Stand: 2026-09-01. **Phase 10 ist softwareseitig korrigiert; die erneute
-DFR0975-U-Zielabnahme ist offen.** Der erste Zieltest hat die Transport-,
-Speicher- und Cleanup-Grenzen bestanden, aber nur ein vorhandenes AP-Passwort
-beibehalten und keine Stations-WLAN-Eingabe geprüft. Er war daher keine
-vollständige Abnahme des Benutzerablaufs. Die korrigierte UI ist hostseitig
-geprüft und als neues, zweimal bytegleiches Firmwareartefakt verfügbar. Vor
-Flash und Handytest ist eine neue hashgebundene Freigabe erforderlich.
+Stand: 2026-09-03. **Phase 10 ist funktional auf dem DFR0975-U abgenommen;
+die strikte Same-run-Prüfung jeder einzelnen HTTP-Ressource bleibt formal
+offen.** Das korrigierte Image wurde hashgebunden geschrieben, vollständig
+zurückgelesen und passiv gebootet. Der reale Assistent akzeptierte genau eine
+gültige Mutation und bestätigte im isolierten Speicher den exakten
+AP-Passwortwechsel sowie genau ein geschütztes Stations-WLAN. Der Runner gab
+trotzdem kein Gesamt-PASS aus, weil mindestens eine Browserressource innerhalb
+des Zeitfensters nicht nochmals als eigene Wire-Route beobachtet wurde.
 
 ## Geführter Ablauf
 
@@ -137,21 +138,32 @@ Image-, 16-MB-/Octal-PSRAM-, Partitionierungs-, Größen- und Combined-Layout-
 Gates sind bestanden. Details und retained artifacts stehen unter
 `firmware/phase10_frozen/`.
 
-Dieses neue Image wurde noch nicht geflasht. Der frühere app-only Flash des
-Hashes `8c8d0bca...` und sein Handytest bleiben als historische Baseline
-gültig: 11/11 UI-Ressourcen, 5/5 API-Lesewege, genau ein isolierter Commit
-sowie alle Heap-, Requested-State-, Protokoll-, Produktstorage- und
-Cleanup-Gates waren bestanden. Weil dieser Lauf das AP-Passwort nur
-beibehielt und die Stations-WLAN-Liste leer ließ, ersetzt er nicht den noch
-ausstehenden echten Eingabe- und Validierungsgate.
+Der app-only Flash bei `0x10000` wurde exakt für diesen Hash freigegeben. Er
+löschte nur die zugehörigen App-Sektoren `0x10000–0x204fff`; Bootloader,
+Partitionstabelle und VFS blieben unberührt. Schreibprüfung und unabhängige
+Rücklesung aller 2.050.848 Bytes ergaben exakt den freigegebenen SHA-256. Der
+passive Boot bestätigte MicroPython 1.28.0, die DFR0975-U-Identität, 11 Frozen-
+Ressourcen und beide Funkinterfaces aus.
 
-Nach neuer Freigabe muss der einmalige Zieltest das neue Image vollständig
-zurücklesen und in isoliertem Speicher genau einen AP-Passwortwechsel sowie
-genau ein geschütztes Stations-WLAN speichern. Das Live-Testpasswort bleibt
-unverändert; alle Testzugangsdaten bleiben aus Logs und Antworten redigiert
-und der Testspeicher wird anschließend entfernt.
+Im realen Credential-Lauf erreichte der Browser die neue UI, wählte ein
+geschütztes Stations-WLAN, ersetzte beide write-only Passwörter, bestätigte die
+Zusammenfassung und schloss ab. Der privilegierte Ziel-Gateway zählte 59
+gültige Pflichtantworten, keine Ablehnung, genau einen Mutationsversuch und
+genau eine erfolgreiche Mutation. 62 Verbindungen wurden angenommen und
+geschlossen; kein Observer-Fehler trat auf. Die erfolgreiche Mutation wird
+nur gezählt, wenn der isolierte privilegierte Readback alle erwarteten Werte
+exakt bestätigt.
+
+Der formale Gesamtgate lief dennoch bis zum Zeitende, weil seine kombinierte
+Every-route-Bedingung nicht erfüllt war. Die damalige Diagnose nannte nur
+Summenzähler; die genaue fehlende Anwendungs- oder Wire-Route lässt sich nach
+dem Cleanup nicht rekonstruieren. Cache-Wiederverwendung oder eine abgebrochene
+redundante Anfrage sind mit den Daten vereinbar, aber nicht bewiesen. Der
+Runner protokolliert künftig getrennt fehlende Routen und Serverzähler. Der
+bereits erfolgreich absolvierte Benutzerablauf wird nur für bessere Diagnose
+nicht wiederholt.
 
 Die aktive elektrische Abnahme von RTC, Sensoren und Autoterm bleibt bewusst
-Phase 13. Der historische Baseline-Zielnachweis steht in
-`captures/2026-09-01-dfr0975u-phase10-setup-assistant-gate.md`; der neue
-Credential-Gate wird erst nach Flash und realer Abnahme ergänzt.
+Phase 13. Historische Baseline und neuer Credential-Nachweis stehen in
+`captures/2026-09-01-dfr0975u-phase10-setup-assistant-gate.md` und
+`captures/2026-09-03-dfr0975u-phase10-credential-gate.md`.

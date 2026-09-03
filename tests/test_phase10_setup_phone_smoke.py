@@ -154,6 +154,21 @@ class TestPhase10SetupPhoneSmoke(unittest.TestCase):
         client.close()
         self.assertEqual(observer.completed, {smoke._SETUP_MUTATION: 1})
 
+    def test_missing_target_diagnostics_separate_application_and_wire(self):
+        class Gateway:
+            validated = {target: 1 for target in smoke._READ_TARGETS}
+
+        class Observer:
+            completed = {target: 1 for target in smoke._READ_TARGETS}
+
+        missing = smoke._READ_TARGETS[-1]
+        del Gateway.validated[smoke._READ_TARGETS[0]]
+        del Observer.completed[missing]
+        self.assertEqual(
+            smoke._missing_targets(Gateway(), Observer()),
+            ((smoke._READ_TARGETS[0],), (missing,)),
+        )
+
     def test_commit_counter_requires_one_config_write_only(self):
         self.assertTrue(smoke._committed_once((2, 2, 2, 2), (3, 2, 3, 2)))
         self.assertFalse(smoke._committed_once((2, 2, 2, 2), (4, 2, 4, 2)))

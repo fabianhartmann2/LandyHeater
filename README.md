@@ -30,7 +30,7 @@ alle Hardware- und Funkfreigaben geschlossen. MicroPython 1.28 wurde als
 eigener 16-MB-/Octal-PSRAM-Build zweimal sauber und bytegleich erzeugt; die
 geprüften Artefakte liegen unter `firmware/dfr0975u_n16r8/`. Das private,
 geräteseitig verifizierte 16-MB-Werksbackup, die statische Artefaktprüfung und
-der aktuelle vollständige Host-Test mit 1089/1089 bestandenen Tests sind
+der aktuelle vollständige Host-Test mit 1090/1090 bestandenen Tests sind
 abgeschlossen.
 Nach einer neuen hashgebundenen Freigabe wurde der Flash vollständig gelöscht
 und das Combined-Image erfolgreich geschrieben und verifiziert. Passiver
@@ -59,15 +59,16 @@ vollständig zurückgelesen. Der reale Handytest lieferte über einen einzigen
 Port-80-Listener 9/9 UI-Ressourcen und 4/4 automatische API-Lesezugriffe aus;
 alle Heap- und Cleanup-Gates bestanden.** Die genaue
 Phase-9-Grenze ist in `PHASE9_WEB_UI.md` dokumentiert.
-**Phase 10 – Setup Assistant ist nach einer Abnahmelücke erneut
-zielseitig offen:** Der erste Ein-Listener-Handytest bestand 11/11
-UI-Ressourcen, 5/5 API-Lesewege, einen isolierten Commit sowie alle Heap-,
-Safety- und Cleanup-Gates, prüfte aber weder ein neues AP-Passwort noch ein
-Stations-WLAN. Die korrigierte UI erzwingt jetzt explizite Passwort-/Open-
-Auswahl und schrittweise Eingabeprüfung. Ihr neues App-Image wurde zweimal
-bytegleich gebaut und offline geprüft; Flash, Rücklesung und echter
-Credential-Handygate warten auf eine neue hashgebundene Freigabe. Details
-stehen in `PHASE10_SETUP_ASSISTANT.md`.
+**Phase 10 – Setup Assistant ist funktional auf dem DFR0975-U abgenommen;
+die strikte Same-run-Wire-Prüfung jeder einzelnen Browserressource bleibt
+formal offen:** Die korrigierte UI erzwingt explizite Passwort-/Open-Auswahl
+und schrittweise Eingabeprüfung. Das zweimal bytegleiche App-Image wurde
+hashgebunden geschrieben und vollständig zurückgelesen. Der reale Assistent
+speicherte in genau einer erfolgreichen isolierten Mutation den erwarteten
+AP-Passwortwechsel und ein geschütztes Stations-WLAN. Der Gesamtgate gab nur
+deshalb kein PASS aus, weil mindestens eine der Browserrouten nicht nochmals
+auf dem Wire beobachtet wurde; die alte Diagnose nannte die genaue Route nicht.
+Details stehen in `PHASE10_SETUP_ASSISTANT.md`.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
 Innerhalb von Phase 5 sind TimeService, Scheduler, der DS3231-Registeradapter,
@@ -124,7 +125,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
 | **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
 | **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; kein Auto-Start** |
-| **10** | **Setup Assistant** | **Zielabnahme offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung sind implementiert; korrigierter A/B-Build und Artefaktprüfung bestanden. Der frühere Baseline-Gate wahrte Safety/Heap/Cleanup, prüfte aber keine neuen Zugangsdaten; neuer hashgebundener Flash, Rücklesung und echter Credential-Handygate stehen aus.** |
+| **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; A/B-Build, Artefaktprüfung, autorisierter App-Flash und vollständige Rücklesung bestanden. Der reale Lauf bestätigte genau einen AP-Passwortwechsel und ein geschütztes Stations-WLAN in einer isolierten Mutation; mindestens eine Browserroute wurde im selben Lauf nicht erneut auf dem Wire beobachtet.** |
 | 11 | Events / Diagnostics / Capture Export | Einzelne Capture-/Diagnostikbausteine aus Sicherheitsgründen vorgezogen; Phase nicht abgeschlossen |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
 | 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten einschließlich DFR0975-U USB-only-Speicher-, manueller Recovery- und VFS/A-B-Storage-Gates sowie historische DFR0654-UART-Loopback-/RX-Vorarbeiten erledigt; Produktperipherie offen |
@@ -1163,12 +1164,13 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
    blockieren den jeweiligen Schritt, und die allgemeine Settings-API bleibt
    für Netzwerkdaten geschlossen. Aktive Sensor-/UART-Prüfungen bleiben
    sichtbar zurückgestellt.
-10. Frozen-Closure, reproduzierbarer DFR0975-U-A/B-Build und statische
-    Artefaktprüfung des korrigierten Images sind bestanden. Als nächstes folgt
-    nach neuer Hashfreigabe ausschließlich der app-only Flash ohne Full Erase,
-    vollständige Rücklesung und ein einmaliger Credential-Handygate mit einem
-    AP-Passwortwechsel, einem geschützten Stations-WLAN, genau einer Mutation,
-    isoliertem Commit und vollständigem Cleanup.
+10. Frozen-Closure, reproduzierbarer DFR0975-U-A/B-Build, statische
+    Artefaktprüfung, autorisierter app-only Flash ohne Full Erase und komplette
+    Rücklesung des korrigierten Images sind bestanden. Der reale Credential-
+    Lauf bestätigte einen AP-Passwortwechsel, ein geschütztes Stations-WLAN und
+    genau eine erfolgreiche isolierte Mutation. Offen bleibt nur der formale
+    Same-run-Nachweis jeder einzelnen Browserroute; der Runner protokolliert
+    einen künftigen Fehler dafür jetzt routengenau.
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und

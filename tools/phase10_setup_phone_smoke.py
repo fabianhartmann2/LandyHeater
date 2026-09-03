@@ -288,14 +288,25 @@ def prepare_proof(context):
 
 
 def _all_complete(gateway, observer):
-    for target in _READ_TARGETS:
-        if gateway.validated.get(target, 0) < 1:
-            return False
-        if observer.completed.get(target, 0) < 1:
-            return False
+    missing_application, missing_wire = _missing_targets(gateway, observer)
+    if missing_application or missing_wire:
+        return False
     return (
         gateway.successful_mutations == 1
         and observer.completed.get(_SETUP_MUTATION, 0) >= 1
+    )
+
+
+def _missing_targets(gateway, observer):
+    return (
+        tuple(
+            target for target in _READ_TARGETS
+            if gateway.validated.get(target, 0) < 1
+        ),
+        tuple(
+            target for target in _READ_TARGETS
+            if observer.completed.get(target, 0) < 1
+        ),
     )
 
 
@@ -451,6 +462,7 @@ def _emit_failure(state, error):
     context = state.context
     print("stage={}".format(context.failure_stage or "unknown"))
     print("error_type={}".format(type(error).__name__))
+    print("error={}".format(str(error)))
     gateway = context.gateway
     if gateway is not None:
         print(
@@ -469,6 +481,24 @@ def _emit_failure(state, error):
                 observer.closed_count,
                 observer.open_clients(),
                 observer.faulted,
+            )
+        )
+    if gateway is not None and observer is not None:
+        missing_application, missing_wire = _missing_targets(gateway, observer)
+        print("missing_application={}".format(",".join(missing_application)))
+        print("missing_wire={}".format(",".join(missing_wire)))
+    server = state.server
+    if server is not None:
+        snapshot = server.snapshot()
+        print(
+            "server={} {} {} {} {} {} {}".format(
+                snapshot.get("accepted"),
+                snapshot.get("completed"),
+                snapshot.get("timeouts"),
+                snapshot.get("parse_errors"),
+                snapshot.get("socket_errors"),
+                snapshot.get("faulted"),
+                snapshot.get("last_error"),
             )
         )
     return None

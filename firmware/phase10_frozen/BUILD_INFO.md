@@ -1,10 +1,10 @@
 # Phase 10 frozen firmware build record
 
-Build date: 2026-09-01. Status: **the credential-validation follow-up passed
-offline reproducibility and artifact gates; its app-only flash, readback and
-target gate are pending a new hash-bound authorization**. The earlier,
-superseded baseline image passed its narrower keep-password/empty-WLAN target
-gate and remains documented in the historical capture.
+Build date: 2026-09-01; target update: 2026-09-03. Status: **offline
+reproducibility, artifact gates, authorized app-only flash, complete readback
+and real credential behaviour passed; the strict same-run every-route wire
+predicate remains formally inconclusive**. The earlier baseline passed its
+narrower keep-password/empty-WLAN target gate and remains historical evidence.
 
 No serial port, board, deploy, erase or write operation was used while
 building or verifying this candidate. The later flash was performed only
@@ -123,9 +123,10 @@ bytes are identical to this candidate. Consequently the narrowest next
 operation is an app-only write of `micropython.bin` at `0x10000` without a
 full-chip erase, bound to SHA-256
 `d8fb33c0e43081d95744816cbbedf7b77281292d3c8458d14b1f50cf27f7b9ef`.
-That operation has not yet been authorized or performed. Building and
-verification did not access the board and do not enable automatic startup,
-UART, heater control, RTC/I2C or 1-Wire.
+That operation was subsequently authorized and performed. Only application
+sectors `0x10000–0x204fff` were erased and written; bootloader, partition table
+and VFS were untouched. Building and flashing did not enable automatic
+startup, UART, heater control, RTC/I2C or 1-Wire.
 
 ## Target status
 
@@ -135,12 +136,23 @@ station WLAN. That remains valid evidence for the original transport,
 single-listener, storage and cleanup seams, but it did not exercise the user
 credential flow and is therefore no longer the final Phase-10 closure gate.
 
-The new target gate must use the retained `d8fb33c0...` application and must
-exercise one explicit AP-password replacement plus one explicit protected
-station-WLAN profile in disposable configuration storage. It must also retain
-the established one-listener, one-mutation, secret-redaction, heap, safety and
-ordered-cleanup gates. Until the new hash is authorized, flashed, completely
-read back and accepted on the DFR0975-U, Phase 10 remains target-pending.
+The retained `d8fb33c0...` application passed its write-time hash check and an
+independent read of all 2,050,848 bytes. Passive boot returned MicroPython
+1.28.0, the exact DFR0975-U machine identity, 11 frozen assets and both radios
+inactive.
 
-Sanitized evidence is retained in
-`../../captures/2026-09-01-dfr0975u-phase10-setup-assistant-gate.md`.
+The real phone flow explicitly replaced the AP password and added one
+protected station-WLAN profile in disposable configuration storage. The
+privileged target gateway recorded no rejected request, exactly one setup
+mutation and exactly one successful mutation; success required exact
+privileged readback of both expected write-only credentials. It observed 59
+valid required responses and 62 accepted/closed connections with no observer
+fault. The strict combined gate still timed out because at least one required
+route lacked either its application or wire observation in that same run. The
+old aggregate diagnostics cannot identify which route after cleanup, so the
+runner now emits separate missing-route lists and sanitized server counters.
+The functional phone flow will not be repeated merely to improve diagnostics.
+
+Sanitized baseline and credential evidence are retained in
+`../../captures/2026-09-01-dfr0975u-phase10-setup-assistant-gate.md` and
+`../../captures/2026-09-03-dfr0975u-phase10-credential-gate.md`.
