@@ -72,15 +72,16 @@ wurde erneut zweimal bytegleich gebaut, hashgebunden app-only geschrieben,
 vollständig zurückgelesen und bestand anschließend das fortgesetzte Löschen,
 den Speicher-Reload sowie den vollständigen Cleanup. Details stehen in
 `PHASE10_SETUP_ASSISTANT.md`.
-**Phase 10.1 – Portal- und Heimnetz-Erreichbarkeit ist gebaut und offline
-verifiziert:** Ein AP-exklusiver, begrenzter
-DNS-Responder und feste Portal-Prüfrouten ermöglichen das best-effort
-automatische Öffnen der Oberfläche. Derselbe einzelne Port-80-Listener bedient
-AP und Stationsschnittstelle; `heater.local` beziehungsweise die Stations-IP
-sind im Heimnetz lesend erreichbar, während Mutationen dort serverseitig
-gesperrt bleiben. Die Frozen-Closure, zwei bytegleiche Firmwarebauten und alle
-Offline-Artefaktprüfungen sind bestanden. Ein Flash oder Boardzugriff fand
-nicht statt; Ressourcenmessung und reale DFR0975-U-Abnahme sind noch offen.
+**Phase 10.1 – Portal- und Heimnetz-Erreichbarkeit ist nach realem Zielbefund
+korrigiert und neu gebaut:** Captive DNS und `heater.local` funktionierten auf
+dem DFR0975-U, der erste Wildcard-HTTP-Ansatz scheiterte jedoch nachweislich an
+einer im ESP32-MicroPython-Port fehlenden Socketfunktion. Er ist verworfen und
+dokumentiert. Der korrigierte Kandidat nutzt intern je einen ausdrücklich
+gebundenen AP- und Stationslistener, beide weiterhin auf dem einzigen
+benutzersichtbaren Port 80. AP-Mutationen und lesender Heimnetzzugriff bleiben
+hart getrennt. 1.135 Tests, eine neue Frozen-Closure, zwei bytegleiche Builds
+und alle Offline-Artefaktprüfungen sind bestanden. Der korrigierte Hash wurde
+noch nicht geflasht; Ressourcenmessung und finale DFR0975-U-Abnahme sind offen.
 Details stehen in `PHASE10_1_DISCOVERY.md`.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
@@ -1193,12 +1194,13 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
     Hardwaregrenzen und Funk-Cleanup blieben intakt. Offen bleibt der formale
     Same-run-Nachweis jeder einzelnen Browserroute; der Runner protokolliert
     einen künftigen Fehler dafür jetzt routengenau.
-11. Phase 10.1 ist implementiert, als 44-Datei-Frozen-Closure gebunden,
-    zweimal bytegleich gebaut und offline geprüft. Vor einem Flash fehlt nur
-    eine neue, exakt an den dokumentierten App-Hash gebundene Freigabe. Danach
-    werden AP-Portal, Stations-DHCP,
-    `heater.local`, lesender Heimnetzzugriff, abgelehnte Stationsmutation,
-    Heap-Grenzen und kompletter Cleanup in einem begrenzten Zielgate geprüft.
+11. Der erste Phase-10.1-Kandidat wurde nach erfolgreichem Flash/Readback im
+    Zieltest verworfen: DHCP, mDNS und 58/58 Captive-DNS-Antworten bestanden,
+    aber die im Design angenommene Socketfunktion fehlt in MicroPython 1.28.
+    Der korrigierte 44-Datei-Kandidat verwendet zwei explizite Port-80-Binds,
+    ist durch 1.135 Tests und zwei bytegleiche Builds belegt und wartet auf
+    eine neue, exakt an seinen Hash gebundene Flashfreigabe. Danach folgt nur
+    noch das kombinierte AP-/STA-/Portal-/Heap-/Cleanup-Zielgate.
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und

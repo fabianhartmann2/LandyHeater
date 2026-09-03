@@ -162,6 +162,40 @@ def _store_write_truth(manager):
     return truth
 
 
+def _http_transport_healthy(snapshot):
+    """Accept only fully accounted browser-cancelled sends as non-fatal."""
+
+    try:
+        faulted = snapshot["faulted"]
+        parse_errors = snapshot["parse_errors"]
+        socket_errors = snapshot["socket_errors"]
+        accepted = snapshot["accepted"]
+        completed = snapshot["completed"]
+        clients = snapshot["client_count"]
+        last_error = snapshot["last_error"]
+    except (KeyError, TypeError):
+        return False
+    if (
+        faulted is not False
+        or type(parse_errors) is not int
+        or parse_errors != 0
+        or type(socket_errors) is not int
+        or socket_errors < 0
+        or type(accepted) is not int
+        or type(completed) is not int
+        or type(clients) is not int
+        or min(accepted, completed, clients) < 0
+        or completed + clients > accepted
+    ):
+        return False
+    if socket_errors == 0:
+        return True
+    return (
+        last_error == "client_send_failed"
+        and socket_errors == accepted - completed - clients
+    )
+
+
 def _assert_storage_sealed():
     for base in (CONFIG_BASE_PATH, LEDGER_BASE_PATH):
         _require(_path_exists(base + ".a"), "A slot is absent")
@@ -319,10 +353,23 @@ def _continue_provision(capsule, state, seam, window_seconds):
         context.failure_stage = "integration_setup_http"
         server.step()
         server_snapshot = server.snapshot()
+        if (
+            server_snapshot["faulted"] is not False
+            or server_snapshot["parse_errors"] != 0
+            or server_snapshot["socket_errors"] != 0
+        ):
+            print(
+                "PHASE10_INTEGRATION_HTTP_DIAGNOSTIC_V1 {} {} {} {} {} {}".format(
+                    server_snapshot.get("last_error") or "none",
+                    server_snapshot.get("accepted"),
+                    server_snapshot.get("completed"),
+                    server_snapshot.get("client_count"),
+                    server_snapshot.get("parse_errors"),
+                    server_snapshot.get("socket_errors"),
+                )
+            )
         _require(
-            server_snapshot["faulted"] is False
-            and server_snapshot["parse_errors"] == 0
-            and server_snapshot["socket_errors"] == 0,
+            _http_transport_healthy(server_snapshot),
             "HTTP transport faulted during setup",
         )
         _require(gateway.rejected == 0, "an unexpected setup request was rejected")

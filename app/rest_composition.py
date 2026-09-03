@@ -251,32 +251,40 @@ def build_rest_http_server(
 
 def build_web_http_server(
     rest_runtime,
-    ap_bind_address,
+    bind_address,
     port=80,
     socket_factory=None,
     ticks_ms=None,
     ticks_diff=None,
     ticks_add=None,
-    station_access=False,
+    request_ingress=None,
+    captive_ap_address=None,
 ):
-    """Build one inert listener for both frozen UI assets and ``/api/v1``."""
+    """Build one inert, explicitly bound UI/API listener.
+
+    ``request_ingress`` is an immutable property of this concrete listener.
+    Discovery composes one AP listener and, after DHCP, one station listener;
+    both use port 80 without relying on unavailable socket introspection.
+    """
 
     if not callable(getattr(rest_runtime, "handle", None)):
         raise ValueError("rest_runtime must provide handle(request, peer_ip)")
     from adapters.micropython_http_server import MicroPythonHTTPServer
     from app.web_application import Phase9WebApplication
 
-    if type(station_access) is not bool:
-        raise ValueError("station_access must be bool")
-    application = Phase9WebApplication(rest_runtime, ap_bind_address)
+    if request_ingress not in (None, "ap", "sta"):
+        raise ValueError("request_ingress must be ap, sta or None")
+    if captive_ap_address is None:
+        captive_ap_address = bind_address
+    application = Phase9WebApplication(rest_runtime, captive_ap_address)
     return MicroPythonHTTPServer(
         application,
-        "0.0.0.0" if station_access else ap_bind_address,
+        bind_address,
         port=port,
         socket_factory=socket_factory,
         request_handler=application.handle,
-        ap_address=ap_bind_address if station_access else None,
-        request_handler_uses_ingress=station_access,
+        request_ingress=request_ingress,
+        request_handler_uses_ingress=request_ingress is not None,
         ticks_ms=ticks_ms,
         ticks_diff=ticks_diff,
         ticks_add=ticks_add,

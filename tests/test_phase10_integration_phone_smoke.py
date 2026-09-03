@@ -36,6 +36,23 @@ class _Request:
 
 
 class TestPhase10IntegrationPhoneSmoke(unittest.TestCase):
+    def test_browser_cancelled_send_is_accounted_but_other_errors_fail(self):
+        snapshot = {
+            "faulted": False,
+            "parse_errors": 0,
+            "socket_errors": 1,
+            "accepted": 11,
+            "completed": 10,
+            "client_count": 0,
+            "last_error": "client_send_failed",
+        }
+        self.assertTrue(smoke._http_transport_healthy(snapshot))
+        snapshot["last_error"] = "client_recv_failed"
+        self.assertFalse(smoke._http_transport_healthy(snapshot))
+        snapshot["last_error"] = "client_send_failed"
+        snapshot["parse_errors"] = 1
+        self.assertFalse(smoke._http_transport_healthy(snapshot))
+
     def test_private_configuration_requires_one_real_profile_and_new_ap_key(self):
         configuration = {
             "system": {"setup_complete": True},

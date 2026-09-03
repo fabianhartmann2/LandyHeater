@@ -1,9 +1,9 @@
 # Phase 10.1 frozen firmware build record
 
-Build date: 2026-09-03. Status: **host regression, frozen-source closure, two
-byte-identical builds and all offline artifact gates passed**. No serial port,
-board, deploy, erase, flash or write operation was used. Runtime resource and
-phone/network acceptance remain pending.
+Build date: 2026-09-03. Historical status: **flashed and read back correctly,
+then rejected by real-target HTTP evidence**. This record intentionally pins
+the original bytes. The corrected candidate is retained separately under
+`firmware/phase10_1_fixed_frozen/`.
 
 The final host run passed all 1,120 tests, including artifact-ledger, combined
 image, ingress-isolation, captive-DNS and cooperative-cleanup checks.
@@ -83,7 +83,7 @@ The new application is 7,344 B larger than the last accepted Phase-10 image.
 The static configuration proves only the intended memory setup; live GC,
 internal and DMA-capable heap remain mandatory target measurements.
 
-## Retained artifacts and next gate
+## Retained artifacts and rejection result
 
 `artifacts/SHA256SUMS` binds the retained deployment subset. The app-only
 candidate is:
@@ -95,9 +95,10 @@ sha256: e378b4874d162f84b224396463b5384da9a55fcdd36a119ccee08b52d6f959e0
 erase:  no full-chip erase
 ```
 
-The bootloader and partition table are byte-identical to the accepted Phase-10
-versions, so the narrowest next operation is app-only. It still requires a new
-approval naming this exact hash, offset and erase policy. After flash, one
-bounded gate must verify AP captive discovery, station DHCP, `heater.local`,
-read-only station access, rejected station mutation, resource floors and full
-cleanup. Automatic product startup and all heater hardware remain disabled.
+The authorized app-only flash and independent readback matched this hash.
+Station DHCP, `heater.local`, memory gates and captive DNS succeeded; captive
+DNS answered 58 of 58 observed queries without an error. HTTP rejected every
+accepted socket before dispatch (`accepted=0`, `socket_errors=14`) because the
+pinned MicroPython ESP32 port does not expose the assumed `getsockname()`
+method. This image must not be flashed again. See
+`captures/2026-09-03-dfr0975u-phase10-1-listener-correction.md`.

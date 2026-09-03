@@ -1,8 +1,8 @@
-"""Cold composition for one HTTP listener plus AP-only captive DNS.
+"""Cold composition for explicit AP/STA HTTP plus AP-only captive DNS.
 
 This module owns no radio and performs no I/O at import or construction time.
 The caller starts Wi-Fi and REST security first, then explicitly starts this
-runtime.  One ``step()`` services either HTTP or DNS, alternating fairly.
+runtime.  One ``step()`` services exactly one configured socket owner, fairly.
 """
 
 
@@ -12,8 +12,11 @@ class DiscoveryRuntimeError(RuntimeError):
 
 class ConfiguredDiscoveryRuntime:
     __slots__ = (
-        "_http",
+        "_ap_http",
+        "_station_http",
         "_dns",
+        "_services",
+        "_service_names",
         "_next_service",
         "_started",
         "_closed",
@@ -21,16 +24,24 @@ class ConfiguredDiscoveryRuntime:
         "_last_error",
     )
 
-    def __init__(self, http_server, dns_server):
-        for owner, methods in (
-            (http_server, ("start", "step", "deinit", "snapshot")),
-            (dns_server, ("start", "step", "deinit", "snapshot")),
-        ):
+    def __init__(self, ap_http_server, dns_server, station_http_server=None):
+        owners = [ap_http_server]
+        names = ["ap_http"]
+        if station_http_server is not None:
+            owners.append(station_http_server)
+            names.append("station_http")
+        owners.append(dns_server)
+        names.append("dns")
+        for owner in owners:
+            methods = ("start", "step", "deinit", "snapshot")
             for method in methods:
                 if not callable(getattr(owner, method, None)):
                     raise ValueError("discovery dependency is malformed")
-        self._http = http_server
+        self._ap_http = ap_http_server
+        self._station_http = station_http_server
         self._dns = dns_server
+        self._services = tuple(owners)
+        self._service_names = tuple(names)
         self._next_service = 0
         self._started = False
         self._closed = False
@@ -39,7 +50,15 @@ class ConfiguredDiscoveryRuntime:
 
     @property
     def http_server(self):
-        return self._http
+        return self._ap_http
+
+    @property
+    def ap_http_server(self):
+        return self._ap_http
+
+    @property
+    def station_http_server(self):
+        return self._station_http
 
     @property
     def dns_server(self):
@@ -50,19 +69,22 @@ class ConfiguredDiscoveryRuntime:
             raise DiscoveryRuntimeError("discovery_closed")
         if self._started:
             return False
-        http_started = False
+        started = []
         try:
-            http_started = self._http.start()
-            if http_started is not True:
-                raise DiscoveryRuntimeError("http_start_contract_failed")
-            if self._dns.start() is not True:
-                raise DiscoveryRuntimeError("dns_start_contract_failed")
+            for index, service in enumerate(self._services):
+                if service.start() is not True:
+                    raise DiscoveryRuntimeError(
+                        "{}_start_contract_failed".format(
+                            self._service_names[index]
+                        )
+                    )
+                started.append(service)
         except BaseException:
             self._faulted = True
             self._last_error = "discovery_start_failed"
-            if http_started:
+            for service in reversed(started):
                 try:
-                    self._http.deinit()
+                    service.deinit()
                 except BaseException:
                     pass
             raise
@@ -73,8 +95,8 @@ class ConfiguredDiscoveryRuntime:
     def step(self):
         if not self._started or self._closed:
             return False
-        service = self._http if self._next_service == 0 else self._dns
-        self._next_service = 1 - self._next_service
+        service = self._services[self._next_service]
+        self._next_service = (self._next_service + 1) % len(self._services)
         try:
             return bool(service.step())
         except MemoryError:
@@ -88,7 +110,7 @@ class ConfiguredDiscoveryRuntime:
         self._started = False
         self._closed = True
         failed = False
-        for service in (self._dns, self._http):
+        for service in reversed(self._services):
             try:
                 if service.deinit() is not None:
                     failed = True
@@ -108,8 +130,13 @@ class ConfiguredDiscoveryRuntime:
             "closed": self._closed,
             "faulted": self._faulted,
             "last_error": self._last_error,
-            "next_service": "http" if self._next_service == 0 else "dns",
-            "http": self._http.snapshot(),
+            "next_service": self._service_names[self._next_service],
+            "ap_http": self._ap_http.snapshot(),
+            "station_http": (
+                None
+                if self._station_http is None
+                else self._station_http.snapshot()
+            ),
             "dns": self._dns.snapshot(),
         }
 
@@ -117,25 +144,47 @@ class ConfiguredDiscoveryRuntime:
 def build_discovery_runtime(
     rest_runtime,
     ap_address,
-    http_socket_factory=None,
+    station_address=None,
+    ap_http_socket_factory=None,
+    station_http_socket_factory=None,
     dns_socket_factory=None,
     ticks_ms=None,
     ticks_diff=None,
     ticks_add=None,
 ):
-    """Build one inert multi-interface HTTP/AP-DNS runtime."""
+    """Build inert explicit-interface HTTP and AP-DNS socket owners.
+
+    AP-only operation is available by omitting ``station_address``.  When a
+    validated DHCP address is supplied, the second HTTP listener binds that
+    exact address at the same port 80 and carries fixed read-only STA ingress.
+    """
 
     from adapters.micropython_captive_dns import MicroPythonCaptiveDNS
     from app.rest_composition import build_web_http_server
 
-    http = build_web_http_server(
+    ap_http = build_web_http_server(
         rest_runtime,
         ap_address,
-        socket_factory=http_socket_factory,
+        socket_factory=ap_http_socket_factory,
         ticks_ms=ticks_ms,
         ticks_diff=ticks_diff,
         ticks_add=ticks_add,
-        station_access=True,
+        request_ingress="ap",
+        captive_ap_address=ap_address,
     )
+    station_http = None
+    if station_address is not None:
+        if station_address == ap_address:
+            raise ValueError("station_address must differ from ap_address")
+        station_http = build_web_http_server(
+            rest_runtime,
+            station_address,
+            socket_factory=station_http_socket_factory,
+            ticks_ms=ticks_ms,
+            ticks_diff=ticks_diff,
+            ticks_add=ticks_add,
+            request_ingress="sta",
+            captive_ap_address=ap_address,
+        )
     dns = MicroPythonCaptiveDNS(ap_address, socket_factory=dns_socket_factory)
-    return ConfiguredDiscoveryRuntime(http, dns)
+    return ConfiguredDiscoveryRuntime(ap_http, dns, station_http)

@@ -3,8 +3,8 @@
 The adapter owns only its listening socket and the client sockets accepted
 from it.  Importing the module and constructing :class:`MicroPythonHTTPServer`
 perform no I/O.  In particular this layer never creates, activates or
-deactivates a WLAN interface; the caller must pass the explicit IPv4 address
-of the already configured access point.
+deactivates a WLAN interface; the caller must pass one explicit IPv4 address
+of an already configured local interface.
 
 One call to :meth:`MicroPythonHTTPServer.step` performs at most one bounded
 ``accept``, ``recv`` or ``send`` operation.  Request parsing, strict JSON
@@ -145,7 +145,7 @@ def _require_timeout(value, name):
     return value
 
 
-def _canonical_ipv4(value, allow_wildcard=False):
+def _canonical_ipv4(value):
     if type(value) is not str or not value or len(value) > 15:
         raise ValueError("ap_bind_address must be an explicit IPv4 address")
     parts = value.split(".")
@@ -168,7 +168,7 @@ def _canonical_ipv4(value, allow_wildcard=False):
                 "ap_bind_address must be an explicit IPv4 address"
             )
         octets.append(number)
-    if octets[0] == 0 and not (allow_wildcard and octets == [0, 0, 0, 0]):
+    if octets[0] == 0:
         raise ValueError("wildcard HTTP binding is forbidden")
     if octets == [255, 255, 255, 255] or octets[0] >= 224:
         raise ValueError("ap_bind_address must be a unicast IPv4 address")
@@ -190,25 +190,6 @@ def _accepted_peer_ip(address):
     if type(peer_port) is not int or peer_port < 0 or peer_port > 65535:
         raise ValueError("accepted peer address is invalid")
     return peer_ip
-
-
-def _accepted_local_ip(port):
-    getsockname = getattr(port, "getsockname", None)
-    if not callable(getsockname):
-        raise MicroPythonHTTPServerStateError(
-            "client_local_address_contract_failed"
-        )
-    address = getsockname()
-    if type(address) not in (tuple, list) or len(address) < 2:
-        raise MicroPythonHTTPServerStateError(
-            "client_local_address_contract_failed"
-        )
-    try:
-        return _canonical_ipv4(address[0])
-    except ValueError:
-        raise MicroPythonHTTPServerStateError(
-            "client_local_address_contract_failed"
-        ) from None
 
 
 def _would_block(error):
@@ -287,7 +268,7 @@ class _Client:
 
 
 class MicroPythonHTTPServer:
-    """Serve one injected REST application on one explicit AP IPv4 address.
+    """Serve one injected application on one explicit local IPv4 address.
 
     ``start()`` is the only method which calls the lazy socket factory and
     opens a listener.  ``step()`` is non-blocking and bounded.  ``deinit()``
@@ -299,7 +280,7 @@ class MicroPythonHTTPServer:
         "__application_handle",
         "__request_handler",
         "__ap_bind_address",
-        "__ap_address",
+        "__request_ingress",
         "__request_handler_uses_ingress",
         "__port",
         "__socket_factory",
@@ -343,7 +324,7 @@ class MicroPythonHTTPServer:
         port=80,
         socket_factory=None,
         request_handler=None,
-        ap_address=None,
+        request_ingress=None,
         request_handler_uses_ingress=False,
         ticks_ms=None,
         ticks_diff=None,
@@ -360,16 +341,12 @@ class MicroPythonHTTPServer:
         _require_callable(application_handle, "application.handle")
         if type(request_handler_uses_ingress) is not bool:
             raise ValueError("request_handler_uses_ingress must be bool")
-        if ap_address is not None:
-            ap_address = _canonical_ipv4(ap_address)
-        ap_bind_address = _canonical_ipv4(
-            ap_bind_address, allow_wildcard=ap_address is not None
-        )
-        if ap_bind_address == "0.0.0.0" and (
-            ap_address is None or not request_handler_uses_ingress
-        ):
+        ap_bind_address = _canonical_ipv4(ap_bind_address)
+        if request_ingress not in (None, "ap", "sta"):
+            raise ValueError("request_ingress must be ap, sta or None")
+        if request_handler_uses_ingress != (request_ingress is not None):
             raise ValueError(
-                "wildcard HTTP binding requires trusted ingress dispatch"
+                "ingress-aware dispatch requires a fixed request_ingress"
             )
         if type(port) is not int or port < 1 or port > 65535:
             raise ValueError("port must be an integer from 1 to 65535")
@@ -394,7 +371,7 @@ class MicroPythonHTTPServer:
         self.__application_handle = application_handle
         self.__request_handler = request_handler
         self.__ap_bind_address = ap_bind_address
-        self.__ap_address = ap_address
+        self.__request_ingress = request_ingress
         self.__request_handler_uses_ingress = request_handler_uses_ingress
         self.__port = port
         self.__socket_factory = socket_factory
@@ -802,8 +779,11 @@ class MicroPythonHTTPServer:
             local_ip = None
             ingress = None
             if self.__request_handler_uses_ingress:
-                local_ip = _accepted_local_ip(port)
-                ingress = "ap" if local_ip == self.__ap_address else "sta"
+                # The listener is bound to one concrete interface address.
+                # Its immutable construction-time label is therefore trusted;
+                # no accepted-socket introspection or Host header is involved.
+                local_ip = self.__ap_bind_address
+                ingress = self.__request_ingress
             if (
                 self.__closed
                 or not self.__accepting
@@ -1415,7 +1395,7 @@ class MicroPythonHTTPServer:
             "max_request_bytes": MAX_REQUEST_BYTES,
             "max_response_wire_bytes": MAX_RESPONSE_WIRE_BYTES,
             "bind_address": self.__ap_bind_address,
-            "ap_address": self.__ap_address,
+            "request_ingress": self.__request_ingress,
             "ingress_dispatch": self.__request_handler_uses_ingress,
         }
 

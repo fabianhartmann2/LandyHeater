@@ -568,12 +568,17 @@ port 53, shall not forward queries or retain queried names, and shall process
 at most one bounded 512-byte datagram per cooperative step. Captive HTTP
 responses shall be limited to known probe paths and AP ingress.
 
-AP and station traffic shall share one TCP listener on port 80. The ingress
-shall be derived from the accepted socket's local destination address, never
-from an HTTP header or the peer subnet. Station access through
-`http://heater.local` or the current station IP is read-only. Mutation
-authority remains AP-only until a separate authenticated remote-access design
-is approved.
+AP and station traffic shall share one user-visible TCP port 80 but use
+separate listeners explicitly bound to the AP address and current station
+address. Each listener's ingress is fixed at composition time and shall never
+be derived from an HTTP header, peer subnet or an accepted-socket API. This is
+required because the pinned MicroPython v1.28 ESP32 socket object does not
+expose `getsockname()`. AP-only operation shall not require a station listener.
+Station access through `http://heater.local` or the current station IP is
+read-only. Mutation authority remains AP-only until a separate authenticated
+remote-access design is approved. A changed station DHCP address shall cause
+only the station listener to be replaced by the later product supervisor; AP
+availability shall remain independent.
 
 ## 27. REST API
 
