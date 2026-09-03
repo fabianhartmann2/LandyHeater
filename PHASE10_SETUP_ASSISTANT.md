@@ -1,13 +1,16 @@
 # Phase 10 – Setup Assistant
 
-Stand: 2026-09-03. **Phase 10 ist funktional auf dem DFR0975-U abgenommen;
-die strikte Same-run-Prüfung jeder einzelnen HTTP-Ressource bleibt formal
-offen.** Das korrigierte Image wurde hashgebunden geschrieben, vollständig
-zurückgelesen und passiv gebootet. Der reale Assistent akzeptierte genau eine
-gültige Mutation und bestätigte im isolierten Speicher den exakten
-AP-Passwortwechsel sowie genau ein geschütztes Stations-WLAN. Der Runner gab
-trotzdem kein Gesamt-PASS aus, weil mindestens eine Browserressource innerhalb
-des Zeitfensters nicht nochmals als eigene Wire-Route beobachtet wurde.
+Stand: 2026-09-03. **Phase 10 ist einschließlich des realen
+Konfigurations-/Timer-Ablaufs funktional auf dem DFR0975-U abgenommen; die
+strikte Same-run-Prüfung jeder einzelnen HTTP-Ressource bleibt formal offen.**
+Der reale Assistent akzeptierte genau eine gültige Mutation und bestätigte im
+isolierten Speicher den exakten AP-Passwortwechsel sowie genau ein geschütztes
+Stations-WLAN. Stations-DHCP, Anmeldung mit dem neuen AP-Passwort und die
+dauerhafte Erstellung, Bearbeitung und Löschung eines inaktiven Timers wurden
+anschließend auf demselben Board bestätigt. Der dabei entdeckte ungewollte
+leere `DELETE`-Body wurde korrigiert; das neue Image wurde hashgebunden
+app-only geschrieben, vollständig zurückgelesen und bestand den fortgesetzten
+Zieltest samt Cleanup.
 
 ## Geführter Ablauf
 
@@ -120,7 +123,11 @@ Die gezielten Tests decken ab:
   blockieren und die Zusammenfassung WLAN/Sicherheitsart ohne Geheimnisse
   anzeigt;
 - Zielrunner für genau einen echten Ersatz des AP-Passworts und genau ein
-  geschütztes Stations-WLAN in isoliertem Testspeicher.
+  geschütztes Stations-WLAN in isoliertem Testspeicher;
+- einen zweistufigen, fortsetzbaren Realtest für Stations-DHCP,
+  AP-Neuanmeldung und inaktive Timer-Erstellung/-Bearbeitung/-Löschung;
+- die Browser-Requestform bodyloser Mutationen, sodass `DELETE` und andere
+  payloadlose Aktionen weder `Content-Type` noch einen leeren Body senden.
 
 Die historische Phase-9-Quellledger bleibt ein unveränderlicher Buildnachweis.
 Ihr Test vergleicht sie deshalb nicht mehr irrtümlich mit den weiterentwickelten
@@ -133,7 +140,7 @@ Die Phase-10-Frozen-Closure bindet 42 Quelldateien. Beide sauberen Builds der
 korrigierten Fassung lieferten für alle 15 verglichenen Ausgaben identische
 Bytes. Bootloader und Partitionstabelle sind unverändert gegenüber Phase 9;
 das neue geprüfte Anwendungsimage ist 2.050.848 Bytes groß und hat SHA-256
-`d8fb33c0e43081d95744816cbbedf7b77281292d3c8458d14b1f50cf27f7b9ef`.
+`9912c86513cc08e5b36f18c0705bf41bb3b6d592342b475170d3fce2b3780b63`.
 Image-, 16-MB-/Octal-PSRAM-, Partitionierungs-, Größen- und Combined-Layout-
 Gates sind bestanden. Details und retained artifacts stehen unter
 `firmware/phase10_frozen/`.
@@ -145,7 +152,7 @@ Rücklesung aller 2.050.848 Bytes ergaben exakt den freigegebenen SHA-256. Der
 passive Boot bestätigte MicroPython 1.28.0, die DFR0975-U-Identität, 11 Frozen-
 Ressourcen und beide Funkinterfaces aus.
 
-Im realen Credential-Lauf erreichte der Browser die neue UI, wählte ein
+Im vorausgehenden realen Credential-Lauf erreichte der Browser die neue UI, wählte ein
 geschütztes Stations-WLAN, ersetzte beide write-only Passwörter, bestätigte die
 Zusammenfassung und schloss ab. Der privilegierte Ziel-Gateway zählte 59
 gültige Pflichtantworten, keine Ablehnung, genau einen Mutationsversuch und
@@ -163,7 +170,28 @@ Runner protokolliert künftig getrennt fehlende Routen und Serverzähler. Der
 bereits erfolgreich absolvierte Benutzerablauf wird nur für bessere Diagnose
 nicht wiederholt.
 
+Der anschließende zweistufige Integrationstest verwendete ausschließlich
+eigene A/B-Pfade. Er bestätigte nach einem physischen Reset die echte
+Stationsverbindung mit DHCP und die Neuanmeldung eines Handyclients am
+unveränderten AP `Landy Heater` mit dem zuvor gesetzten Passwort. Ein inaktiver
+Montagstimer wurde erstellt, über Reload bestätigt, bearbeitet und erneut über
+mehrere Resets bestätigt. Beim ersten Löschen antwortete die API korrekt mit
+HTTP 422 und `request_body_not_allowed`, weil der gemeinsame UI-Helfer auch bei
+payloadlosen Aufrufen `body: ""` an `fetch` übergab.
+
+Die korrigierte UI fügt Body und JSON-Header nur noch bei tatsächlich
+vorhandenem Payload hinzu. Nach neuem 1.098/1.098-Hosttest, zwei sauberen
+byteidentischen Builds, Artefaktprüfung, separater Hashfreigabe, app-only Flash
+und vollständigem Readback wurde der Test direkt beim vorhandenen Timer
+fortgesetzt. `DELETE` war erfolgreich; ein frischer ConfigManager-Reload
+bestätigte den leeren Timersatz und genau eine weitere Generation. Requested
+State blieb OFF, der Heizungs-Protokolltripwire blieb null und die
+Produktionsspeicher-Signaturen waren unverändert. Der PASS-Pfad entfernte alle
+isolierten Dateien und deaktivierte beide Funkinterfaces.
+
 Die aktive elektrische Abnahme von RTC, Sensoren und Autoterm bleibt bewusst
 Phase 13. Historische Baseline und neuer Credential-Nachweis stehen in
 `captures/2026-09-01-dfr0975u-phase10-setup-assistant-gate.md` und
-`captures/2026-09-03-dfr0975u-phase10-credential-gate.md`.
+`captures/2026-09-03-dfr0975u-phase10-credential-gate.md`. Der vollständige
+Integrations-, Fehler-, Korrektur-, Flash- und Cleanup-Nachweis steht in
+`captures/2026-09-03-dfr0975u-phase10-integration-delete-preflash.md`.

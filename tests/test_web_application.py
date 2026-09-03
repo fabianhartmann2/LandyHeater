@@ -118,6 +118,16 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertNotIn(b"http://", setup)
         self.assertNotIn(b"https://", setup)
 
+    def test_bodyless_mutations_omit_the_fetch_body_member(self):
+        app = self.app.handle(
+            request(target="/assets/app.js"), PEER
+        ).body
+        self.assertIn(b"options={method,headers}", app)
+        self.assertIn(b"options.body=JSON.stringify(payload)", app)
+        self.assertIn(b"L.request(path,options)", app)
+        self.assertNotIn(b'let body=""', app)
+        self.assertNotIn(b"{method,headers,body}", app)
+
 
 if __name__ == "__main__":
     unittest.main()

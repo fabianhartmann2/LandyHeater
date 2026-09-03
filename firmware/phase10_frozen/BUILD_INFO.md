@@ -1,15 +1,18 @@
 # Phase 10 frozen firmware build record
 
-Build date: 2026-09-01; target update: 2026-09-03. Status: **offline
-reproducibility, artifact gates, authorized app-only flash, complete readback
-and real credential behaviour passed; the strict same-run every-route wire
-predicate remains formally inconclusive**. The earlier baseline passed its
-narrower keep-password/empty-WLAN target gate and remains historical evidence.
+Build date and target update: 2026-09-03. Status: **the bodyless-DELETE
+correction passed the complete host regression, two byte-identical firmware
+builds, all offline artifact gates, an authorized app-only flash with complete
+readback, and the resumed real-phone timer-deletion gate**. The previous
+credential-validation image remains historical target evidence. Its real-phone
+flow reached timer deletion, where the browser exposed the corrected empty
+request-body defect.
 
 No serial port, board, deploy, erase or write operation was used while
-building or verifying this candidate. The later flash was performed only
-after a separate authorization naming the exact application hash, offset and
-erase policy.
+building or verifying the candidate. It was flashed only after a new
+authorization named the exact application hash, offset and erase policy. The
+app-only operation preserved VFS until the resumed target gate completed and
+removed its own isolated records.
 
 ## Pinned inputs
 
@@ -34,7 +37,7 @@ erase policy.
 | --- | --- |
 | `manifest.py` | `fbc93cab00860d4c3f589e966748afd5871b5c45eefe2e7aaea2dddb20a10df3` |
 | `FROZEN_MODULES.txt` | `e399f83a69d8a598b61d3c50114f34a3a3d4cad0681c37d670c88607f36cbcec` |
-| `CURRENT_FROZEN_SOURCES.sha256` | `298816981c2e688fe402be3330378a2770b753bc293c9db32a88006877f0bd11` |
+| `CURRENT_FROZEN_SOURCES.sha256` | `6f87e8226d9370364921ec63a3fd1a6ce099f6251a83607c28b275092a52c649` |
 
 The closure contains exactly 42 project files, including the Phase-10 Setup
 Assistant API, UI and generated web assets. It excludes `boot.py`, `main.py`,
@@ -44,9 +47,10 @@ board configuration, credentials, persistent data, tests and tools.
 
 Two complete builds ran sequentially from an absent build directory at the
 same canonical absolute path ending in
-`build-DFR0975U_N16R8-PHASE10-B`. The first completed directory was retained
-as `build-DFR0975U_N16R8-PHASE10-VALIDATION-PASS-1` before recreating the
-canonical path.
+`build-DFR0975U_N16R8-PHASE10-DELETEFIX`. The first completed directory was
+retained as
+`build-DFR0975U_N16R8-PHASE10-DELETEFIX-VALIDATION-PASS-1` before recreating
+the canonical path.
 All 15 compared outputs were byte-identical: bootloader, partition table,
 application, combined image, UF2, final and combined configurations, four
 flash-argument files, flasher JSON, frozen C, ELF and map.
@@ -115,14 +119,14 @@ shasum -a 256 -c SHA256SUMS
 | --- | ---: | --- |
 | `bootloader/bootloader.bin` | 19,232 B | `be074941dbcff048d22552208c318f53e9749142d77744ccfcad3744e5185985` |
 | `partition_table/partition-table.bin` | 3,072 B | `518d9ab5063af998cce24c461cfccc51ed7c6f4084c12e2fc93cd5bbb3ccf979` |
-| `micropython.bin` | 2,050,848 B | `d8fb33c0e43081d95744816cbbedf7b77281292d3c8458d14b1f50cf27f7b9ef` |
-| `firmware.bin` | 2,116,384 B | `648256cc2fca0430cd53d721544d971ccd5c563f6fb8b0441682aafac465f4d1` |
+| `micropython.bin` | 2,050,848 B | `9912c86513cc08e5b36f18c0705bf41bb3b6d592342b475170d3fce2b3780b63` |
+| `firmware.bin` | 2,116,384 B | `e9cd0ea68a16740134ba5680da99fdeeff7b2f1bccb4bb0269bf73655b850f7e` |
 
 The Phase-9 binaries remain unchanged. Its bootloader and partition-table
-bytes are identical to this candidate. Consequently the narrowest next
-operation is an app-only write of `micropython.bin` at `0x10000` without a
-full-chip erase, bound to SHA-256
-`d8fb33c0e43081d95744816cbbedf7b77281292d3c8458d14b1f50cf27f7b9ef`.
+bytes are identical to this candidate. Consequently the narrowest possible
+next operation is an app-only write of `micropython.bin` at `0x10000` without
+a full-chip erase, bound to SHA-256
+`9912c86513cc08e5b36f18c0705bf41bb3b6d592342b475170d3fce2b3780b63`.
 That operation was subsequently authorized and performed. Only application
 sectors `0x10000–0x204fff` were erased and written; bootloader, partition table
 and VFS were untouched. Building and flashing did not enable automatic
@@ -136,10 +140,10 @@ station WLAN. That remains valid evidence for the original transport,
 single-listener, storage and cleanup seams, but it did not exercise the user
 credential flow and is therefore no longer the final Phase-10 closure gate.
 
-The retained `d8fb33c0...` application passed its write-time hash check and an
-independent read of all 2,050,848 bytes. Passive boot returned MicroPython
-1.28.0, the exact DFR0975-U machine identity, 11 frozen assets and both radios
-inactive.
+The previously retained `d8fb33c0...` application passed its write-time hash
+check and an independent read of all 2,050,848 bytes. Passive boot returned
+MicroPython 1.28.0, the exact DFR0975-U machine identity, 11 frozen assets and
+both radios inactive.
 
 The real phone flow explicitly replaced the AP password and added one
 protected station-WLAN profile in disposable configuration storage. The
@@ -153,6 +157,32 @@ old aggregate diagnostics cannot identify which route after cleanup, so the
 runner now emits separate missing-route lists and sanitized server counters.
 The functional phone flow will not be repeated merely to improve diagnostics.
 
+The subsequent end-to-end integration exercise used disposable A/B paths and
+never touched production configuration. It proved a protected station-WLAN
+profile, DHCP after a physical reset, AP-password replacement and re-login,
+plus durable timer creation and editing. Timer deletion returned HTTP 422 with
+`request_body_not_allowed`: the UI helper always attached `body: ""` even for
+a bodyless `DELETE`, while the REST boundary correctly rejects every DELETE
+body. The helper now omits both `Content-Type` and the `body` property whenever
+no payload is supplied. A regression test locks that browser request shape.
+The isolated configuration and edited inactive timer were retained at that
+failure point so the corrected image could resume directly at deletion after
+a separately authorized app-only flash.
+
+That exact app-only flash later passed both its write-time verification and an
+independent byte-for-byte read of all 2,050,848 application bytes. After a
+physical reset, passive USB identity matched MicroPython 1.28.0 and the exact
+DFR0975-U machine string; both radios were inactive. The retained stage-2
+exercise then proved station DHCP, replacement-key AP re-authentication and a
+successful bodyless timer deletion. Fresh storage reload proved the timer was
+absent with exactly one remaining generation increment. Requested State stayed
+OFF, no heater-protocol call occurred and production storage was unchanged.
+The PASS path removed every isolated record and shut both radios down; an
+independent postcheck reported no isolated filename and 8,319,056 bytes of
+free GC heap.
+
 Sanitized baseline and credential evidence are retained in
 `../../captures/2026-09-01-dfr0975u-phase10-setup-assistant-gate.md` and
-`../../captures/2026-09-03-dfr0975u-phase10-credential-gate.md`.
+`../../captures/2026-09-03-dfr0975u-phase10-credential-gate.md`. The real
+integration sequence, deletion diagnosis and corrected preflash gate are in
+`../../captures/2026-09-03-dfr0975u-phase10-integration-delete-preflash.md`.
