@@ -81,7 +81,8 @@ gebundenen AP- und Stationslistener, beide weiterhin auf dem einzigen
 benutzersichtbaren Port 80. AP-Mutationen und lesender Heimnetzzugriff bleiben
 hart getrennt. 1.135 Tests, eine neue Frozen-Closure, zwei bytegleiche Builds
 und alle Offline-Artefaktprüfungen sind bestanden. Der korrigierte Hash wurde
-noch nicht geflasht; Ressourcenmessung und finale DFR0975-U-Abnahme sind offen.
+app-only geschrieben und vollständig bytegleich zurückgelesen; Ressourcenmessung
+und finale DFR0975-U-Laufzeitabnahme sind noch offen.
 Details stehen in `PHASE10_1_DISCOVERY.md`.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
@@ -1198,9 +1199,9 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
     Zieltest verworfen: DHCP, mDNS und 58/58 Captive-DNS-Antworten bestanden,
     aber die im Design angenommene Socketfunktion fehlt in MicroPython 1.28.
     Der korrigierte 44-Datei-Kandidat verwendet zwei explizite Port-80-Binds,
-    ist durch 1.135 Tests und zwei bytegleiche Builds belegt und wartet auf
-    eine neue, exakt an seinen Hash gebundene Flashfreigabe. Danach folgt nur
-    noch das kombinierte AP-/STA-/Portal-/Heap-/Cleanup-Zielgate.
+    ist durch 1.135 Tests und zwei bytegleiche Builds belegt. Der hashgebundene
+    App-only-Flash und die vollständige Rücklesung sind bestanden. Offen bleibt
+    nur das kombinierte AP-/STA-/Portal-/Heap-/Cleanup-Zielgate.
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und

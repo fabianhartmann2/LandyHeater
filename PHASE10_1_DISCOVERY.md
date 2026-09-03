@@ -4,8 +4,10 @@ Stand: 2026-09-03. Der erste Wildcard-Listener-Kandidat wurde gebaut,
 hashgebunden geflasht und vollständig zurückgelesen, im realen Zieltest aber
 verworfen. Der korrigierte Zwei-Listener-Kandidat ist implementiert, durch
 1.135 Hosttests geprüft, als 44-Datei-Frozen-Closure gebunden und zweimal
-bytegleich gebaut. Er wurde noch nicht geflasht. `boot.py` und `main.py`
-bleiben bis zum späteren Produkt-Composition-Gate passiv.
+bytegleich gebaut. Das korrigierte App-Abbild wurde anschließend hashgebunden
+ohne Full Erase bei `0x10000` geschrieben und vollständig bytegleich
+zurückgelesen. `boot.py` und `main.py` bleiben bis zum späteren
+Produkt-Composition-Gate passiv.
 
 ## Benutzerpfade
 
@@ -114,7 +116,8 @@ Abbild bleibt in `firmware/phase10_1_frozen/` nachvollziehbar erhalten.
 
 Vor einem Abschluss fehlen nur die minimalen echten Zielprüfungen:
 
-1. neuer, exakt an den korrigierten App-Hash gebundener App-only-Flash;
+1. **bestanden:** exakt hashgebundener App-only-Flash und vollständige
+   unabhängige Rücklesung;
 2. ein gemeinsamer Lauf mit AP, Stations-DHCP, zwei expliziten TCP/80-Binds,
    mDNS und AP-DNS;
 3. Portal-Weiterleitung am AP sowie lesender Zugriff über `heater.local`;
@@ -122,5 +125,6 @@ Vor einem Abschluss fehlen nur die minimalen echten Zielprüfungen:
 5. mindestens 32 KiB freier GC-, interner und DMA-fähiger Heap;
 6. vollständiger Socket-, REST- und Funk-Cleanup.
 
-Der engste Flashvorgang bleibt App-only ohne Full Erase bei `0x10000`. Dafür
-ist eine neue Freigabe mit dem Hash des korrigierten Abbilds erforderlich.
+Der engste Flashvorgang wurde eingehalten. Eine weitere Flashfreigabe ist für
+das noch offene Laufzeitgate nicht erforderlich; Hardwareausgänge bleiben
+weiterhin gesperrt.

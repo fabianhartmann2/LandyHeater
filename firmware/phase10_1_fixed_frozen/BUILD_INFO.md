@@ -2,9 +2,10 @@
 
 Build date: 2026-09-03. Status: **corrected host regression, frozen-source
 closure, two byte-identical builds and all offline artifact gates passed**.
-No serial port, board, deploy, erase, flash or write operation was used for
-this corrected candidate. Runtime resource and phone/network acceptance remain
-pending.
+The corrected app was later written at `0x10000` without a full erase under an
+exact hash-bound approval. The complete 2,058,400-byte range was independently
+read back and matched the retained artifact byte-for-byte. Runtime resource and
+phone/network acceptance remain pending.
 
 The final host run passed all 1,135 tests. The design uses two explicitly
 bound TCP/80 listeners because the pinned MicroPython ESP32 socket API does
@@ -95,7 +96,8 @@ sha256: a760f73722ea4f6c5f9a85842498092b628a6e33a186b5c62179d79a1697cd18
 erase:  no full-chip erase
 ```
 
-The bootloader and partition table are byte-identical to Phase 10, so the
-narrowest next operation is app-only. It requires a new approval naming this
-exact hash, offset and erase policy. Automatic product startup and all heater
-hardware remain disabled.
+The bootloader and partition table are byte-identical to Phase 10. The approved
+write erased only `0x10000` through `0x206fff`; bootloader, partition table and
+VFS were not written. esptool's write verification passed, and a separate full
+readback produced the same application SHA-256. Automatic product startup and
+all heater hardware remain disabled.

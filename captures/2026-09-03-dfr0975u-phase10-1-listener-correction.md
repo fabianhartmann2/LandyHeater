@@ -52,4 +52,18 @@ the board test filesystem.
 - application size: 2,058,400 bytes;
 - application SHA-256:
   `a760f73722ea4f6c5f9a85842498092b628a6e33a186b5c62179d79a1697cd18`;
-- target status: not flashed; new hash-bound approval required.
+- target status: app-only flash and independent readback passed.
+
+## Corrected app-only flash evidence
+
+- confirmed target: ESP32-S3 revision 0.1, embedded 8 MiB PSRAM, 16 MiB flash;
+- authorized offset: `0x10000`;
+- application length: 2,058,400 bytes;
+- erased range reported by esptool: `0x10000` through `0x206fff`;
+- no full-chip erase and no bootloader, partition-table or VFS write;
+- esptool write hash: verified;
+- independent readback length: 2,058,400 bytes;
+- readback SHA-256:
+  `a760f73722ea4f6c5f9a85842498092b628a6e33a186b5c62179d79a1697cd18`;
+- byte comparison against the retained artifact: identical;
+- post-flash action: hard reset into the deliberately passive normal boot.
