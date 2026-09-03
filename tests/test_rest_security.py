@@ -65,6 +65,33 @@ class TestRestSecurityPolicy(unittest.TestCase):
                 "x-landy-csrf": "0" * 64,
             })
 
+    def test_one_policy_routes_ap_mutations_but_keeps_station_read_only(self):
+        value = policy("ap")
+        value.start()
+        token = value.security_context(
+            {"host": "192.168.4.1"}, "ap", "192.168.4.1"
+        )["csrf_token"]
+        headers = {
+            "host": "10.0.0.17",
+            "origin": "http://10.0.0.17",
+            "x-landy-csrf": token,
+        }
+        self.assertEqual(
+            value.validate_read(headers, "sta", "10.0.0.17"),
+            "10.0.0.17",
+        )
+        with self.assertRaises(RestSecurityUnavailable):
+            value.authorize_mutation(headers, "sta", "10.0.0.17")
+        self.assertTrue(value.authorize_mutation(
+            {
+                "host": "192.168.4.1",
+                "origin": "http://192.168.4.1",
+                "x-landy-csrf": token,
+            },
+            "ap",
+            "192.168.4.1",
+        ))
+
     def test_host_origin_and_token_are_all_mandatory_for_mutation(self):
         value = policy()
         value.start()

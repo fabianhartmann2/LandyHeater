@@ -726,6 +726,20 @@ only with a confirmed STA IP and configured hostname. AP-only access remains
 fully supported through the validated direct AP IPv4 address; mDNS failure is
 degraded diagnostics, never an AP prerequisite.
 
+Phase 10.1 adds a cold `ConfiguredDiscoveryRuntime`. It combines one wildcard
+TCP/80 listener with one AP-bound UDP/53 captive DNS socket and alternates
+their cooperative steps. The accepted TCP socket's local address classifies
+each request as AP or station ingress. This classification is trusted transport
+context and is never taken from `Host`, `Origin`, or the peer's subnet.
+
+The AP ingress retains the existing CSRF/Origin/ETag mutation authority. The
+station ingress accepts allowlisted `heater.local` and its actual local
+destination IP for reads, but always rejects mutation-token retrieval and all
+mutations. Known captive-probe paths are redirected to the direct AP URL only
+when they arrive through the AP. Captive DNS performs no forwarding and keeps
+no query-name history. Both discovery adapters remain inert until explicit
+`start()` and own no WLAN or heater capability.
+
 ## 25. REST API layer
 
 Phase 8 implements one versioned, hardware-free application boundary under

@@ -425,6 +425,8 @@ class RestApplication:
         "__faulted",
         "__last_error",
         "__next_request_id",
+        "__request_ingress",
+        "__request_local_ip",
         "__requests",
         "__mutations",
         "__errors",
@@ -526,6 +528,8 @@ class RestApplication:
         self.__faulted = False
         self.__last_error = None
         self.__next_request_id = 1
+        self.__request_ingress = None
+        self.__request_local_ip = None
         self.__requests = 0
         self.__mutations = 0
         self.__errors = 0
@@ -645,7 +649,9 @@ class RestApplication:
     def _authorize_read(self, request):
         if not self._accepts_json(request):
             raise _RestProblem(406, "json_response_required", "JSON is required")
-        self.__security.validate_read(request.headers)
+        self.__security.validate_read(
+            request.headers, self.__request_ingress, self.__request_local_ip
+        )
 
     def _authorize_mutation(self, request, allow_faulted=False):
         if not self._accepts_json(request):
@@ -654,7 +660,9 @@ class RestApplication:
             raise _RestProblem(
                 503, "rest_service_faulted", "REST service is unavailable"
             )
-        self.__security.authorize_mutation(request.headers)
+        self.__security.authorize_mutation(
+            request.headers, self.__request_ingress, self.__request_local_ip
+        )
         self._assert_not_reentered()
 
     @staticmethod
@@ -1253,7 +1261,9 @@ class RestApplication:
             if method != "GET":
                 raise _RestProblem(405, "method_not_allowed", "Method not allowed", {"Allow": "GET"})
             self._authorize_read(request)
-            context = self.__security.security_context(request.headers)
+            context = self.__security.security_context(
+                request.headers, self.__request_ingress, self.__request_local_ip
+            )
             _exact_dict(
                 "security context",
                 context,
@@ -1749,7 +1759,7 @@ class RestApplication:
         except Exception:
             raise _RestProblem(500, "internal_error", "Internal server error") from None
 
-    def handle(self, request, peer_ip=None):
+    def handle(self, request, peer_ip=None, ingress=None, local_ip=None):
         request_id = self._request_id()
         if self.__operation_active:
             self.__operation_reentered = True
@@ -1759,6 +1769,8 @@ class RestApplication:
             return self._problem_response(problem, request_id)
         self.__operation_active = True
         self.__operation_reentered = False
+        self.__request_ingress = ingress
+        self.__request_local_ip = local_ip
         self.__requests += 1
         response = None
         response_ready = False
@@ -1879,6 +1891,8 @@ class RestApplication:
                         rollback_failed = True
                 except BaseException:
                     rollback_failed = True
+            self.__request_ingress = None
+            self.__request_local_ip = None
             self.__operation_active = False
             self.__operation_reentered = False
             if reentered or rollback_needed:

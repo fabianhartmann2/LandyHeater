@@ -74,10 +74,10 @@ class ConfiguredRestRuntime:
             raise RuntimeError("REST security deinit result is malformed")
         return None
 
-    def handle(self, request, peer_ip):
+    def handle(self, request, peer_ip, ingress=None, local_ip=None):
         """Production handler passed to the peer-aware socket adapter."""
 
-        return self._application.handle(request, peer_ip)
+        return self._application.handle(request, peer_ip, ingress, local_ip)
 
     def snapshot(self):
         return {
@@ -257,6 +257,7 @@ def build_web_http_server(
     ticks_ms=None,
     ticks_diff=None,
     ticks_add=None,
+    station_access=False,
 ):
     """Build one inert listener for both frozen UI assets and ``/api/v1``."""
 
@@ -265,13 +266,17 @@ def build_web_http_server(
     from adapters.micropython_http_server import MicroPythonHTTPServer
     from app.web_application import Phase9WebApplication
 
-    application = Phase9WebApplication(rest_runtime)
+    if type(station_access) is not bool:
+        raise ValueError("station_access must be bool")
+    application = Phase9WebApplication(rest_runtime, ap_bind_address)
     return MicroPythonHTTPServer(
         application,
-        ap_bind_address,
+        "0.0.0.0" if station_access else ap_bind_address,
         port=port,
         socket_factory=socket_factory,
         request_handler=application.handle,
+        ap_address=ap_bind_address if station_access else None,
+        request_handler_uses_ingress=station_access,
         ticks_ms=ticks_ms,
         ticks_diff=ticks_diff,
         ticks_add=ticks_add,

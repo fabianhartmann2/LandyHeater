@@ -21,6 +21,16 @@ _SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 }
+_CAPTIVE_PROBE_PATHS = (
+    "/generate_204",
+    "/gen_204",
+    "/hotspot-detect.html",
+    "/library/test/success.html",
+    "/connecttest.txt",
+    "/ncsi.txt",
+    "/canonical.html",
+    "/success.txt",
+)
 
 
 class WebResponse:
@@ -48,9 +58,9 @@ def _text_response(status, message, headers=None):
 class Phase9WebApplication:
     """Serve frozen UI assets and preserve the existing REST boundary."""
 
-    __slots__ = ("__rest_runtime", "__security")
+    __slots__ = ("__rest_runtime", "__security", "__ap_address")
 
-    def __init__(self, rest_runtime):
+    def __init__(self, rest_runtime, ap_address="192.168.4.1"):
         handler = getattr(rest_runtime, "handle", None)
         security = getattr(rest_runtime, "security_policy", None)
         if not callable(handler):
@@ -59,15 +69,41 @@ class Phase9WebApplication:
             raise ValueError("rest_runtime must expose its read security policy")
         self.__rest_runtime = rest_runtime
         self.__security = security
+        self.__ap_address = ap_address
 
-    def handle(self, request, peer_ip):
+    def handle(self, request, peer_ip, ingress=None, local_ip=None):
         path = getattr(request, "path", None)
+        if (
+            ingress == "ap"
+            and path in _CAPTIVE_PROBE_PATHS
+            and getattr(request, "method", None) == "GET"
+            and getattr(request, "query", None) is None
+            and getattr(request, "body", None) == b""
+            and request.headers.get("origin") is None
+        ):
+            return _text_response(
+                302,
+                "Open Landy Heater",
+                {
+                    "Location": "http://{}/".format(self.__ap_address),
+                    "Cache-Control": "no-store",
+                },
+            )
         if path == API_PREFIX or (
             type(path) is str and path.startswith(API_PREFIX + "/")
         ):
-            return self.__rest_runtime.handle(request, peer_ip)
+            if ingress is None and local_ip is None:
+                return self.__rest_runtime.handle(request, peer_ip)
+            return self.__rest_runtime.handle(
+                request, peer_ip, ingress, local_ip
+            )
         try:
-            self.__security.validate_read(request.headers)
+            if ingress is None and local_ip is None:
+                self.__security.validate_read(request.headers)
+            else:
+                self.__security.validate_read(
+                    request.headers, ingress, local_ip
+                )
         except RestSecurityDenied:
             return _text_response(403, "Request denied")
         except RestSecurityUnavailable:

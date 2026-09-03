@@ -122,6 +122,13 @@ class RestSecurityPolicy:
             and self.__ingress == INGRESS_ACCESS_POINT
         )
 
+    def _effective_ingress(self, ingress):
+        if ingress is None:
+            ingress = self.__ingress
+        if ingress not in (INGRESS_ACCESS_POINT, INGRESS_STATION):
+            raise RestSecurityDenied("request ingress is invalid")
+        return ingress
+
     def _clear_token(self):
         if self.__token is not None:
             for index in range(len(self.__token)):
@@ -206,11 +213,16 @@ class RestSecurityPolicy:
         finally:
             self._finish_operation(primary_error)
 
-    def _validated_host(self, headers):
+    def _validated_host(self, headers, local_ip=None):
         if type(headers) is not dict:
             raise RestSecurityDenied("request headers are invalid")
         host = _normalize_request_host(headers.get("host"))
-        if host not in self.__allowed_hosts:
+        if local_ip is not None:
+            try:
+                local_ip = _normalize_configured_host(local_ip)
+            except ValueError:
+                raise RestSecurityDenied("request local address is invalid") from None
+        if host not in self.__allowed_hosts and host != local_ip:
             raise RestSecurityDenied("request Host is not allowed")
         return host
 
@@ -227,8 +239,9 @@ class RestSecurityPolicy:
             raise RestSecurityDenied("request Origin is not allowed")
         return True
 
-    def validate_read(self, headers):
-        host = self._validated_host(headers)
+    def validate_read(self, headers, ingress=None, local_ip=None):
+        self._effective_ingress(ingress)
+        host = self._validated_host(headers, local_ip)
         self._origin_matches(headers, host, False)
         return host
 
@@ -247,9 +260,15 @@ class RestSecurityPolicy:
             )
         return difference == 0
 
-    def security_context(self, headers):
-        self.validate_read(headers)
-        if not self.mutation_api_available:
+    def security_context(self, headers, ingress=None, local_ip=None):
+        ingress = self._effective_ingress(ingress)
+        self.validate_read(headers, ingress, local_ip)
+        if not (
+            self.__started
+            and not self.__faulted
+            and self.__token is not None
+            and ingress == INGRESS_ACCESS_POINT
+        ):
             raise RestSecurityUnavailable("mutation API is unavailable")
         characters = bytearray(TOKEN_HEX_LENGTH)
         for index, byte in enumerate(self.__token):
@@ -260,10 +279,16 @@ class RestSecurityPolicy:
             "mutation_api_available": True,
         }
 
-    def authorize_mutation(self, headers):
-        host = self._validated_host(headers)
+    def authorize_mutation(self, headers, ingress=None, local_ip=None):
+        ingress = self._effective_ingress(ingress)
+        host = self._validated_host(headers, local_ip)
         self._origin_matches(headers, host, True)
-        if not self.mutation_api_available:
+        if not (
+            self.__started
+            and not self.__faulted
+            and self.__token is not None
+            and ingress == INGRESS_ACCESS_POINT
+        ):
             raise RestSecurityUnavailable("mutation API is unavailable")
         if not self._token_matches(headers.get(CSRF_HEADER)):
             raise RestSecurityDenied("CSRF token is invalid")

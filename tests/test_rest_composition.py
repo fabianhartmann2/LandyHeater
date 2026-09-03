@@ -241,6 +241,22 @@ class TestRestComposition(unittest.TestCase):
         self.assertEqual(api.status, 200)
         self.assertIs(type(api.body), dict)
 
+    def test_station_enabled_web_factory_uses_one_wildcard_listener(self):
+        runtime = self._build()
+        runtime.start()
+        server = build_web_http_server(
+            runtime,
+            "192.168.4.1",
+            station_access=True,
+            socket_factory=lambda: (_ for _ in ()).throw(
+                AssertionError("construction must not open a socket")
+            ),
+        )
+        snapshot = server.snapshot()
+        self.assertEqual(snapshot["bind_address"], "0.0.0.0")
+        self.assertEqual(snapshot["ap_address"], "192.168.4.1")
+        self.assertTrue(snapshot["ingress_dispatch"])
+
     def test_tick_helpers_are_all_or_nothing(self):
         for field in ("ticks_ms", "ticks_diff", "ticks_add"):
             with self.subTest(field=field):

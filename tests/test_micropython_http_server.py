@@ -78,12 +78,14 @@ class FakeClientSocket:
         close_events=None,
         name="client",
         operation_log=None,
+        local_address=(AP_IP, 80),
     ):
         self.recv_events = list(recv_events or [])
         self.send_events = list(send_events or [])
         self.close_events = list(close_events or [])
         self.name = name
         self.operation_log = operation_log
+        self.local_address = local_address
         self.blocking_values = []
         self.recv_sizes = []
         self.send_sizes = []
@@ -94,6 +96,9 @@ class FakeClientSocket:
     def setblocking(self, value):
         self.blocking_values.append(value)
         return None
+
+    def getsockname(self):
+        return self.local_address
 
     def recv(self, size):
         if self.operation_log is not None:
@@ -311,6 +316,47 @@ class TestConstructionAndLifecycle(unittest.TestCase):
             with self.subTest(address=address):
                 with self.assertRaises(ValueError):
                     MicroPythonHTTPServer(app, address)
+
+    def test_wildcard_requires_trusted_per_connection_ingress_dispatch(self):
+        app = FakeApplication()
+        with self.assertRaises(ValueError):
+            MicroPythonHTTPServer(app, "0.0.0.0")
+        with self.assertRaises(ValueError):
+            MicroPythonHTTPServer(app, "0.0.0.0", ap_address=AP_IP)
+
+    def test_single_wildcard_listener_dispatches_ap_and_station_by_local_ip(self):
+        calls = []
+
+        def handler(request, peer_ip, ingress, local_ip):
+            calls.append((request.path, peer_ip, ingress, local_ip))
+            return Response()
+
+        ap_client = FakeClientSocket(
+            recv_events=[get_request()], local_address=(AP_IP, 80)
+        )
+        sta_client = FakeClientSocket(
+            recv_events=[get_request()], local_address=("10.0.0.17", 80)
+        )
+        listener = FakeListener([ap_client, sta_client])
+        clock = Clock()
+        server = MicroPythonHTTPServer(
+            FakeApplication(),
+            "0.0.0.0",
+            socket_factory=Factory(listener),
+            request_handler=handler,
+            ap_address=AP_IP,
+            request_handler_uses_ingress=True,
+            ticks_ms=clock.ticks_ms,
+            ticks_diff=clock.ticks_diff,
+            ticks_add=clock.ticks_add,
+        )
+        self.assertTrue(server.start())
+        for _ in range(12):
+            server.step()
+        self.assertEqual(listener.bind_values, [("0.0.0.0", 80)])
+        self.assertEqual(calls[0][2:], ("ap", AP_IP))
+        self.assertEqual(calls[1][2:], ("sta", "10.0.0.17"))
+        self.assertTrue(server.snapshot()["ingress_dispatch"])
 
     def test_start_failure_closes_provisional_listener_and_hides_error(self):
         class FailingListener(FakeListener):

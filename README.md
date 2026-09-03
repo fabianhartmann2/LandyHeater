@@ -72,6 +72,16 @@ wurde erneut zweimal bytegleich gebaut, hashgebunden app-only geschrieben,
 vollständig zurückgelesen und bestand anschließend das fortgesetzte Löschen,
 den Speicher-Reload sowie den vollständigen Cleanup. Details stehen in
 `PHASE10_SETUP_ASSISTANT.md`.
+**Phase 10.1 – Portal- und Heimnetz-Erreichbarkeit ist gebaut und offline
+verifiziert:** Ein AP-exklusiver, begrenzter
+DNS-Responder und feste Portal-Prüfrouten ermöglichen das best-effort
+automatische Öffnen der Oberfläche. Derselbe einzelne Port-80-Listener bedient
+AP und Stationsschnittstelle; `heater.local` beziehungsweise die Stations-IP
+sind im Heimnetz lesend erreichbar, während Mutationen dort serverseitig
+gesperrt bleiben. Die Frozen-Closure, zwei bytegleiche Firmwarebauten und alle
+Offline-Artefaktprüfungen sind bestanden. Ein Flash oder Boardzugriff fand
+nicht statt; Ressourcenmessung und reale DFR0975-U-Abnahme sind noch offen.
+Details stehen in `PHASE10_1_DISCOVERY.md`.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
 Innerhalb von Phase 5 sind TimeService, Scheduler, der DS3231-Registeradapter,
@@ -265,6 +275,12 @@ Unit-Tests als hardwareseitig freigegeben.
 - direkte AP-IPv4-Adresse als verlässlicher Offline-Zugang; `heater.local`
   wird beim festgelegten MicroPython-Port erst nach einer STA-IP als bereit
   gemeldet und ist keine Startvoraussetzung
+- AP-exklusives Captive DNS auf UDP 53 und feste Betriebssystem-Prüfrouten als
+  best-effort Öffnungshilfe; die direkte AP-Adresse bleibt der garantierte
+  Rückfallweg
+- ein gemeinsamer TCP-/Port-80-Listener für AP und STA mit verbindungsbezogen
+  ermitteltem Eingang; Stationszugriff bleibt bis zu einer späteren echten
+  Authentisierung strikt lesend
 - lazy MicroPython-WLAN-Hülle mit CH-Ländercode, `reconnects=0`, exklusivem
   Lease, exakter v1.28-`active(bool)`-Semantik, geheimnisfreien Fehlern und
   verifiziertem AP-/STA-Cleanup
@@ -1177,6 +1193,12 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
     Hardwaregrenzen und Funk-Cleanup blieben intakt. Offen bleibt der formale
     Same-run-Nachweis jeder einzelnen Browserroute; der Runner protokolliert
     einen künftigen Fehler dafür jetzt routengenau.
+11. Phase 10.1 ist implementiert, als 44-Datei-Frozen-Closure gebunden,
+    zweimal bytegleich gebaut und offline geprüft. Vor einem Flash fehlt nur
+    eine neue, exakt an den dokumentierten App-Hash gebundene Freigabe. Danach
+    werden AP-Portal, Stations-DHCP,
+    `heater.local`, lesender Heimnetzzugriff, abgelehnte Stationsmutation,
+    Heap-Grenzen und kompletter Cleanup in einem begrenzten Zielgate geprüft.
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und

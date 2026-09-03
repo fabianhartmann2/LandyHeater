@@ -84,6 +84,53 @@ class TestPhase9WebApplication(unittest.TestCase):
                 self.assertEqual(response.status, status)
                 self.assertIn("Content-Security-Policy", response.headers)
 
+    def test_known_ap_captive_probes_redirect_but_station_does_not(self):
+        for target in (
+            "/generate_204",
+            "/hotspot-detect.html",
+            "/connecttest.txt",
+            "/canonical.html",
+        ):
+            with self.subTest(target=target):
+                response = self.app.handle(
+                    request(target=target, host="probe.invalid"),
+                    PEER,
+                    "ap",
+                    HOST,
+                )
+                self.assertEqual(response.status, 302)
+                self.assertEqual(response.headers["Location"], "http://192.168.4.1/")
+                station = self.app.handle(
+                    request(target=target, host="probe.invalid"),
+                    "10.0.0.2",
+                    "sta",
+                    "10.0.0.17",
+                )
+                self.assertEqual(station.status, 403)
+
+    def test_station_reads_accept_destination_ip_and_api_context(self):
+        class IngressRuntime(FakeRestRuntime):
+            def handle(self, value, peer_ip, ingress=None, local_ip=None):
+                self.calls.append((value, peer_ip, ingress, local_ip))
+                return RestResponse(200, {"delegated": True})
+
+        runtime = IngressRuntime()
+        app = Phase9WebApplication(runtime)
+        static = app.handle(
+            request(host="10.0.0.17"), "10.0.0.2", "sta", "10.0.0.17"
+        )
+        self.assertEqual(static.status, 200)
+        api_request = request(target="/api/v1/status", host="10.0.0.17")
+        api = app.handle(api_request, "10.0.0.2", "sta", "10.0.0.17")
+        self.assertEqual(api.status, 200)
+        self.assertEqual(runtime.calls[-1][2:], ("sta", "10.0.0.17"))
+
+    def test_frontend_boots_reads_without_requesting_mutation_token(self):
+        app = self.app.handle(request(target="/assets/app.js"), PEER).body
+        boot = app.split(b"async function boot()", 1)[1]
+        self.assertIn(b"await L.refresh()", boot)
+        self.assertNotIn(b"await L.security();await L.refresh()", boot)
+
     def test_frontend_has_no_external_dependency_or_inline_executable_code(self):
         index = self.app.handle(request(), PEER).body
         self.assertNotIn(b"http://", index)

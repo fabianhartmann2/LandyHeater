@@ -557,6 +557,24 @@ only after the station interface has obtained an IP address. Therefore
 boot/start gate. In AP-only/offline operation the AP IPv4 address is the
 authoritative recovery URL and must remain visible in status.
 
+### 26.5 Captive portal and station web access
+
+Joining the product AP should trigger the operating system's captive-portal
+assistant where supported. This is best-effort: the authoritative fallback is
+always `http://192.168.4.1/`.
+
+The captive DNS responder shall bind only to the explicit AP address on UDP
+port 53, shall not forward queries or retain queried names, and shall process
+at most one bounded 512-byte datagram per cooperative step. Captive HTTP
+responses shall be limited to known probe paths and AP ingress.
+
+AP and station traffic shall share one TCP listener on port 80. The ingress
+shall be derived from the accepted socket's local destination address, never
+from an HTTP header or the peer subnet. Station access through
+`http://heater.local` or the current station IP is read-only. Mutation
+authority remains AP-only until a separate authenticated remote-access design
+is approved.
+
 ## 27. REST API
 
 The web UI shall use a local REST API.

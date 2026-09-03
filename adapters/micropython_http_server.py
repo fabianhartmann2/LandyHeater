@@ -145,7 +145,7 @@ def _require_timeout(value, name):
     return value
 
 
-def _canonical_ipv4(value):
+def _canonical_ipv4(value, allow_wildcard=False):
     if type(value) is not str or not value or len(value) > 15:
         raise ValueError("ap_bind_address must be an explicit IPv4 address")
     parts = value.split(".")
@@ -168,7 +168,7 @@ def _canonical_ipv4(value):
                 "ap_bind_address must be an explicit IPv4 address"
             )
         octets.append(number)
-    if octets[0] == 0:
+    if octets[0] == 0 and not (allow_wildcard and octets == [0, 0, 0, 0]):
         raise ValueError("wildcard HTTP binding is forbidden")
     if octets == [255, 255, 255, 255] or octets[0] >= 224:
         raise ValueError("ap_bind_address must be a unicast IPv4 address")
@@ -190,6 +190,25 @@ def _accepted_peer_ip(address):
     if type(peer_port) is not int or peer_port < 0 or peer_port > 65535:
         raise ValueError("accepted peer address is invalid")
     return peer_ip
+
+
+def _accepted_local_ip(port):
+    getsockname = getattr(port, "getsockname", None)
+    if not callable(getsockname):
+        raise MicroPythonHTTPServerStateError(
+            "client_local_address_contract_failed"
+        )
+    address = getsockname()
+    if type(address) not in (tuple, list) or len(address) < 2:
+        raise MicroPythonHTTPServerStateError(
+            "client_local_address_contract_failed"
+        )
+    try:
+        return _canonical_ipv4(address[0])
+    except ValueError:
+        raise MicroPythonHTTPServerStateError(
+            "client_local_address_contract_failed"
+        ) from None
 
 
 def _would_block(error):
@@ -244,6 +263,8 @@ class _Client:
     __slots__ = (
         "port",
         "peer_ip",
+        "local_ip",
+        "ingress",
         "phase",
         "request",
         "response",
@@ -252,9 +273,11 @@ class _Client:
         "absolute_deadline_ms",
     )
 
-    def __init__(self, port, peer_ip, first_deadline_ms):
+    def __init__(self, port, peer_ip, first_deadline_ms, local_ip=None, ingress=None):
         self.port = port
         self.peer_ip = peer_ip
+        self.local_ip = local_ip
+        self.ingress = ingress
         self.phase = "first"
         self.request = bytearray()
         self.response = None
@@ -276,6 +299,8 @@ class MicroPythonHTTPServer:
         "__application_handle",
         "__request_handler",
         "__ap_bind_address",
+        "__ap_address",
+        "__request_handler_uses_ingress",
         "__port",
         "__socket_factory",
         "__ticks_ms",
@@ -318,6 +343,8 @@ class MicroPythonHTTPServer:
         port=80,
         socket_factory=None,
         request_handler=None,
+        ap_address=None,
+        request_handler_uses_ingress=False,
         ticks_ms=None,
         ticks_diff=None,
         ticks_add=None,
@@ -331,7 +358,19 @@ class MicroPythonHTTPServer:
     ):
         application_handle = getattr(application, "handle", None)
         _require_callable(application_handle, "application.handle")
-        ap_bind_address = _canonical_ipv4(ap_bind_address)
+        if type(request_handler_uses_ingress) is not bool:
+            raise ValueError("request_handler_uses_ingress must be bool")
+        if ap_address is not None:
+            ap_address = _canonical_ipv4(ap_address)
+        ap_bind_address = _canonical_ipv4(
+            ap_bind_address, allow_wildcard=ap_address is not None
+        )
+        if ap_bind_address == "0.0.0.0" and (
+            ap_address is None or not request_handler_uses_ingress
+        ):
+            raise ValueError(
+                "wildcard HTTP binding requires trusted ingress dispatch"
+            )
         if type(port) is not int or port < 1 or port > 65535:
             raise ValueError("port must be an integer from 1 to 65535")
         if socket_factory is None:
@@ -355,6 +394,8 @@ class MicroPythonHTTPServer:
         self.__application_handle = application_handle
         self.__request_handler = request_handler
         self.__ap_bind_address = ap_bind_address
+        self.__ap_address = ap_address
+        self.__request_handler_uses_ingress = request_handler_uses_ingress
         self.__port = port
         self.__socket_factory = socket_factory
         self.__ticks_ms = ticks_ms
@@ -520,6 +561,8 @@ class MicroPythonHTTPServer:
         client.request = None
         client.response = None
         client.peer_ip = None
+        client.local_ip = None
+        client.ingress = None
         port = client.port
         if port is None:
             self.__clients[index] = None
@@ -756,6 +799,11 @@ class MicroPythonHTTPServer:
                 return False
             self._client_contract(port)
             _make_nonblocking(port)
+            local_ip = None
+            ingress = None
+            if self.__request_handler_uses_ingress:
+                local_ip = _accepted_local_ip(port)
+                ingress = "ap" if local_ip == self.__ap_address else "sta"
             if (
                 self.__closed
                 or not self.__accepting
@@ -771,7 +819,9 @@ class MicroPythonHTTPServer:
             ):
                 self._reject_accepted(port, slot)
                 return False
-            client = _Client(port, peer_ip, deadline)
+            client = _Client(
+                port, peer_ip, deadline, local_ip=local_ip, ingress=ingress
+            )
             self.__clients[slot] = client
             self.__cleanup_ports[slot] = None
             self.__accepted += 1
@@ -950,6 +1000,10 @@ class MicroPythonHTTPServer:
         try:
             if self.__request_handler is None:
                 response = self.__application_handle(request)
+            elif self.__request_handler_uses_ingress:
+                response = self.__request_handler(
+                    request, client.peer_ip, client.ingress, client.local_ip
+                )
             else:
                 response = self.__request_handler(request, client.peer_ip)
         except MemoryError:
@@ -1360,6 +1414,9 @@ class MicroPythonHTTPServer:
             "send_budget_bytes": SEND_BUDGET_BYTES,
             "max_request_bytes": MAX_REQUEST_BYTES,
             "max_response_wire_bytes": MAX_RESPONSE_WIRE_BYTES,
+            "bind_address": self.__ap_bind_address,
+            "ap_address": self.__ap_address,
+            "ingress_dispatch": self.__request_handler_uses_ingress,
         }
 
 
