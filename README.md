@@ -72,17 +72,17 @@ wurde erneut zweimal bytegleich gebaut, hashgebunden app-only geschrieben,
 vollständig zurückgelesen und bestand anschließend das fortgesetzte Löschen,
 den Speicher-Reload sowie den vollständigen Cleanup. Details stehen in
 `PHASE10_SETUP_ASSISTANT.md`.
-**Phase 10.1 – Portal- und Heimnetz-Erreichbarkeit ist nach realem Zielbefund
-korrigiert und neu gebaut:** Captive DNS und `heater.local` funktionierten auf
-dem DFR0975-U, der erste Wildcard-HTTP-Ansatz scheiterte jedoch nachweislich an
-einer im ESP32-MicroPython-Port fehlenden Socketfunktion. Er ist verworfen und
-dokumentiert. Der korrigierte Kandidat nutzt intern je einen ausdrücklich
-gebundenen AP- und Stationslistener, beide weiterhin auf dem einzigen
-benutzersichtbaren Port 80. AP-Mutationen und lesender Heimnetzzugriff bleiben
-hart getrennt. 1.135 Tests, eine neue Frozen-Closure, zwei bytegleiche Builds
-und alle Offline-Artefaktprüfungen sind bestanden. Der korrigierte Hash wurde
-app-only geschrieben und vollständig bytegleich zurückgelesen; Ressourcenmessung
-und finale DFR0975-U-Laufzeitabnahme sind noch offen.
+**Phase 10.1 – Portal- und Heimnetz-Erreichbarkeit hat zwei reale Zielbefunde
+geliefert und liegt als portal-korrigierter Kandidat vor:** Der erste
+Wildcard-HTTP-Ansatz scheiterte an einer im ESP32-MicroPython-Port fehlenden
+Socketfunktion. Der danach geflashte Zwei-Listener-Kandidat bestätigte
+Stations-DHCP, `heater.local`, Captive DNS sowie einen angenommenen AP-Request,
+deckte aber zwei Wire-Encoding-Lücken der 302-Portalantwort auf. Der aktuelle
+Kandidat lässt `302 Found` im begrenzten Encoder zu und entfernt den doppelten
+`Cache-Control`-Header. AP- und Stationslistener bleiben ausdrücklich getrennt
+und verwenden beide den einzigen benutzersichtbaren Port 80. Der neue
+44-Datei-Kandidat ist durch zwei bytegleiche Builds und Offline-Artefaktprüfungen
+belegt; sein app-only Flash und das finale Zielgate stehen noch aus.
 Details stehen in `PHASE10_1_DISCOVERY.md`.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
@@ -1198,10 +1198,12 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
 11. Der erste Phase-10.1-Kandidat wurde nach erfolgreichem Flash/Readback im
     Zieltest verworfen: DHCP, mDNS und 58/58 Captive-DNS-Antworten bestanden,
     aber die im Design angenommene Socketfunktion fehlt in MicroPython 1.28.
-    Der korrigierte 44-Datei-Kandidat verwendet zwei explizite Port-80-Binds,
-    ist durch 1.135 Tests und zwei bytegleiche Builds belegt. Der hashgebundene
-    App-only-Flash und die vollständige Rücklesung sind bestanden. Offen bleibt
-    nur das kombinierte AP-/STA-/Portal-/Heap-/Cleanup-Zielgate.
+    Der danach geflashte Zwei-Listener-Kandidat erreichte DHCP, mDNS, 5/5
+    Captive-DNS-Antworten und einen angenommenen AP-Request. Dessen 302-Antwort
+    scheiterte an einer fehlenden Encoder-Freigabe plus doppeltem
+    `Cache-Control`. Der portal-korrigierte 44-Datei-Kandidat ist gebaut und
+    offline geprüft. Offen sind sein neuer hashgebundener app-only Flash mit
+    Rücklesung sowie das kombinierte AP-/STA-/Portal-/Heap-/Cleanup-Zielgate.
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und

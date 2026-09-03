@@ -86,7 +86,6 @@ class Phase9WebApplication:
                 "Open Landy Heater",
                 {
                     "Location": "http://{}/".format(self.__ap_address),
-                    "Cache-Control": "no-store",
                 },
             )
         if path == API_PREFIX or (

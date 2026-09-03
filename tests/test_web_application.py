@@ -2,7 +2,7 @@ import unittest
 
 from app.rest_application import RestResponse
 from app.web_application import Phase9WebApplication
-from services.http_protocol import parse_request
+from services.http_protocol import encode_bytes_response, parse_request
 from services.rest_security import INGRESS_ACCESS_POINT, RestSecurityPolicy
 from tools.build_web_assets import OUTPUT, render
 
@@ -100,6 +100,13 @@ class TestPhase9WebApplication(unittest.TestCase):
                 )
                 self.assertEqual(response.status, 302)
                 self.assertEqual(response.headers["Location"], "http://192.168.4.1/")
+                encoded = encode_bytes_response(
+                    response.status,
+                    response.body,
+                    response.content_type,
+                    response.headers,
+                )
+                self.assertEqual(encoded.count(b"Cache-Control: no-store\r\n"), 1)
                 station = self.app.handle(
                     request(target=target, host="probe.invalid"),
                     "10.0.0.2",

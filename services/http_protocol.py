@@ -61,6 +61,7 @@ _STATUS_REASONS = {
     201: "Created",
     202: "Accepted",
     204: "No Content",
+    302: "Found",
     304: "Not Modified",
     400: "Bad Request",
     403: "Forbidden",

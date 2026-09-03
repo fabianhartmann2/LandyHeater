@@ -1,13 +1,14 @@
 # Phase 10.1 – Portal- und Heimnetz-Erreichbarkeit
 
-Stand: 2026-09-03. Der erste Wildcard-Listener-Kandidat wurde gebaut,
-hashgebunden geflasht und vollständig zurückgelesen, im realen Zieltest aber
-verworfen. Der korrigierte Zwei-Listener-Kandidat ist implementiert, durch
-1.135 Hosttests geprüft, als 44-Datei-Frozen-Closure gebunden und zweimal
-bytegleich gebaut. Das korrigierte App-Abbild wurde anschließend hashgebunden
-ohne Full Erase bei `0x10000` geschrieben und vollständig bytegleich
-zurückgelesen. `boot.py` und `main.py` bleiben bis zum späteren
-Produkt-Composition-Gate passiv.
+Stand: 2026-09-03. Der erste Wildcard-Listener-Kandidat wurde im Zieltest
+verworfen. Der danach geflashte und vollständig zurückgelesene
+Zwei-Listener-Kandidat startete nach dem vorgesehenen Hard-Restart beide
+Listener, bestätigte Stations-DHCP, mDNS, 5/5 Captive-DNS-Antworten und einen
+angenommenen AP-Request. Seine 302-Portalantwort legte anschließend zwei
+Wire-Encoding-Fehler offen. Der portal-korrigierte Nachfolger ist als neue
+44-Datei-Frozen-Closure gebunden, zweimal bytegleich gebaut und offline
+geprüft; Flash und finale Laufzeitabnahme stehen noch aus. `boot.py` und
+`main.py` bleiben bis zum späteren Produkt-Composition-Gate passiv.
 
 ## Benutzerpfade
 
@@ -80,6 +81,22 @@ unbrauchbar. Ein Rückfall auf den HTTP-Hostheader wurde aus Sicherheitsgründen
 nicht verwendet. Das Board wurde danach bereinigt: isolierte Zugangsdaten und
 temporäre Testdateien wurden gelöscht, AP und Station ausgeschaltet.
 
+## Warum der Zwei-Listener-Kandidat nochmals korrigiert wurde
+
+Nach dem isolierten Setup wurde `192.168.4.1:80` zunächst zu früh erneut
+gebunden. Der daraus folgende `listener_start_failed` verschwand nach dem für
+den Reload-Nachweis vorgesehenen Hard-Restart. Danach lief die eigentliche
+Topologie korrekt: Stations-DHCP und mDNS waren bereit, Captive DNS beantwortete
+5 von 5 Anfragen, beide Listener blieben ohne Socketfehler und der AP-Listener
+nahm den ersten Handyrequest an.
+
+Die Antwort scheiterte mit `response_contract_failed`, weil der gemeinsame
+HTTP-Encoder Status 302 noch nicht in seiner Status-Allowlist führte. Außerdem
+fügte die Webanwendung `Cache-Control: no-store` hinzu, obwohl der Encoder
+diesen Sicherheitsheader bereits selbst besitzt. Der neue Kandidat ergänzt
+`302 Found`, entfernt den doppelten Header und führt Portalantworten im
+Regressionstest vollständig durch den echten Wire-Encoder.
+
 ## Kooperative Laufzeit und Grenzen
 
 `ConfiguredDiscoveryRuntime` besitzt AP-HTTP, optional Stations-HTTP und DNS,
@@ -90,34 +107,35 @@ umgekehrter Reihenfolge DNS, Stations-HTTP und AP-HTTP geschlossen.
 Jeder HTTP-Listener behält die bestehende Grenze von höchstens zwei Clients;
 bei gleichzeitigem AP- und Stationsbetrieb sind daher höchstens vier
 HTTP-Clients vorgesehen. Der zweite Listener vergrößert das eingefrorene
-Anwendungsabbild gegenüber dem verworfenen Kandidaten um 208 Byte. Das
-2.058.400-Byte-Abbild belegt rund 65 % der 3-MiB-App-Partition; 1.087.328 Byte
-bleiben frei. Die statische Grenze ersetzt nicht die erneute reale
-Heap-Messung mit beiden TCP-Listenern.
+Anwendungsabbild gegenüber dem verworfenen Kandidaten um 208 Byte. Der
+portal-korrigierte Nachfolger ist 2.058.368 Byte groß, belegt rund 65 % der
+3-MiB-App-Partition und lässt 1.087.360 Byte frei. Die statische Grenze ersetzt
+nicht die erneute reale Heap-Messung mit beiden TCP-Listenern.
 
-## Korrigierter Build- und Artefaktstatus
+## Aktueller Build- und Artefaktstatus
 
 - MicroPython v1.28.0 und ESP-IDF v5.5.1;
 - Boardprofil `DFR0975U_N16R8`, 16 MiB Flash, Octal-PSRAM;
 - 44 exakt gebundene Projektdateien;
-- 1.135 bestandene Hosttests;
+- 1.143 Hosttests einschließlich historischer und neuer Artefaktgates bestanden;
 - zwei saubere Builds, alle 15 geprüften Ausgaben bytegleich;
-- App-Größe 2.058.400 Byte;
+- App-Größe 2.058.368 Byte;
 - App-SHA-256:
-  `a760f73722ea4f6c5f9a85842498092b628a6e33a186b5c62179d79a1697cd18`;
-- kombiniertes Abbild endet bei `0x2068a0`, vor VFS `0x310000`;
+  `b3f16a7e4160cdd2c58cf78d25c6ebb3377a7d0438b5384054d679c19c03ad8f`;
+- kombiniertes Abbild endet bei `0x206880`, vor VFS `0x310000`;
 - Bootloader und Partitionstabelle sind gegenüber Phase 10 bytegleich.
 
 Die vollständige Buildakte steht in
-`firmware/phase10_1_fixed_frozen/BUILD_INFO.md`. Das historische, verworfene
-Abbild bleibt in `firmware/phase10_1_frozen/` nachvollziehbar erhalten.
+`firmware/phase10_1_portal_fixed_frozen/BUILD_INFO.md`. Beide vorherigen
+Abbilder bleiben unter `firmware/phase10_1_frozen/` und
+`firmware/phase10_1_fixed_frozen/` nachvollziehbar erhalten.
 
 ## Noch offenes Zielgate
 
 Vor einem Abschluss fehlen nur die minimalen echten Zielprüfungen:
 
-1. **bestanden:** exakt hashgebundener App-only-Flash und vollständige
-   unabhängige Rücklesung;
+1. neuer exakt hashgebundener App-only-Flash und vollständige unabhängige
+   Rücklesung des portal-korrigierten Kandidaten;
 2. ein gemeinsamer Lauf mit AP, Stations-DHCP, zwei expliziten TCP/80-Binds,
    mDNS und AP-DNS;
 3. Portal-Weiterleitung am AP sowie lesender Zugriff über `heater.local`;
@@ -125,6 +143,6 @@ Vor einem Abschluss fehlen nur die minimalen echten Zielprüfungen:
 5. mindestens 32 KiB freier GC-, interner und DMA-fähiger Heap;
 6. vollständiger Socket-, REST- und Funk-Cleanup.
 
-Der engste Flashvorgang wurde eingehalten. Eine weitere Flashfreigabe ist für
-das noch offene Laufzeitgate nicht erforderlich; Hardwareausgänge bleiben
-weiterhin gesperrt.
+Eine neue exakte Flashfreigabe ist erforderlich, weil sich der App-Hash
+geändert hat. Der engste Vorgang bleibt ein App-only-Write bei `0x10000` ohne
+Full Erase; Hardwareausgänge bleiben weiterhin gesperrt.
