@@ -1,8 +1,9 @@
 # Portal-corrected Phase 10.1 frozen firmware build record
 
 Build date: 2026-09-03. Status: **host regression, exact frozen-source
-closure, two byte-identical canonical-path builds and offline artifact gates
-passed; target flash and runtime acceptance pending**.
+closure, two byte-identical canonical-path builds, offline artifact gates,
+authorized target flash and independent full application readback passed;
+runtime acceptance pending**.
 
 The real DFR0975-U target exposed a response-boundary defect in the preceding
 listener-corrected candidate. Stations-DHCP and mDNS reached
@@ -82,7 +83,19 @@ sha256: b3f16a7e4160cdd2c58cf78d25c6ebb3377a7d0438b5384054d679c19c03ad8f
 erase:  no full-chip erase
 ```
 
-No flash is authorized by this build record. The next gate requires a new,
-exact hash-bound app-only approval, write verification and independent full
-readback before the combined AP/DHCP/mDNS/portal/security runtime test is
-repeated. Automatic product startup and all heater hardware remain disabled.
+## Authorized target flash and readback
+
+On 2026-09-05 the owner supplied the exact hash-bound, USB-only app-flash
+approval for the candidate above. The connected target was rechecked before
+the write as ESP32-S3 revision 0.1 with 8 MiB embedded PSRAM and 16 MiB flash.
+
+Only the 2,058,368-byte factory application was written at `0x10000`. The
+operation erased only `0x10000` through `0x206fff`; there was no full-chip
+erase and no write to the bootloader, partition table or VFS. Esptool's write
+verification passed. A separate full readback of exactly 2,058,368 bytes from
+`0x10000` was then compared byte-for-byte with the retained artifact. Both
+files produced SHA-256
+`b3f16a7e4160cdd2c58cf78d25c6ebb3377a7d0438b5384054d679c19c03ad8f`.
+
+The next gate is the one combined AP/DHCP/mDNS/portal/security runtime test.
+Automatic product startup and all heater hardware remain disabled.

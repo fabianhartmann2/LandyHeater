@@ -39,8 +39,26 @@ The correction:
 - application size: 2,058,368 bytes;
 - application SHA-256:
   `b3f16a7e4160cdd2c58cf78d25c6ebb3377a7d0438b5384054d679c19c03ad8f`;
-- target status: not flashed.
+- target status: authorized app-only flash and independent full readback
+  passed on 2026-09-05; runtime acceptance pending.
 
 The previous listener-corrected candidate remains retained as historical
-evidence. A new hash-bound app-only flash approval is required before the one
-combined target gate can be repeated.
+evidence.
+
+## Authorized target flash evidence (2026-09-05)
+
+- approval bound to SHA-256
+  `b3f16a7e4160cdd2c58cf78d25c6ebb3377a7d0438b5384054d679c19c03ad8f`;
+- target reconfirmed as ESP32-S3 revision 0.1, 8 MiB embedded PSRAM and
+  16 MiB flash;
+- app-only write at `0x10000`, 2,058,368 bytes;
+- erased application range: `0x10000` through `0x206fff`;
+- no full-chip erase; bootloader, partition table and VFS were not written;
+- esptool transfer verification: passed;
+- independent readback: 2,058,368 bytes from `0x10000`;
+- readback SHA-256:
+  `b3f16a7e4160cdd2c58cf78d25c6ebb3377a7d0438b5384054d679c19c03ad8f`;
+- byte comparison with the retained application artifact: identical.
+
+The board remained in the ROM bootloader after verification. A normal hard
+reset and the combined AP/DHCP/mDNS/portal/security runtime gate are next.

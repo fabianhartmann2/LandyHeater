@@ -1,14 +1,16 @@
 # Phase 10.1 – Portal- und Heimnetz-Erreichbarkeit
 
-Stand: 2026-09-03. Der erste Wildcard-Listener-Kandidat wurde im Zieltest
+Stand: 2026-09-05. Der erste Wildcard-Listener-Kandidat wurde im Zieltest
 verworfen. Der danach geflashte und vollständig zurückgelesene
 Zwei-Listener-Kandidat startete nach dem vorgesehenen Hard-Restart beide
 Listener, bestätigte Stations-DHCP, mDNS, 5/5 Captive-DNS-Antworten und einen
 angenommenen AP-Request. Seine 302-Portalantwort legte anschließend zwei
 Wire-Encoding-Fehler offen. Der portal-korrigierte Nachfolger ist als neue
 44-Datei-Frozen-Closure gebunden, zweimal bytegleich gebaut und offline
-geprüft; Flash und finale Laufzeitabnahme stehen noch aus. `boot.py` und
-`main.py` bleiben bis zum späteren Produkt-Composition-Gate passiv.
+geprüft. Sein hashgebundener App-only-Flash und die vollständige unabhängige
+Rücklesung sind bestanden; die finale Laufzeitabnahme steht noch aus.
+`boot.py` und `main.py` bleiben bis zum späteren Product-Composition-Gate
+passiv.
 
 ## Benutzerpfade
 
@@ -124,6 +126,10 @@ nicht die erneute reale Heap-Messung mit beiden TCP-Listenern.
   `b3f16a7e4160cdd2c58cf78d25c6ebb3377a7d0438b5384054d679c19c03ad8f`;
 - kombiniertes Abbild endet bei `0x206880`, vor VFS `0x310000`;
 - Bootloader und Partitionstabelle sind gegenüber Phase 10 bytegleich.
+- autorisierter App-only-Write bei `0x10000` am 2026-09-05 bestanden;
+- unabhängige Rücklesung aller 2.058.368 App-Bytes bytegleich, SHA-256
+  `b3f16a7e4160cdd2c58cf78d25c6ebb3377a7d0438b5384054d679c19c03ad8f`;
+- kein Full Erase und kein Write auf Bootloader, Partitionstabelle oder VFS.
 
 Die vollständige Buildakte steht in
 `firmware/phase10_1_portal_fixed_frozen/BUILD_INFO.md`. Beide vorherigen
@@ -132,17 +138,14 @@ Abbilder bleiben unter `firmware/phase10_1_frozen/` und
 
 ## Noch offenes Zielgate
 
-Vor einem Abschluss fehlen nur die minimalen echten Zielprüfungen:
+Der Flash-/Readback-Schritt ist bestanden. Vor einem Abschluss fehlen noch die
+minimalen echten Laufzeitprüfungen:
 
-1. neuer exakt hashgebundener App-only-Flash und vollständige unabhängige
-   Rücklesung des portal-korrigierten Kandidaten;
-2. ein gemeinsamer Lauf mit AP, Stations-DHCP, zwei expliziten TCP/80-Binds,
+1. ein gemeinsamer Lauf mit AP, Stations-DHCP, zwei expliziten TCP/80-Binds,
    mDNS und AP-DNS;
-3. Portal-Weiterleitung am AP sowie lesender Zugriff über `heater.local`;
-4. eine nachweislich abgelehnte Stationsmutation;
-5. mindestens 32 KiB freier GC-, interner und DMA-fähiger Heap;
-6. vollständiger Socket-, REST- und Funk-Cleanup.
+2. Portal-Weiterleitung am AP sowie lesender Zugriff über `heater.local`;
+3. eine nachweislich abgelehnte Stationsmutation;
+4. mindestens 32 KiB freier GC-, interner und DMA-fähiger Heap;
+5. vollständiger Socket-, REST- und Funk-Cleanup.
 
-Eine neue exakte Flashfreigabe ist erforderlich, weil sich der App-Hash
-geändert hat. Der engste Vorgang bleibt ein App-only-Write bei `0x10000` ohne
-Full Erase; Hardwareausgänge bleiben weiterhin gesperrt.
+Hardwareausgänge bleiben weiterhin gesperrt.

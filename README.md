@@ -82,7 +82,8 @@ Kandidat lässt `302 Found` im begrenzten Encoder zu und entfernt den doppelten
 `Cache-Control`-Header. AP- und Stationslistener bleiben ausdrücklich getrennt
 und verwenden beide den einzigen benutzersichtbaren Port 80. Der neue
 44-Datei-Kandidat ist durch zwei bytegleiche Builds und Offline-Artefaktprüfungen
-belegt; sein app-only Flash und das finale Zielgate stehen noch aus.
+belegt. Sein hashgebundener App-only-Flash und die vollständige unabhängige
+Rücklesung sind bestanden; das finale Zielgate steht noch aus.
 Details stehen in `PHASE10_1_DISCOVERY.md`.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
@@ -1201,9 +1202,10 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
     Der danach geflashte Zwei-Listener-Kandidat erreichte DHCP, mDNS, 5/5
     Captive-DNS-Antworten und einen angenommenen AP-Request. Dessen 302-Antwort
     scheiterte an einer fehlenden Encoder-Freigabe plus doppeltem
-    `Cache-Control`. Der portal-korrigierte 44-Datei-Kandidat ist gebaut und
-    offline geprüft. Offen sind sein neuer hashgebundener app-only Flash mit
-    Rücklesung sowie das kombinierte AP-/STA-/Portal-/Heap-/Cleanup-Zielgate.
+    `Cache-Control`. Der portal-korrigierte 44-Datei-Kandidat ist gebaut,
+    offline geprüft, hashgebunden app-only geschrieben und vollständig
+    bytegleich zurückgelesen. Offen ist nur noch das kombinierte
+    AP-/STA-/Portal-/Heap-/Cleanup-Zielgate.
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und
