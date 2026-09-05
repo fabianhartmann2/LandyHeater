@@ -3,7 +3,7 @@
 **Version:** 1.1  
 **Status:** Phases 8–11 target-accepted on the DFR0975-U; Phase-13 DS18B20
 electrical gate passed and its explicit product lifecycle is implemented,
-with the combined USB runtime gate pending; DS3231M battery retention remains
+with the continuous USB runtime gate accepted; DS3231M battery retention remains
 blocked, DFR0654 is historical evidence and automatic product startup remains
 disabled
 
@@ -444,7 +444,10 @@ at most one cooperative bus action; a configuration race, invalid clock or
 adapter error faults the owner and releases GPIO4. Cleanup is retryable and
 `boot.py`/`main.py` do not yet auto-start this owner. REST and the UI read the
 same manager instance, so no second sensor cache or API-specific polling loop
-exists.
+exists. The real DFR0975-U USB gate completed three product sampling cycles
+and nine valid role readings with unchanged A/B storage, inactive radios and
+confirmed GPIO4 cleanup. A newly frozen image and live browser/API target gate
+remain separate acceptance steps.
 
 ## 15. Sensor-health timing
 

@@ -10,7 +10,7 @@ Die Phasen 9, 10, 10.1 und 11 sind inzwischen ebenfalls zielseitig abgenommen.
 Phase 13 hat mit getrennten realen Peripheriegates begonnen: Der dreifache
 DS18B20-Bus einschließlich Rollenidentifikation ist bestanden. Die
 kontinuierliche, explizit gestartete Sensor-Composition ist implementiert und
-hostseitig geprüft; ihr kurzer USB-Gerätelauf steht noch aus. Beim DS3231M
+mit drei kontinuierlichen Zyklen auf dem Zielgerät abgenommen. Beim DS3231M
 sind I2C-Lesen und -Schreiben bestanden, der Batteriepuffer mit der rund fünf
 Jahre gelagerten Zelle jedoch nicht. Details stehen in
 `captures/2026-09-05-dfr0975u-phase13-sensors-rtc.md`.
@@ -162,7 +162,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 1 | Autoterm Protocol Library | Softwareumfang abgeschlossen |
 | 2 | UART Transport / Protocol Capture / Live Diagnostics | Transport-/Capture-Kern softwareseitig abgeschlossen; Browser-Live/Export bleibt Phase 11 und reale Heater-End-to-End-Abnahme Phase 13 |
 | 3 | HeaterController / Requested-/Actual-State-Machine | Hardwarefreier Controller-Kern abgeschlossen; laufende Session-Updates sind in Phase 9 sicher ergänzt, produktiver Laufzeitloop und externe Temperatur bleiben offen |
-| 4 | DS18B20 / Sensor Management / Failure Handling | Softwarekern und expliziter Produkt-Lifecycle abgeschlossen; reales Phase-13-Gate für GPIO4, externen 5-kΩ-Pull-up, drei ROMs, Konvertierung, gültige Einzelwerte, Cleanup und Rollenidentifikation bestanden; gemeinsamer USB-Laufzeitgate bleibt offen |
+| 4 | DS18B20 / Sensor Management / Failure Handling | Softwarekern und expliziter Produkt-Lifecycle abgeschlossen; reale Phase-13-Gates für GPIO4, externen 5-kΩ-Pull-up, drei ROMs, Rollenidentifikation sowie drei kontinuierliche Produktzyklen mit neun gültigen Werten, unverändertem Speicher und Cleanup bestanden; Browser/API-Zielgate bleibt getrennt |
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen; reales I2C-/DS3231M-Lese-/Schreibgate bestanden, aber Batteriepuffer mit der alten Zelle durch erneut gesetztes OSF widerlegt; vertrauenswürdige Offline-RTC und Produktintegration bleiben offen |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
@@ -171,7 +171,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Der dabei gefundene leere DELETE-Body wurde korrigiert; erneuter A/B-Build, Artefaktprüfung, autorisierter App-only-Flash, vollständige Rücklesung, Speicher-Reload und Cleanup bestanden.** |
 | **11** | **Events / Diagnostics / Capture Export** | **Software- und Zielabnahme bestanden: 200er Ereignisring, begrenztes Live-Protokoll, benannte RAM-Captures, kleine Cursor-/Exportseiten, JSON/NDJSON-Export und lazy geladene zweisekündige Diagnose-UI; reproduzierbarer A/B-Build, Offline-Artefaktgate, autorisierter App-only-Flash, vollständige Rücklesung sowie realer Handyablauf mit Capture/Export und vollständigem Cleanup bestätigt. Hardwarezugriffe bleiben entkoppelt; elektrische Abnahme folgt in Phase 13.** |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
-| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20-Einzelgate mit drei Sensoren und dauerhaft gespeicherten Rollen bestanden, Produktloop und read-only USB-Prüfer implementiert; gemeinsamer Zielgate, Ersatz-RTC sowie UART-/Heizungsintegration offen |
+| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20-Einzelgate, dauerhaft gespeicherte Rollen und kontinuierlicher read-only USB-Produktlauf bestanden; neuer Frozen-Build, Browser/API-Zielgate, Ersatz-RTC sowie UART-/Heizungsintegration offen |
 
 Vorgezogene Arbeiten aus Phase 11 oder 12 ändern die funktionale
 Phasenzuordnung nicht. Eine Phase gilt außerdem nicht allein wegen vorhandener

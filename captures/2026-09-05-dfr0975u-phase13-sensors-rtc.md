@@ -90,3 +90,32 @@ confirmed:
 The next setup run may add network and other user settings while preserving
 these role assignments. Persisting identifiers does not itself open GPIO4 or
 start sensor polling.
+
+## Continuous product sensor-runtime gate
+
+The first product-runtime attempts exposed an intermittent physical contact:
+the DFR0975-U had been pressed onto a breadboard with an unsoldered header.
+Depending on movement, the same guarded production scan saw either all three
+sensors or none. This was not accepted as a software or electrical pass. The
+header was then soldered, USB was restored and the owner confirmed that every
+sensor remained cool.
+
+Without reflashing the accepted Phase-11 image, the current source candidate
+was mounted over USB and the normal production A/B configuration was loaded
+read-only. `ConfiguredSensorRuntime` opened only the approved GPIO4 1-Wire
+adapter and used the same generation-bound `TemperatureManager` instance that
+feeds REST status and the Web UI. The bounded final run reported:
+
+- three completed sampling cycles and nine valid readings;
+- `roof_tent` (`286ed3bd0b000013`): `31.0000 °C`;
+- `cabin` (`28875f270d00006d`): `29.2500 °C`;
+- `outside` (`28159f270d000090`): `28.1875 °C`;
+- zero scan, conversion, read, value, manager or bus-contract errors;
+- unchanged production-storage signatures;
+- both Wi-Fi interfaces inactive throughout;
+- confirmed GPIO4 release after runtime cleanup.
+
+The exact target token was `PHASE13_SENSOR_RUNTIME_PASS_V1`. This accepts the
+continuous, configuration-bound USB sensor runtime and its handoff to the
+shared temperature model. It does not claim a new frozen-image flash, a live
+browser/API target gate, RTC retention, UART or heater integration.
