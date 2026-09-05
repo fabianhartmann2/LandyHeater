@@ -119,3 +119,19 @@ The exact target token was `PHASE13_SENSOR_RUNTIME_PASS_V1`. This accepts the
 continuous, configuration-bound USB sensor runtime and its handoff to the
 shared temperature model. It does not claim a new frozen-image flash, a live
 browser/API target gate, RTC retention, UART or heater integration.
+
+## Frozen application candidate
+
+The accepted source closure was then frozen with `board_config.py` and
+`app/sensor_composition.py` included explicitly. Two clean builds at the same
+canonical path matched byte-for-byte across all 15 retained and diagnostic
+outputs. Esptool validated the ESP32-S3 application and unchanged bootloader;
+the unchanged partition table retains the 3-MiB application slot and VFS at
+`0x310000`.
+
+The app-only candidate is 2,098,656 bytes, leaves 1,047,072 bytes in its slot,
+and has SHA-256
+`8bf1fd20446bdedb04afe40daefd65378c671430679ee2416566136454aa6e13`.
+It has passed offline artifact checks but has not been flashed. The earlier
+source-mounted runtime result does not authorize or substitute for the
+remaining hash-bound flash, readback and frozen-runtime gate.

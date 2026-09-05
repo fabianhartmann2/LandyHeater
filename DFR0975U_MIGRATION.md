@@ -101,7 +101,7 @@ that original board.
 | VFS and isolated Phase-6 A/B storage | complete: full 12.9375-MiB VFS, bounded real write/readback, generation/recovery checks and exact cleanup |
 | Functional WLAN/DHCP | complete: one stable WPA2 phone client, `192.168.4.2/24`, router `192.168.4.1`, no listener, complete radio cleanup |
 | Phase-8 HTTP target gate | complete: one product listener on port 80, one real HTTP 200 JSON status response, all ten GC-heap boundaries, unchanged product storage and ordered cleanup |
-| Phase-13 DS18B20 gate | electrical and continuous USB product-runtime gates complete: GPIO4, external approximately 5-kOhm pull-up, three valid ROMs, role mapping, three product cycles, nine readings, read-only A/B storage and cleanup passed; new frozen image and live browser/API target gate pending |
+| Phase-13 DS18B20 gate | electrical and continuous USB product-runtime gates complete: GPIO4, external approximately 5-kOhm pull-up, three valid ROMs, role mapping, three product cycles, nine readings, read-only A/B storage and cleanup passed; new image reproducibly built and offline verified but not flashed; frozen runtime and live browser/API target gates pending |
 | Phase-13 DS3231M gate | partial: I2C1 at `0x68`, status read, staged UTC write and readback passed; battery retention failed with OSF returning after USB removal |
 
 The profile migration intentionally does not generalize the old
@@ -125,7 +125,7 @@ USB-only hardware gate succeeds.
 | Heater TX buffer enable | 12 | D12 | unapproved; external pull-down required |
 | DS3231 I2C1 SDA | 10 | A4 | electrical bus access passed; product approval remains closed pending a valid backup cell |
 | DS3231 I2C1 SCL | 11 | A5 | electrical bus access passed; product approval remains closed pending a valid backup cell |
-| DS18B20 1-Wire bus | 4 | A0 | electrical and continuous USB product-runtime gates passed; source-candidate flag open, explicit runtime start only; frozen/browser gate pending |
+| DS18B20 1-Wire bus | 4 | A0 | electrical and continuous USB product-runtime gates passed; new frozen candidate opens only this flag and requires explicit runtime start; candidate remains unflashed and frozen/browser gate pending |
 
 The eventual heater TX interface must be a protected, tri-state-capable level
 stage. GPIO12 is an active-high enable and requires a physical pull-down so

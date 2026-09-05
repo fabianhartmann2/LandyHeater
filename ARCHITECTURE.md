@@ -3,9 +3,9 @@
 **Version:** 1.1  
 **Status:** Phases 8–11 target-accepted on the DFR0975-U; Phase-13 DS18B20
 electrical gate passed and its explicit product lifecycle is implemented,
-with the continuous USB runtime gate accepted; DS3231M battery retention remains
-blocked, DFR0654 is historical evidence and automatic product startup remains
-disabled
+with the continuous USB runtime gate accepted and its frozen candidate built
+reproducibly but not flashed; DS3231M battery retention remains blocked,
+DFR0654 is historical evidence and automatic product startup remains disabled
 
 **Runtime:** MicroPython on ESP32
 
@@ -150,10 +150,11 @@ those phases, but the responsibility boundaries must remain.
 profile. The active profile is bound to the physically confirmed DFR0975-U
 V1.0 and `ESP32-S3-WROOM-1U-N16R8`; intended GPIO routes are present. The
 DS18B20 route and DS3231M bus access have separate Phase-13 evidence. The
-current source candidate opens only the confirmed 1-Wire approval; UART,
+new unflashed frozen candidate opens only the confirmed 1-Wire approval; UART,
 protocol TX, I2C and radio approvals remain closed. `boot.py` and `main.py`
 remain passive, so even the approved route opens only through an explicit
-sensor-runtime start. Phase-7/8 target runners also
+sensor-runtime start. The currently installed accepted Phase-11 image remains
+unchanged. Phase-7/8 target runners also
 require the exact custom MicroPython machine identity. The historical DFR0654
 validation branch remains available for regression checks. Its RX-only,
 capture and loopback tools deliberately stay DFR0654-only because their
