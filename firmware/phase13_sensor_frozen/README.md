@@ -14,5 +14,6 @@ remain closed.
 The ledger binds the exact current source bytes. `BUILD_INFO.md` records the
 pinned inputs, two byte-identical canonical-path builds, artifact hashes,
 layout, earlier source-mounted target evidence and the remaining target gate.
-The retained candidate has passed its offline artifact gates but has not been
-flashed. Nothing here authorizes a board flash.
+The retained candidate passed its offline gates, an authorized app-only flash,
+independent readback and frozen sensor-runtime target gate. The live REST/UI
+temperature gate remains. Nothing here authorizes another board flash.

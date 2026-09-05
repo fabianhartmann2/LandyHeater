@@ -1,8 +1,9 @@
 # Phase 13 DS18B20 frozen firmware build record
 
-Build date: 2026-09-05. Status: **source-mounted target sensor-runtime gate,
-host regression, exact frozen-source closure, two byte-identical canonical-path
-builds and offline artifact gates passed; candidate not flashed**.
+Build date: 2026-09-05. Status: **source-mounted and frozen target
+sensor-runtime gates, host regression, exact frozen-source closure, two
+byte-identical canonical-path builds, offline artifact gates, authorized
+app-only flash and independent full readback passed**.
 
 This candidate adds the electrically accepted GPIO4 approval and the explicit
 DS18B20 product lifecycle owner to the accepted Phase-11 application. Normal
@@ -64,8 +65,8 @@ VFS at `0x310000`. There is no OTA partition.
 | Application margin | 1,047,072 B (about 33%) |
 | Combined image | 2,164,192 B; exact end `0x2105e0` |
 
-`artifacts/SHA256SUMS` binds the retained deployment subset. The unflashed
-app-only candidate is:
+`artifacts/SHA256SUMS` binds the retained deployment subset. The deployed
+app-only image is:
 
 ```text
 offset: 0x10000
@@ -74,7 +75,7 @@ sha256: 8bf1fd20446bdedb04afe40daefd65378c671430679ee2416566136454aa6e13
 erase:  no full-chip erase
 ```
 
-This record is evidence only. It is not flash authorization.
+This record is evidence only and cannot authorize a later flash.
 
 ## Target evidence and remaining gate
 
@@ -85,9 +86,25 @@ read-only storage verification, radio-inactive checks and GPIO4 cleanup. The
 exact target result was `PHASE13_SENSOR_RUNTIME_PASS_V1` and is recorded in
 `../../captures/2026-09-05-dfr0975u-phase13-sensors-rtc.md`.
 
-That source-mounted result does not accept this new binary. Flashing requires
-a fresh authorization bound to the exact application SHA-256 above. After a
-verified readback, the remaining bounded target gate must prove frozen-module
-resolution and the same sensor-runtime result; the live REST/UI temperature
-path can then be checked once without repeating the electrical discovery and
-role-identification tests.
+The owner then authorized that exact digest for an app-only write at `0x10000`
+without full-chip erase. Esptool wrote 2,098,656 bytes and independently read
+back the same range byte-for-byte with SHA-256
+`8bf1fd20446bdedb04afe40daefd65378c671430679ee2416566136454aa6e13`.
+No bootloader, partition-table or VFS write occurred.
+
+After manual reset, a passive check confirmed MicroPython 1.28.0, the exact
+DFR0975-U N16R8 identity, about 8.3 MiB free GC heap and both radios inactive.
+It also found an older `/board_config.py` in VFS, which correctly retained the
+Phase-11 closed 1-Wire flag and shadows `.frozen` under the default path
+order. No file was changed. The bounded acceptance runner put `.frozen` first
+only in RAM and proved that `board_config.py` and
+`app/sensor_composition.py` resolved from the new frozen image with only the
+1-Wire approval open.
+
+The frozen runtime then completed three cycles and nine valid readings:
+29.6250 °C roof tent, 29.0625 °C cabin and 32.6250 °C outside. Storage stayed
+unchanged, both radios stayed inactive and GPIO4 was released. The exact
+result was again `PHASE13_SENSOR_RUNTIME_PASS_V1`. The remaining sensor gate
+is one live REST/UI temperature check. Before any later automatic product
+startup, startup ownership must either enforce `.frozen` precedence or remove
+the obsolete VFS board profile through a separately authorized migration.

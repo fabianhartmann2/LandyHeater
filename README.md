@@ -12,9 +12,10 @@ DS18B20-Bus einschließlich Rollenidentifikation ist bestanden. Die
 kontinuierliche, explizit gestartete Sensor-Composition ist implementiert und
 mit drei kontinuierlichen Zyklen auf dem Zielgerät abgenommen. Der daraus
 erzeugte Phase-13-Frozen-Kandidat ist zweimal reproduzierbar gebaut und
-offline geprüft, aber noch nicht geflasht. Beim DS3231M sind I2C-Lesen und
--Schreiben bestanden, der Batteriepuffer mit der rund fünf Jahre gelagerten
-Zelle jedoch nicht. Details stehen in
+offline geprüft, nach exakter Freigabe App-only geflasht, vollständig
+zurückgelesen und mit denselben drei Sensorzyklen abgenommen. Beim DS3231M sind
+I2C-Lesen und -Schreiben bestanden, der Batteriepuffer mit der rund fünf Jahre
+gelagerten Zelle jedoch nicht. Details stehen in
 `captures/2026-09-05-dfr0975u-phase13-sensors-rtc.md`.
 
 Die folgende Darstellung enthält zusätzlich die historische Entwicklung bis
@@ -173,7 +174,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Der dabei gefundene leere DELETE-Body wurde korrigiert; erneuter A/B-Build, Artefaktprüfung, autorisierter App-only-Flash, vollständige Rücklesung, Speicher-Reload und Cleanup bestanden.** |
 | **11** | **Events / Diagnostics / Capture Export** | **Software- und Zielabnahme bestanden: 200er Ereignisring, begrenztes Live-Protokoll, benannte RAM-Captures, kleine Cursor-/Exportseiten, JSON/NDJSON-Export und lazy geladene zweisekündige Diagnose-UI; reproduzierbarer A/B-Build, Offline-Artefaktgate, autorisierter App-only-Flash, vollständige Rücklesung sowie realer Handyablauf mit Capture/Export und vollständigem Cleanup bestätigt. Hardwarezugriffe bleiben entkoppelt; elektrische Abnahme folgt in Phase 13.** |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
-| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20-Einzelgate, dauerhaft gespeicherte Rollen und kontinuierlicher read-only USB-Produktlauf bestanden; neuer Frozen-Kandidat reproduzierbar gebaut und offline geprüft, aber noch nicht geflasht; Frozen-Ziellauf, Browser/API-Zielgate, Ersatz-RTC sowie UART-/Heizungsintegration offen |
+| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20-Einzelgate, dauerhaft gespeicherte Rollen, kontinuierlicher read-only USB-Produktlauf, reproduzierbarer Frozen-Build, autorisierter App-only-Flash, vollständige Rücklesung und Frozen-Sensorlauf bestanden; Browser/API-Zielgate, Ersatz-RTC sowie UART-/Heizungsintegration offen |
 
 Vorgezogene Arbeiten aus Phase 11 oder 12 ändern die funktionale
 Phasenzuordnung nicht. Eine Phase gilt außerdem nicht allein wegen vorhandener
@@ -377,8 +378,8 @@ Controller, Scheduler und Gateway sind unter CPython miteinander integriert,
 aber weder `main.py` noch ein ESP32-Laufzeitloop rufen diese Verbindung auf.
 Sie kann daher auf dem ESP32 noch keinen Heizungsbefehl auslösen. Die
 MicroPython-Hardwarehüllen für DS18B20 und DS3231 sind vorbereitet. Nach dem
-bestandenen Dreisensor-Gate ist ausschließlich die GPIO4-Freigabe im neuen,
-noch ungeflashten Frozen-Kandidaten offen; dennoch öffnet nur ein
+bestandenen Dreisensor-Gate ist ausschließlich die GPIO4-Freigabe im neuen
+Frozen-Image offen; dennoch öffnet nur ein
 ausdrückliches `start()` der neuen Sensor-Composition den Bus. I2C und alle
 anderen Freigaben bleiben zu. Der
 WLAN-Pfad ist implementiert und separat auf dem Board geprüft, wird von

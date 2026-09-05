@@ -132,6 +132,40 @@ the unchanged partition table retains the 3-MiB application slot and VFS at
 The app-only candidate is 2,098,656 bytes, leaves 1,047,072 bytes in its slot,
 and has SHA-256
 `8bf1fd20446bdedb04afe40daefd65378c671430679ee2416566136454aa6e13`.
-It has passed offline artifact checks but has not been flashed. The earlier
-source-mounted runtime result does not authorize or substitute for the
-remaining hash-bound flash, readback and frozen-runtime gate.
+It passed offline artifact checks before the separately authorized target
+write.
+
+## App-only flash, readback and frozen runtime
+
+The owner authorized the exact digest above for an app-only write at
+`0x10000` without full-chip erase. Esptool wrote 2,098,656 bytes, verified the
+write, and an independent read of the same range was byte-identical with the
+same SHA-256. Bootloader, partition table and VFS were not written.
+
+After manual reset, the passive target reported MicroPython 1.28.0, the exact
+DFR0975-U N16R8 identity, 8,312,048 free heap bytes and both radios inactive.
+The check also identified the older 14,758-byte `/board_config.py` retained in
+VFS, SHA-256
+`714725d51a9602d65bbcf74376c626059a9ec2d1ee9f101df828cb6fc6ea3356`.
+It has the prior closed 1-Wire flag and shadows `.frozen` in the default path
+order. No VFS mutation was authorized or performed.
+
+The bounded runner placed `.frozen` first only in RAM and confirmed the new
+frozen `board_config.py` and `app/sensor_composition.py`, with 1-Wire approved
+and UART, protocol TX, I2C and radios closed. It then reported:
+
+```text
+cycles=3
+valid_readings=9
+roof_tent_c=29.6250
+cabin_c=29.0625
+outside_c=32.6250
+storage_unchanged=True
+radios_inactive=True
+gpio4_released=True
+PHASE13_SENSOR_RUNTIME_PASS_V1
+```
+
+This accepts the exact frozen sensor runtime. One live REST/UI temperature
+gate remains. Any later automatic startup must explicitly own frozen-module
+precedence or migrate the obsolete VFS board profile under separate authority.
