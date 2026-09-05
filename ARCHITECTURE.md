@@ -1104,6 +1104,18 @@ network data. Hardware observations are not durable acceptance evidence:
 `reviewed` and `deferred` are setup acknowledgements, while real peripheral
 acceptance remains under the Phase-13 electrical and target gates.
 
+The sensor-assignment step still has an explicit Phase-13 usability gap. The
+current client renders only selectable ROM IDs from one setup snapshot. Its
+successor must show the current temperature and health beside every discovered
+physical ROM, including devices which are not assigned yet, and refresh those
+observations while the assignment step is visible. The refresh must reuse the
+already-running sensor owner's bounded per-ROM `devices` snapshot; a setup GET
+must never initiate a scan, conversion or other hardware action. Unsaved role
+selections must survive refresh, duplicate-role validation stays local, and no
+configuration write occurs before the final atomic setup PUT. Polling stops
+when the dialog or page is hidden, and missing, stale or failed readings remain
+visible rather than being replaced by a numeric value.
+
 The REST components are implemented, and the isolated Phase-8 USB-only smoke
 passed on the DFR0654 with four bounded iterations before its closure was
 removed. On the frozen candidate, a minimal AP-first/lazy-HTTP run also served

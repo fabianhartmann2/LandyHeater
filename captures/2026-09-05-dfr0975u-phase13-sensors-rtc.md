@@ -208,3 +208,36 @@ PHASE13_SENSOR_WEB_PHONE_PASS_V1
 This closes the Phase-13 live DS18B20-to-temperature-manager-to-REST-to-Web-UI
 gate. RTC battery retention, UART and heater integration remain separate and
 open. No additional flash or production-storage mutation was performed.
+
+## Recorded follow-up: live setup sensor assignment
+
+The accepted Home UI refreshes role-based temperatures, but the Setup
+Assistant's sensor-assignment step currently shows only ROM IDs from the one
+`GET /api/v1/setup` performed when the dialog opens. It does not render the
+`value_c`/health fields already present for assigned devices and does not
+refresh setup sensor data. Unassigned device temperatures are also not yet
+projected through that endpoint, although the bounded DS18B20 adapter already
+retains a copied per-ROM `devices` snapshot for this purpose.
+
+This is now an explicit Phase-13 follow-up requirement. The completed behavior
+must:
+
+- display ROM ID, current temperature and health together for every discovered
+  device, including devices not assigned to a role;
+- refresh at a bounded interval while the sensor-assignment step is visible,
+  without reloading the page and without losing unsaved dropdown selections;
+- obtain observations from the already-running sensor owner and never trigger
+  scans, conversions or writes from an HTTP GET;
+- show missing, stale and failed states explicitly and never invent a numeric
+  replacement value;
+- retain unique-role validation and defer every persistent change to the one
+  final atomic setup commit;
+- stop polling when the dialog/tab is hidden and preserve the existing
+  fail-closed heater/protocol boundary.
+
+Target acceptance requires all three physical ROMs and their live values to be
+visible, two or more automatic refreshes, differential warming that identifies
+at least one selected sensor, preserved unsaved selections, unchanged
+production storage before the final commit, and complete sensor/HTTP/radio
+cleanup. This requirement is documented only; it is not implemented or
+accepted by the gate above.
