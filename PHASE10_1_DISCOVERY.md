@@ -8,7 +8,7 @@ angenommenen AP-Request. Seine 302-Portalantwort legte anschließend zwei
 Wire-Encoding-Fehler offen. Der portal-korrigierte Nachfolger ist als neue
 44-Datei-Frozen-Closure gebunden, zweimal bytegleich gebaut und offline
 geprüft. Sein hashgebundener App-only-Flash und die vollständige unabhängige
-Rücklesung sind bestanden; die finale Laufzeitabnahme steht noch aus.
+Rücklesung sowie die kombinierte Laufzeitabnahme sind bestanden.
 `boot.py` und `main.py` bleiben bis zum späteren Product-Composition-Gate
 passiv.
 
@@ -136,16 +136,23 @@ Die vollständige Buildakte steht in
 Abbilder bleiben unter `firmware/phase10_1_frozen/` und
 `firmware/phase10_1_fixed_frozen/` nachvollziehbar erhalten.
 
-## Noch offenes Zielgate
+## Bestandenes Zielgate
 
-Der Flash-/Readback-Schritt ist bestanden. Vor einem Abschluss fehlen noch die
-minimalen echten Laufzeitprüfungen:
+Der gemeinsame reale Lauf nach dem Hard-Restart erfüllte alle Abnahmepunkte:
 
-1. ein gemeinsamer Lauf mit AP, Stations-DHCP, zwei expliziten TCP/80-Binds,
-   mDNS und AP-DNS;
-2. Portal-Weiterleitung am AP sowie lesender Zugriff über `heater.local`;
-3. eine nachweislich abgelehnte Stationsmutation;
-4. mindestens 32 KiB freier GC-, interner und DMA-fähiger Heap;
-5. vollständiger Socket-, REST- und Funk-Cleanup.
+1. AP, Stations-DHCP bei `192.168.36.114`, mDNS, zwei explizite TCP/80-Binds
+   und AP-DNS liefen gleichzeitig;
+2. das Handy öffnete die Weboberfläche automatisch über das Captive Portal;
+   der Runner zählte 10 DNS-Antworten und drei HTTP-302-Weiterleitungen;
+3. der Stationslistener lieferte die UI mit HTTP 200, verweigerte den
+   Security Context mit HTTP 503 und eine Heater-Stop-Mutation mit HTTP 403;
+4. alle fünf Messpunkte hielten mindestens 32 KiB freien GC-, internen und
+   DMA-fähigen Heap;
+5. Requested State blieb aus und der Null-Heater-Adapter wurde nie aufgerufen;
+6. Cleanup entfernte isolierte Konfiguration und Ledger, schloss DNS und beide
+   HTTP-Listener und schaltete AP sowie Station aus.
 
-Hardwareausgänge bleiben weiterhin gesperrt.
+Der anschließende USB-Check bestätigte beide Funkinterfaces als inaktiv,
+8.319.216 Byte freien GC-Speicher und ausschließlich `board_config.py`, das
+passive `boot.py` und die Testwerkzeuge im VFS. Damit ist Phase 10.1 auf dem
+DFR0975-U angenommen. Hardwareausgänge bleiben weiterhin gesperrt.

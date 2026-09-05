@@ -83,7 +83,10 @@ Kandidat lässt `302 Found` im begrenzten Encoder zu und entfernt den doppelten
 und verwenden beide den einzigen benutzersichtbaren Port 80. Der neue
 44-Datei-Kandidat ist durch zwei bytegleiche Builds und Offline-Artefaktprüfungen
 belegt. Sein hashgebundener App-only-Flash und die vollständige unabhängige
-Rücklesung sind bestanden; das finale Zielgate steht noch aus.
+Rücklesung sind bestanden. Das kombinierte Zielgate bestätigte danach
+Stations-DHCP, mDNS, Captive DNS, automatische Portalöffnung, beide
+TCP/80-Listener, lesenden Heimnetzzugriff, gesperrte Stationsmutationen,
+Speichergrenzen und vollständigen Funk-Cleanup. Phase 10.1 ist angenommen.
 Details stehen in `PHASE10_1_DISCOVERY.md`.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
@@ -1204,8 +1207,10 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
     scheiterte an einer fehlenden Encoder-Freigabe plus doppeltem
     `Cache-Control`. Der portal-korrigierte 44-Datei-Kandidat ist gebaut,
     offline geprüft, hashgebunden app-only geschrieben und vollständig
-    bytegleich zurückgelesen. Offen ist nur noch das kombinierte
-    AP-/STA-/Portal-/Heap-/Cleanup-Zielgate.
+    bytegleich zurückgelesen. Das kombinierte AP-/STA-/Portal-/Heap-/Cleanup-
+    Zielgate bestand mit automatischer Portalöffnung am Handy, 10 DNS-Antworten,
+    drei 302-Weiterleitungen, lesender Heimnetz-UI, gesperrter Stationsmutation,
+    fünf bestandenen Speicherpunkten und vollständigem Funk-Cleanup.
 
 Erst nach zusätzlichen echten RX-Captures und der elektrischen Prüfung wird
 der reguläre Kommunikationsablauf freigegeben. Die abstrakten START- und

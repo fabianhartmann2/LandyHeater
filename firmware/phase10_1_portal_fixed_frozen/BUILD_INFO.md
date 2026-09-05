@@ -3,7 +3,7 @@
 Build date: 2026-09-03. Status: **host regression, exact frozen-source
 closure, two byte-identical canonical-path builds, offline artifact gates,
 authorized target flash and independent full application readback passed;
-runtime acceptance pending**.
+combined target runtime acceptance passed**.
 
 The real DFR0975-U target exposed a response-boundary defect in the preceding
 listener-corrected candidate. Stations-DHCP and mDNS reached
@@ -97,5 +97,22 @@ verification passed. A separate full readback of exactly 2,058,368 bytes from
 files produced SHA-256
 `b3f16a7e4160cdd2c58cf78d25c6ebb3377a7d0438b5384054d679c19c03ad8f`.
 
-The next gate is the one combined AP/DHCP/mDNS/portal/security runtime test.
-Automatic product startup and all heater hardware remain disabled.
+## Combined target runtime acceptance
+
+After a normal hard reset, the preserved isolated setup enabled one bounded
+combined run on the real target. Station DHCP completed at `192.168.36.114`,
+mDNS reported ready, both explicit TCP/80 listeners started, and the phone
+automatically opened the Web UI through the captive portal. The gate recorded
+10 captive-DNS answers and three correctly encoded HTTP 302 redirects.
+
+The station listener returned the UI with HTTP 200, denied security-context
+issuance with HTTP 503, and denied a heater-stop mutation with HTTP 403. Five
+memory checkpoints met the 32-KiB floors for GC, internal and DMA-capable
+memory. The null heater protocol recorded no access and Requested State never
+changed. Cleanup removed the isolated credentials and ledger, closed both
+listeners and DNS, and disabled AP and station. A USB readback after the gate
+confirmed only `board_config.py`, passive `boot.py` and tools remained in VFS;
+both radio interfaces were inactive and GC free memory was 8,319,216 bytes.
+
+Phase 10.1 target acceptance is complete. Automatic product startup and all
+heater hardware remain disabled.
