@@ -1,8 +1,9 @@
 # Landy Heater — Requirements Specification
 
 **Version:** 1.1  
-**Status:** Phase-8 single-listener full-product target acceptance passed on
-DFR0975-U; Phase 9 released but not started; automatic startup disabled
+**Status:** Phases 8–11 target-accepted on DFR0975-U; Phase-13 DS18B20
+electrical gate passed, DS3231M battery retention blocked; automatic startup
+disabled
 
 **Target:** ESP32 + MicroPython  
 **Project:** Migration of the existing Raspberry Pi / Node-RED Autoterm/Planar heater controller
@@ -41,8 +42,10 @@ Priorities, in order:
   recovery, isolated VFS/A-B-storage, bounded WLAN/DHCP and Phase-8
   full-product target gates are verified; automatic USB control-line recovery
   remains unreliable
-- DFR0975-U N16R8 is the selected continued-integration target; its S3
-  UART/level interface and product peripherals still require Phase-13 gates
+- DFR0975-U N16R8 is the selected continued-integration target; its DS18B20
+  electrical gate is complete, DS3231M battery retention remains blocked, and
+  the S3 UART/level interface plus integrated product runtime still require
+  Phase-13 gates
 - Hardware-specific pins and peripheral IDs must therefore be isolated in `board_config.py`
 - One UART is required for the heater in version 1
 - One 1-Wire bus is required for three DS18B20 sensors

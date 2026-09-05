@@ -15,7 +15,10 @@ A/B storage also passed; automatic USB control-line recovery is not reliable.
 The bounded Phase-7 phone AP association and DHCP gate also passed with exact
 client addressing and complete radio cleanup. The subsequent one-listener
 Phase-8 full-product target acceptance passed with a real HTTP 200 status
-response, every required GC-heap gate and complete cleanup.
+response, every required GC-heap gate and complete cleanup. On 2026-09-05 the
+first Phase-13 product-peripheral gates proved the three-sensor DS18B20 bus and
+its physical role mapping. DS3231M I2C read/write also passed, but its aged
+backup cell failed the power-retention check.
 
 Official references:
 
@@ -96,6 +99,8 @@ that original board.
 | VFS and isolated Phase-6 A/B storage | complete: full 12.9375-MiB VFS, bounded real write/readback, generation/recovery checks and exact cleanup |
 | Functional WLAN/DHCP | complete: one stable WPA2 phone client, `192.168.4.2/24`, router `192.168.4.1`, no listener, complete radio cleanup |
 | Phase-8 HTTP target gate | complete: one product listener on port 80, one real HTTP 200 JSON status response, all ten GC-heap boundaries, unchanged product storage and ordered cleanup |
+| Phase-13 DS18B20 gate | complete: GPIO4, external approximately 5-kOhm pull-up, three valid ROMs, shared conversion, three readings, role mapping and pin cleanup passed |
+| Phase-13 DS3231M gate | partial: I2C1 at `0x68`, status read, staged UTC write and readback passed; battery retention failed with OSF returning after USB removal |
 
 The profile migration intentionally does not generalize the old
 `rx_only_transport`, UART loopback or UART capture path by changing constants.
@@ -116,9 +121,9 @@ USB-only hardware gate succeeds.
 | Heater UART2 TX | 14 | D10 | disconnected and disabled |
 | Heater UART2 RX | 13 | D11 | disconnected |
 | Heater TX buffer enable | 12 | D12 | unapproved; external pull-down required |
-| DS3231 I2C1 SDA | 10 | A4 | unapproved |
-| DS3231 I2C1 SCL | 11 | A5 | unapproved |
-| DS18B20 1-Wire bus | 4 | A0 | unapproved |
+| DS3231 I2C1 SDA | 10 | A4 | electrical bus access passed; product approval remains closed pending a valid backup cell |
+| DS3231 I2C1 SCL | 11 | A5 | electrical bus access passed; product approval remains closed pending a valid backup cell |
+| DS18B20 1-Wire bus | 4 | A0 | electrical three-sensor gate passed; product flag remains closed until integrated-runtime release |
 
 The eventual heater TX interface must be a protected, tri-state-capable level
 stage. GPIO12 is an active-high enable and requires a physical pull-down so
@@ -190,10 +195,11 @@ antenna improves RF placement but is unrelated to the Phase-8 heap failure.
    **Complete; evidence is in
    `captures/2026-09-01-dfr0975u-phase8-full-rest-gate.md`.**
 
-Phase 8 passes only with a real complete HTTP 200 JSON response from
+Phase 8 passed only with a real complete HTTP 200 JSON response from
 `GET http://192.168.4.1/api/v1/status`, every mandatory >=32-KiB checkpoint,
 unchanged storage/heater safety and complete ordered cleanup. That proof now
-exists; Phase 9 is released but not started, and automatic startup remains
+exists. Phases 9, 10, 10.1 and 11 subsequently passed their documented target
+gates. Phase 13 is now in progress, while automatic product startup remains
 disabled.
 
 ## Vehicle boundary

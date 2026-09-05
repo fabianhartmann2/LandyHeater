@@ -1,9 +1,9 @@
 # Landy Heater — Software Architecture
 
 **Version:** 1.1  
-**Status:** Phase-8 single-listener full-product target acceptance passed on
-the DFR0975-U; DFR0654 remains historical capacity evidence; Phase 9 released
-but not started and automatic product startup remains disabled
+**Status:** Phases 8–11 target-accepted on the DFR0975-U; Phase-13 DS18B20
+electrical gate passed and DS3231M battery retention remains blocked; DFR0654
+is historical evidence and automatic product startup remains disabled
 
 **Runtime:** MicroPython on ESP32
 
@@ -145,8 +145,10 @@ those phases, but the responsibility boundaries must remain.
 
 `board_config.py` shall be the authoritative source for a selected board
 profile. The active profile is bound to the physically confirmed DFR0975-U
-V1.0 and `ESP32-S3-WROOM-1U-N16R8`; intended GPIO routes are present, while
-every electrical/radio approval remains closed. Phase-7/8 target runners also
+V1.0 and `ESP32-S3-WROOM-1U-N16R8`; intended GPIO routes are present. The
+DS18B20 route and DS3231M bus access have separate Phase-13 evidence, while
+the delivered product flags and every UART/radio approval remain closed until
+their respective integrated-runtime gates. Phase-7/8 target runners also
 require the exact custom MicroPython machine identity. The historical DFR0654
 validation branch remains available for regression checks. Its RX-only,
 capture and loopback tools deliberately stay DFR0654-only because their

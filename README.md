@@ -6,6 +6,15 @@ Node-RED auf einen ESP32 mit MicroPython.
 ## Aktueller Stand
 
 Dieses Paket folgt weiterhin dem ursprünglich festgelegten Phasenplan 0–13.
+Die Phasen 9, 10, 10.1 und 11 sind inzwischen ebenfalls zielseitig abgenommen.
+Phase 13 hat mit getrennten realen Peripheriegates begonnen: Der dreifache
+DS18B20-Bus einschließlich Rollenidentifikation ist bestanden. Beim DS3231M
+sind I2C-Lesen und -Schreiben bestanden, der Batteriepuffer mit der rund fünf
+Jahre gelagerten Zelle jedoch nicht. Details stehen in
+`captures/2026-09-05-dfr0975u-phase13-sensors-rtc.md`.
+
+Die folgende Darstellung enthält zusätzlich die historische Entwicklung bis
+zu diesem Stand.
 Die Komponenten von **Phase 8 – REST API** sind implementiert und unter
 CPython geprüft. Der isolierte USB-only-Board-Smoke und ein enger
 Frozen-AP/HTTP-Handytest bestanden auf dem DFR0654; letzterer verwendete jedoch
@@ -151,8 +160,8 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 1 | Autoterm Protocol Library | Softwareumfang abgeschlossen |
 | 2 | UART Transport / Protocol Capture / Live Diagnostics | Transport-/Capture-Kern softwareseitig abgeschlossen; Browser-Live/Export bleibt Phase 11 und reale Heater-End-to-End-Abnahme Phase 13 |
 | 3 | HeaterController / Requested-/Actual-State-Machine | Hardwarefreier Controller-Kern abgeschlossen; laufende Session-Updates sind in Phase 9 sicher ergänzt, produktiver Laufzeitloop und externe Temperatur bleiben offen |
-| 4 | DS18B20 / Sensor Management / Failure Handling | Softwarekern und verriegelte MicroPython-Hülle abgeschlossen; reale Sensorabnahme folgt in Phase 13 |
-| 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen: UTC-Zeitkern, feste Offsets, `Europe/Zurich` mit CET/CEST, Scheduler, verriegelte DS3231/I2C-Hülle, RTC-Brücke und Controller-Gateway; USB-only auf dem realen MicroPython-Ziel bestanden, reale RTC-Abnahme folgt in Phase 13 |
+| 4 | DS18B20 / Sensor Management / Failure Handling | Softwarekern abgeschlossen; reales Phase-13-Gate für GPIO4, externen 5-kΩ-Pull-up, drei ROMs, Konvertierung, gültige Einzelwerte, Cleanup und Rollenidentifikation bestanden; kontinuierliche Produktintegration bleibt offen |
+| 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen; reales I2C-/DS3231M-Lese-/Schreibgate bestanden, aber Batteriepuffer mit der alten Zelle durch erneut gesetztes OSF widerlegt; vertrauenswürdige Offline-RTC und Produktintegration bleiben offen |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
 | **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
@@ -160,7 +169,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Der dabei gefundene leere DELETE-Body wurde korrigiert; erneuter A/B-Build, Artefaktprüfung, autorisierter App-only-Flash, vollständige Rücklesung, Speicher-Reload und Cleanup bestanden.** |
 | **11** | **Events / Diagnostics / Capture Export** | **Software- und Zielabnahme bestanden: 200er Ereignisring, begrenztes Live-Protokoll, benannte RAM-Captures, kleine Cursor-/Exportseiten, JSON/NDJSON-Export und lazy geladene zweisekündige Diagnose-UI; reproduzierbarer A/B-Build, Offline-Artefaktgate, autorisierter App-only-Flash, vollständige Rücklesung sowie realer Handyablauf mit Capture/Export und vollständigem Cleanup bestätigt. Hardwarezugriffe bleiben entkoppelt; elektrische Abnahme folgt in Phase 13.** |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
-| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten einschließlich DFR0975-U USB-only-Speicher-, manueller Recovery- und VFS/A-B-Storage-Gates sowie historische DFR0654-UART-Loopback-/RX-Vorarbeiten erledigt; Produktperipherie offen |
+| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20-Einzelgate mit drei Sensoren und dauerhaft gespeicherten Rollen bestanden; DS3231M-Buszugriff bestanden, Batteriepuffer nicht bestanden; produktiver Sensorloop, Ersatz-RTC sowie UART-/Heizungsintegration offen |
 
 Vorgezogene Arbeiten aus Phase 11 oder 12 ändern die funktionale
 Phasenzuordnung nicht. Eine Phase gilt außerdem nicht allein wegen vorhandener
@@ -219,8 +228,9 @@ Unit-Tests als hardwareseitig freigegeben.
   Live-Diagnose auch für noch nicht zugeordnete Sensoren
 - Schutz vor dem unbestätigten 85-°C-Einschaltwert, ohne ein späteres reales
   85-°C-Messergebnis zu verbieten
-- eigene 1-Wire-Pinfreigabe, die auch bei eingetragener S3-Route GPIO4 mit
-  `ONEWIRE_PIN_APPROVED=False` weiterhin sicher verriegelt ist
+- eigene 1-Wire-Pinfreigabe; die S3-Route GPIO4, der externe Pull-up und drei
+  reale Sensoren sind elektrisch geprüft, während die ausgelieferte Firmware
+  mit `ONEWIRE_PIN_APPROVED=False` bis zur Produktintegration verriegelt bleibt
 - lazy MicroPython-1.28-Hülle für `machine.Pin`, `onewire` und `ds18x20`,
   ohne Hardwarezugriff beim Import oder beim Konstruktor des Adapterkerns
 - explizite Open-Drain-Freigabe mit High-Latch sowie retryfähiges
@@ -503,9 +513,12 @@ nicht als reale `0.0 °C` in den Zustandskern gelangen.
 Eine reale Hardware-Factory ist damit vorhanden, ihre öffentliche Signatur
 enthält aber weder Pin- noch Freigabe-Override. Sie prüft zuerst
 `board_config.require_onewire_configuration()` und lädt erst danach
-`machine`, `onewire` und `ds18x20`. `ONEWIRE_PIN` bleibt `None` und
-`ONEWIRE_PIN_APPROVED` bleibt `False`; `main.py` ruft die Factory ebenfalls
-nicht auf. Somit öffnet das ausgelieferte System weiterhin keinen 1-Wire-Pin.
+`machine`, `onewire` und `ds18x20`. `ONEWIRE_PIN` ist für das bestätigte
+DFR0975-U-Profil GPIO4; `ONEWIRE_PIN_APPROVED` bleibt im ausgelieferten Image
+`False`, und `main.py` ruft die Factory ebenfalls nicht auf. Somit öffnet das
+ausgelieferte System weiterhin keinen 1-Wire-Pin. Der getrennte
+Phase-13-Hardwarelauf mit einer nur im RAM gesetzten Freigabe ist dokumentiert
+und ändert diese Bootgrenze nicht.
 
 ## Umfang des TimeService- und Scheduler-Kerns
 
@@ -1026,12 +1039,13 @@ Bestätigt beziehungsweise vorgesehen sind:
 - neuer, zweifach bytegleich erzeugter MicroPython-1.28-Build
   `DFR0975U_N16R8` auf Basis `ESP32_GENERIC_S3`/`SPIRAM_OCT`; statisch
   verifiziert, vollständig geflasht und mit bestandenem USB-only-Speichergate
-- geplante S3-Routen: UART2 TX14/RX13, active-high TX-Gate GPIO12 mit späterem
-  externem Pull-down, I2C1 SDA10/SCL11 und 1-Wire GPIO4; alle elektrischen
-  Freigaben, Protokoll-TX und WLAN bleiben `False`
+- S3-Routen: UART2 TX14/RX13, active-high TX-Gate GPIO12 mit späterem externem
+  Pull-down, I2C1 SDA10/SCL11 und 1-Wire GPIO4; 1-Wire sowie der DS3231M-
+  Buszugriff wurden getrennt elektrisch geprüft, während die ausgelieferten
+  Freigaben, Protokoll-TX und WLAN bis zur Produktintegration `False` bleiben
 - geeigneter 5-V-↔-3,3-V-Pegelwandler für die Autoterm-UART
-- drei DS18B20-Sensoren
-- DS3231-RTC
+- drei bestätigte DS18B20-Sensoren mit dauerhaft gespeicherter Zuordnung
+- DS3231M-RTC mit bestandenem Buszugriff, aber ausgefallenem Batteriepuffer
 - geeigneter DC/DC-Wandler vom 12-V-Bordnetz
 
 Die DFR0975-U-Auswahl und die zwingend getrennte S3-Firmware-, Pin-, PSRAM-,
@@ -1041,15 +1055,18 @@ Die geprüften Alternativboards und Auswahlkriterien stehen in
 `ESP32_BOARD_OPTIONS.md`.
 
 `board_config.py` ist auf die physisch bestätigte S3-Identität gebunden. Für
-1-Wire muss später zusätzlich `ONEWIRE_PIN_APPROVED=True`, der externe 4,7-kΩ-
-Pull-up und die konfliktfreie reale Verdrahtung bestätigt sein; der Validator
+1-Wire sind der externe 5-kΩ-Pull-up, die konfliktfreie GPIO4-Verdrahtung und
+drei reale Sensoren inzwischen bestätigt; `ONEWIRE_PIN_APPROVED=True` wird
+erst mit der getrennt gebauten Produktintegration ausgeliefert. Der Validator
 sperrt PMIC-, UART0-, USB-, Flash/PSRAM-, Boot-Strapping-, LED-, Taster-,
 Kamera- und JTAG-Routen.
 Für I2C gilt eine getrennte, ebenso strikte Freigabe: SDA/SCL müssen
 verschieden, ausgangsfähig und konfliktfrei sein; ID, 100-kHz-Frequenz,
 Timeout und DS3231-Adresse `0x68` sind fest validiert. GPIO1/2 bleiben wegen
-des V1.0-AXP313A-PMIC-Busses ausgeschlossen. Im ausgelieferten Stand bleiben
-SDA10/SCL11 zugeordnet, aber `I2C_PINS_APPROVED=False`; die DS3231-Factory
+des V1.0-AXP313A-PMIC-Busses ausgeschlossen. Der DS3231M antwortete real auf
+SDA10/SCL11 und bestand Lesen, gestagtes Schreiben und Rücklesen. Sein alter
+Batteriepuffer setzte nach USB-Trennung jedoch erneut OSF; deshalb bleibt
+`I2C_PINS_APPROVED=False`, und die DS3231-Factory
 scheitert deshalb vor dem Import von `machine` und öffnet keinen GPIO oder Bus.
 Beim festgelegten ESP32_GENERIC_S3/MicroPython-1.28-Stand besitzt `machine.I2C`
 außerdem kein nutzbares `deinit()`: Die Hülle schließt daher logisch, gibt SDA
