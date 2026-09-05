@@ -1,10 +1,11 @@
 # Phase 11 – Events, Diagnose und Capture-Export
 
-Stand: 2026-09-05. Der Softwareumfang ist implementiert und durch die
-vollständige Host-Testmatrix geprüft. Zwei saubere Firmware-Builds sind in 15
-Ausgaben bytegleich; das zurückbehaltene Artefakt bestand die Offline-Gates.
-Das DFR0975-U wurde während der Entwicklung weder geöffnet noch beschrieben.
-Ein Zieltest setzt eine neue hashgebundene Flashfreigabe voraus.
+Stand: 2026-09-05. **Phase 11 ist software- und zielseitig abgenommen.** Der
+Softwareumfang ist durch die vollständige Host-Testmatrix geprüft. Zwei
+saubere Firmware-Builds sind in 15 Ausgaben bytegleich; das zurückbehaltene
+Artefakt bestand die Offline-Gates. Der autorisierte App-only-Flash, die
+vollständige Rücklesung, der passive USB-Starttest und der reale Handyablauf
+für Diagnose, Capture und Export sind bestanden.
 
 ## Funktionsumfang
 
@@ -98,4 +99,40 @@ Der vorbereitete App-only-Kandidat liegt unter
 `firmware/phase11_frozen/artifacts/micropython.bin`: 2.086.960 Byte ab
 `0x10000`, SHA-256
 `274234961f43551526b843ca7b27b3ead594cb5e93bf079b39f4ea838ab2c566`.
-Diese Angabe dokumentiert das Artefakt und ist keine Flashfreigabe.
+Diese Angabe dokumentiert das Artefakt und ist keine erneute Flashfreigabe.
+
+## Reale Zielabnahme
+
+Der Eigentümer gab exakt dieses Artefakt für einen App-only-Flash bei
+`0x10000` ohne Full Erase frei. Es wurden 2.086.960 Bytes geschrieben; die
+anschließende unabhängige Rücklesung war byteidentisch und hatte erneut den
+freigegebenen SHA-256. Bootloader, Partitionstabelle und VFS wurden nicht
+geschrieben.
+
+Nach manuellem `RST` bestätigte der passive USB-Test MicroPython 1.28.0, die
+DFR0975-U-N16R8-Identität, beide WLAN-Schnittstellen als inaktiv, rund 8,3 MB
+freien Heap sowie Ereignis-/Protokollpuffer einschließlich Passwort-Redaction
+und vollständiger RAM-Bereinigung.
+
+Der anschließende AP-only-Handytest verwendete unverändert `Landy Heater` und
+das vereinbarte Testpasswort. Die responsive Diagnoseansicht, 91 kombinierte
+Live-Antworten, ein benannter Capture, ein künstliches Ereignis, ein
+künstlicher RX-Rahmen, Stop und JSON-Export wurden erfolgreich verarbeitet.
+Alle 162 HTTP-Anfragen wurden abgeschlossen; Parser- und Serverfehler blieben
+null. Ein Gestaltungselement kam zunächst aus dem Browsercache und wurde beim
+Reload ebenfalls übertragen.
+
+Der funktional vollständige Lauf endete mit einem falschen negativen Urteil
+des Zielrunners: Dessen wiederverwendeter Wire-Beobachter benennt nur
+GET-Anfragen, die Abschlussbedingung verlangte jedoch zusätzlich einen
+benannten POST/DELETE-Pfad. Die bereits separat gezählten und erfolgreichen
+Capture-Mutationen waren davon nicht betroffen. Die falsche Bedingung und ein
+anfänglich falscher Fragment-Sollpfad wurden korrigiert und durch neue
+Regressionstests abgedeckt. Eine Wiederholung der bereits vollständig
+beobachteten Handyaktionen ist nicht erforderlich.
+
+Die unabhängige USB-Nachkontrolle meldete beide WLAN-Schnittstellen inaktiv,
+8.320.176 Bytes freien Heap und keine verbliebenen isolierten Testdateien.
+Heater-UART, I2C, 1-Wire, Produktstart und elektrische Peripherie blieben
+gesperrt. Der vollständige Nachweis steht in
+`captures/2026-09-05-dfr0975u-phase11-diagnostics-gate.md`.

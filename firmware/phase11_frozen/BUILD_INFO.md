@@ -1,8 +1,9 @@
 # Phase 11 frozen firmware build record
 
 Build date: 2026-09-05. Status: **host regression, exact frozen-source
-closure, two byte-identical canonical-path builds and offline artifact gates
-passed; target flash/readback and runtime acceptance not yet performed**.
+closure, two byte-identical canonical-path builds, offline artifact gates,
+authorized app-only flash, independent full readback and bounded target
+runtime acceptance passed**.
 
 The candidate adds the bounded Phase-11 event, diagnostics and capture path to
 the accepted Phase-10.1 image. It does not enable automatic product startup,
@@ -72,11 +73,27 @@ erase:  no full-chip erase
 
 This record is evidence only. It is not flash authorization.
 
-## Remaining target gate
+## Target evidence
 
-After a new exact hash-bound approval, the app may be written at `0x10000`
-without full-chip erase and independently read back. The hardware-free target
-gate then checks import/memory floors, synthetic event and protocol records,
-bounded REST pages, JSON/NDJSON-capable UI assets, capture start/stop/export,
-both listener security boundaries and complete cleanup. Real heater UART and
-electrical peripheral testing remain Phase 13.
+The owner authorized this exact application digest for an app-only write at
+`0x10000` without full-chip erase. Esptool wrote 2,086,960 bytes and an
+independent read of the same range was byte-identical with SHA-256
+`274234961f43551526b843ca7b27b3ead594cb5e93bf079b39f4ea838ab2c566`.
+No bootloader, partition-table or VFS write occurred.
+
+After manual reset, a passive USB gate confirmed MicroPython 1.28.0, the
+DFR0975-U N16R8 identity, both radios inactive, about 8.3 MiB free GC heap and
+the frozen diagnostics hub's event/protocol/redaction/cleanup paths. The
+bounded phone gate then delivered the lazy diagnostics view, 91 combined live
+reads, one named RAM-capture start/stop and one validated JSON export with
+synthetic event/protocol data. It completed 162 HTTP requests without parser
+or server faults. The final USB postcheck reported both radios inactive,
+8,320,176 free heap bytes and no isolated test files.
+
+The target runner initially emitted a false-negative terminal verdict after
+all functional criteria had passed because its inherited wire observer names
+GET requests only while the completion predicate also required a named
+POST/DELETE target. The predicate and the initially incorrect diagnostics
+fragment expectation are corrected and regression-covered in the repository.
+See `captures/2026-09-05-dfr0975u-phase11-diagnostics-gate.md`. Real heater
+UART and electrical peripheral testing remain Phase 13.
