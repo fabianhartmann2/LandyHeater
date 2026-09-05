@@ -693,6 +693,23 @@ Preferred options:
 
 The heater controller must never wait for a diagnostics client.
 
+Phase 11 selects low-frequency HTTP polling for the first product version.
+The browser requests one small combined diagnostics/event/protocol page every
+two seconds, only while the diagnostics view is visible.
+The view fragment itself is loaded lazily. No request can poll UART: one cold
+`DiagnosticsHub` drains copies from the existing bounded event sources and
+transport activity queue in a separate cooperative step. The hub keeps at
+most 200 events, 64 recent protocol records and 128 capture references by
+default. REST pages are capped at 16 events or four protocol/capture records.
+
+Capture control is AP-only and uses the existing Origin/CSRF boundary. A
+capture is explicitly named, is RAM-only, and records both state events and
+raw protocol copies until stopped or its fixed capacity is exhausted. An
+overflow marks the export incomplete instead of allocating more memory.
+Diagnostic, event and capture exports are JSON; the browser can additionally
+serialize a capture as line-oriented NDJSON. Credential-shaped keys and
+unbounded driver messages are removed before a record enters any buffer.
+
 ## 24. NetworkManager
 
 Responsibilities:
@@ -758,6 +775,12 @@ Phase 8 implements one versioned, hardware-free application boundary under
 GET    /api/v1/security-context
 GET    /api/v1/status
 GET    /api/v1/diagnostics
+GET    /api/v1/events?after=...&limit=...
+GET    /api/v1/protocol-log?after=...&limit=...
+GET    /api/v1/capture
+POST   /api/v1/capture
+DELETE /api/v1/capture
+GET    /api/v1/capture/export?offset=...&limit=...
 POST   /api/v1/heater/start
 POST   /api/v1/heater/quick-start
 POST   /api/v1/heater/stop
@@ -770,10 +793,13 @@ PUT    /api/v1/timers/{resource-id}
 DELETE /api/v1/timers/{resource-id}
 ```
 
-Arbitrary valid timer IDs are exposed through an unambiguous canonical
+The event, protocol and capture routes shown above are Phase-11 additions.
+Their reads are bounded and cursor/page based; capture mutations remain
+AP-only. Arbitrary valid timer IDs are exposed through an unambiguous canonical
 UTF-8-hex resource form. A timer page contains at most eight entries. Session
-PATCH, events, live protocol logs and exports are intentionally absent from
-this phase; they remain later API additions rather than hidden Phase-8 scope.
+PATCH was added in Phase 9, while events, live protocol logs and exports were
+added in Phase 11. They are later, documented extensions rather than hidden
+Phase-8 scope.
 
 The listener security model is local but explicit:
 

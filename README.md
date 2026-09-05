@@ -88,6 +88,17 @@ Stations-DHCP, mDNS, Captive DNS, automatische Portalöffnung, beide
 TCP/80-Listener, lesenden Heimnetzzugriff, gesperrte Stationsmutationen,
 Speichergrenzen und vollständigen Funk-Cleanup. Phase 10.1 ist angenommen.
 Details stehen in `PHASE10_1_DISCOVERY.md`.
+**Phase 11 – Events, Diagnose und Capture-Export ist softwareseitig
+abgeschlossen:** Ein hardwarefreier, streng begrenzter Diagnose-Hub sammelt
+die bereits vorhandenen Ereignisquellen sowie Kopien der UART-Aktivitäten.
+Die neue, erst beim Öffnen geladene Diagnoseansicht aktualisiert kleine Seiten
+alle zwei Sekunden, zeigt Systemzustand, Ereignisse und das Live-Protokoll und
+exportiert Diagnose/Ereignisse als JSON sowie benannte Captures als JSON oder
+NDJSON. Zugangsdaten und freie Treiberfehlertexte gelangen nicht in die
+Puffer. Die vollständige Hostregression, zwei bytegleiche Builds und die
+Offline-Artefaktprüfung sind bestanden. Das reale Zielgate benötigt vor einem
+Flash eine neue hashgebundene Freigabe. Details stehen in
+`PHASE11_DIAGNOSTICS.md`.
 Die vorgesehenen Inhalte der Phasen 0–4 sind softwareseitig vorhanden; ihre
 reale elektrische und End-to-End-Abnahme gehört weiterhin zu Phase 13.
 Innerhalb von Phase 5 sind TimeService, Scheduler, der DS3231-Registeradapter,
@@ -145,7 +156,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
 | **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; kein Auto-Start** |
 | **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Der dabei gefundene leere DELETE-Body wurde korrigiert; erneuter A/B-Build, Artefaktprüfung, autorisierter App-only-Flash, vollständige Rücklesung, Speicher-Reload und Cleanup bestanden.** |
-| 11 | Events / Diagnostics / Capture Export | Einzelne Capture-/Diagnostikbausteine aus Sicherheitsgründen vorgezogen; Phase nicht abgeschlossen |
+| **11** | **Events / Diagnostics / Capture Export** | **Softwareumfang abgeschlossen: 200er Ereignisring, begrenztes Live-Protokoll, benannte RAM-Captures, kleine Cursor-/Exportseiten, JSON/NDJSON-Export und lazy geladene zweisekündige Diagnose-UI; Hardwarezugriffe bleiben entkoppelt. Reproduzierbarer A/B-Build und Offline-Artefaktgate bestanden, reales Zielgate offen.** |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
 | 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten einschließlich DFR0975-U USB-only-Speicher-, manueller Recovery- und VFS/A-B-Storage-Gates sowie historische DFR0654-UART-Loopback-/RX-Vorarbeiten erledigt; Produktperipherie offen |
 

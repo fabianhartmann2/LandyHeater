@@ -187,6 +187,57 @@ class TestRestComposition(unittest.TestCase):
         self.assertIs(runtime.application, runtime.application)
         self.assertFalse(runtime.configuration_gateway.faulted)
         self.assertFalse(runtime.manual_gateway.faulted)
+        self.assertEqual(runtime.diagnostics_hub.snapshot()["event_capacity"], 200)
+
+    def test_phase11_collection_is_explicit_bounded_and_parser_injected(self):
+        class EventManager(_ConfigManager):
+            def __init__(self):
+                super().__init__()
+                self.events = [{"code": "configuration_loaded"}]
+
+            def drain_events(self):
+                values = self.events
+                self.events = []
+                return values
+
+        class Transport:
+            def __init__(self):
+                self.values = [("rx_frame", 12, b"12345", None)]
+
+            def drain_activity(self, limit):
+                values = self.values[:limit]
+                self.values = self.values[limit:]
+                return values
+
+        manager = EventManager()
+        transport = Transport()
+        runtime = self._build(
+            config_manager=manager,
+            protocol_transport=transport,
+            protocol_parser=lambda raw: {
+                "command": raw[4],
+                "command_name": "status",
+                "crc_valid": False,
+            },
+        )
+        self.assertEqual(runtime.step_diagnostics(20), 2)
+        self.assertEqual(
+            runtime.diagnostics_hub.events_page()["items"][0]["code"],
+            "configuration_loaded",
+        )
+        frame = runtime.diagnostics_hub.protocol_page()["items"][0]
+        self.assertEqual(frame["command_name"], "status")
+        self.assertFalse(frame["crc_valid"])
+        self.assertIsNone(runtime.deinit())
+        self.assertTrue(runtime.diagnostics_hub.closed)
+
+    def test_protocol_transport_requires_an_explicit_pure_parser(self):
+        class Transport:
+            def drain_activity(self, limit):
+                return []
+
+        with self.assertRaisesRegex(ValueError, "protocol_parser"):
+            self._build(protocol_transport=Transport())
 
     def test_server_factory_mandatorily_forwards_the_validated_peer(self):
         runtime = self._build()

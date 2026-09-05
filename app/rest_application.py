@@ -38,6 +38,14 @@ from services.rest_rate_limiter import (
     RestRateLimitExceeded,
     RestRateLimitUnavailable,
 )
+from services.diagnostics_hub import (
+    DiagnosticsConflictError,
+    DiagnosticsHub,
+    DiagnosticsUnavailableError,
+    MAX_CAPTURE_PAGE_SIZE,
+    MAX_EVENT_PAGE_SIZE,
+    MAX_PROTOCOL_PAGE_SIZE,
+)
 from services.strict_json import (
     StrictJSONDecodeError,
     StrictJSONLimitError,
@@ -72,6 +80,7 @@ _SESSION_UPDATE_FIELDS = frozenset((
 ))
 _SETTINGS_FIELDS = frozenset(("heater", "sensors", "time"))
 _SETUP_FIELDS = frozenset(("heater", "sensors", "time", "network", "checks"))
+_CAPTURE_FIELDS = frozenset(("label",))
 _TIMER_FIELDS = frozenset((
     "id",
     "name",
@@ -401,6 +410,92 @@ def _timer_page(query):
     return offset, limit
 
 
+def _bounded_page(query, position_name, maximum_limit):
+    if query is None or query == "":
+        return 0, maximum_limit
+    values = {}
+    for item in query.split("&"):
+        parts = item.split("=")
+        if len(parts) != 2 or parts[0] not in (position_name, "limit"):
+            raise _RestProblem(400, "invalid_query", "Invalid query string")
+        if parts[0] in values:
+            raise _RestProblem(400, "invalid_query", "Invalid query string")
+        values[parts[0]] = parts[1]
+    raw_position = values.get(position_name, "0")
+    if (
+        not raw_position
+        or (len(raw_position) > 1 and raw_position[0] == "0")
+        or len(raw_position) > 10
+    ):
+        raise _RestProblem(400, "invalid_query", "Invalid query string")
+    for character in raw_position:
+        if character < "0" or character > "9":
+            raise _RestProblem(400, "invalid_query", "Invalid query string")
+    position = int(raw_position)
+    if position > MAX_REQUEST_ID:
+        raise _RestProblem(400, "invalid_query", "Invalid query string")
+    limit = _query_integer(
+        values.get("limit", str(maximum_limit)),
+        "limit",
+        1,
+        maximum_limit,
+    )
+    return position, limit
+
+
+def _diagnostics_cursors(query):
+    if query is None or query == "":
+        return None
+    values = {}
+    for item in query.split("&"):
+        parts = item.split("=")
+        if len(parts) != 2 or parts[0] not in (
+            "event_after", "protocol_after"
+        ):
+            raise _RestProblem(400, "invalid_query", "Invalid query string")
+        if parts[0] in values:
+            raise _RestProblem(400, "invalid_query", "Invalid query string")
+        values[parts[0]] = parts[1]
+    if set(values) != {"event_after", "protocol_after"}:
+        raise _RestProblem(400, "invalid_query", "Invalid query string")
+    cursors = []
+    for name in ("event_after", "protocol_after"):
+        raw = values[name]
+        if not raw or (len(raw) > 1 and raw[0] == "0") or len(raw) > 10:
+            raise _RestProblem(400, "invalid_query", "Invalid query string")
+        for character in raw:
+            if character < "0" or character > "9":
+                raise _RestProblem(400, "invalid_query", "Invalid query string")
+        value = int(raw)
+        if value > MAX_REQUEST_ID:
+            raise _RestProblem(400, "invalid_query", "Invalid query string")
+        cursors.append(value)
+    return tuple(cursors)
+
+
+def _capture_label(value):
+    if type(value) is not str or not value or value != value.strip():
+        raise _RestProblem(
+            422, "validation_failed", "Request validation failed"
+        )
+    try:
+        encoded = value.encode("utf-8")
+    except (UnicodeError, ValueError):
+        raise _RestProblem(
+            422, "validation_failed", "Request validation failed"
+        ) from None
+    if len(encoded) > 64:
+        raise _RestProblem(
+            422, "validation_failed", "Request validation failed"
+        )
+    for character in value:
+        if ord(character) < 0x20 or ord(character) == 0x7F:
+            raise _RestProblem(
+                422, "validation_failed", "Request validation failed"
+            )
+    return value
+
+
 class RestApplication:
     """Versioned request router over existing application models."""
 
@@ -417,6 +512,7 @@ class RestApplication:
         "__network_manager",
         "__security",
         "__rate_limiter",
+        "__diagnostics_hub",
         "__ticks_ms",
         "__ticks_diff",
         "__mem_free",
@@ -449,6 +545,7 @@ class RestApplication:
         ticks_diff=None,
         mem_free=None,
         rate_limiter=None,
+        diagnostics_hub=None,
     ):
         requirements = (
             (configuration_gateway, "settings_snapshot"),
@@ -507,6 +604,21 @@ class RestApplication:
                     raise ValueError(
                         "rate_limiter must provide {}()".format(method)
                     )
+        if diagnostics_hub is None:
+            diagnostics_hub = DiagnosticsHub(ticks_ms=ticks_ms)
+        for method in (
+            "events_page",
+            "protocol_page",
+            "capture_status",
+            "capture_page",
+            "start_capture",
+            "stop_capture",
+            "snapshot",
+        ):
+            if not callable(getattr(diagnostics_hub, method, None)):
+                raise ValueError(
+                    "diagnostics_hub must provide {}()".format(method)
+                )
 
         self.__configuration_gateway = configuration_gateway
         self.__manual_gateway = manual_gateway
@@ -520,6 +632,7 @@ class RestApplication:
         self.__network_manager = network_manager
         self.__security = security_policy
         self.__rate_limiter = rate_limiter
+        self.__diagnostics_hub = diagnostics_hub
         self.__ticks_ms = ticks_ms
         self.__ticks_diff = ticks_diff
         self.__mem_free = mem_free
@@ -1093,6 +1206,7 @@ class RestApplication:
         )
         return {
             "status": status,
+            "uptime_ms": now_ms,
             "configuration": self.__config_manager.public_status(),
             "configuration_api": dict(configuration_api),
             "manual_control": dict(manual_control),
@@ -1100,6 +1214,64 @@ class RestApplication:
             "security": dict(security),
             "heap_free_bytes": heap,
             "rest": self.snapshot(),
+            "phase11": self.__diagnostics_hub.snapshot(),
+        }
+
+    def _diagnostics_live_data(self, now_ms):
+        status = self._status_data(now_ms)
+        actual = status["heater"]["actual"]
+        network = status["network"]["state"]
+        station = network.get("station", {})
+        heap = None
+        if self.__mem_free is not None:
+            heap = self.__mem_free()
+            if type(heap) is not int or heap < 0:
+                raise ValueError("mem_free returned an invalid value")
+        return {
+            "uptime_ms": now_ms,
+            "heap_free_bytes": heap,
+            "status": {
+                "heater": {
+                    "actual": {
+                        "communication": actual.get("communication"),
+                        "heater_state": actual.get("heater_state"),
+                        "last_status_ms": actual.get("last_status_ms"),
+                    }
+                },
+                "network": {
+                    "state": {
+                        "station": {
+                            "connected": station.get("connected", False),
+                            "ip": station.get("ip"),
+                        }
+                    }
+                },
+            },
+            "phase11": self.__diagnostics_hub.snapshot(),
+        }
+
+    def _capture_metadata(self):
+        settings = self._settings_snapshot(
+            self.__configuration_gateway.settings_snapshot()
+        )
+        system = settings.get("system", {})
+        heater = settings.get("heater", {})
+        sensors = settings.get("sensors", {})
+        time_settings = settings.get("time", {})
+        network = settings.get("network", {})
+        profiles = network.get("known_networks", [])
+        quick = heater.get("quick_start", {})
+        return {
+            "configuration_generation": settings["generation"],
+            "setup_complete": system.get("setup_complete"),
+            "device_name": system.get("device_name"),
+            "quick_start_mode": quick.get("mode"),
+            "sensor_assignments": sensors.get("assignments", {}),
+            "timezone_name": time_settings.get("timezone_name"),
+            "network_hostname": network.get("hostname"),
+            "known_network_count": (
+                len(profiles) if type(profiles) is list else None
+            ),
         }
 
     @staticmethod
@@ -1254,7 +1426,14 @@ class RestApplication:
     def _route(self, request, request_id, now_ms):
         method = request.method
         path = request.path
-        if request.query is not None and path != API_PREFIX + "/timers":
+        query_paths = (
+            API_PREFIX + "/timers",
+            API_PREFIX + "/diagnostics",
+            API_PREFIX + "/events",
+            API_PREFIX + "/protocol-log",
+            API_PREFIX + "/capture/export",
+        )
+        if request.query is not None and path not in query_paths:
             raise _RestProblem(400, "query_not_supported", "Query is not supported")
 
         if path == API_PREFIX + "/security-context":
@@ -1296,7 +1475,118 @@ class RestApplication:
             if method != "GET":
                 raise _RestProblem(405, "method_not_allowed", "Method not allowed", {"Allow": "GET"})
             self._authorize_read(request)
-            return self._success(200, request_id, self._diagnostics_data(now_ms))
+            cursors = _diagnostics_cursors(request.query)
+            if cursors is None:
+                data = self._diagnostics_data(now_ms)
+            else:
+                data = {
+                    "live": self._diagnostics_live_data(now_ms),
+                    "events": self.__diagnostics_hub.events_page(
+                        cursors[0], 4
+                    ),
+                    "protocol_log": self.__diagnostics_hub.protocol_page(
+                        cursors[1], 1
+                    ),
+                }
+            return self._success(200, request_id, data)
+
+        if path == API_PREFIX + "/events":
+            if method != "GET":
+                raise _RestProblem(
+                    405,
+                    "method_not_allowed",
+                    "Method not allowed",
+                    {"Allow": "GET"},
+                )
+            self._authorize_read(request)
+            after, limit = _bounded_page(
+                request.query, "after", MAX_EVENT_PAGE_SIZE
+            )
+            return self._success(
+                200,
+                request_id,
+                {"events": self.__diagnostics_hub.events_page(after, limit)},
+            )
+
+        if path == API_PREFIX + "/protocol-log":
+            if method != "GET":
+                raise _RestProblem(
+                    405,
+                    "method_not_allowed",
+                    "Method not allowed",
+                    {"Allow": "GET"},
+                )
+            self._authorize_read(request)
+            after, limit = _bounded_page(
+                request.query, "after", MAX_PROTOCOL_PAGE_SIZE
+            )
+            return self._success(
+                200,
+                request_id,
+                {
+                    "protocol_log": self.__diagnostics_hub.protocol_page(
+                        after, limit
+                    )
+                },
+            )
+
+        if path == API_PREFIX + "/capture":
+            if method == "GET":
+                self._authorize_read(request)
+                return self._success(
+                    200,
+                    request_id,
+                    {"capture": self.__diagnostics_hub.capture_status()},
+                )
+            if method == "POST":
+                self._authorize_mutation(request)
+                body = self._json_object(request, _CAPTURE_FIELDS)
+                label = _capture_label(body["label"])
+                self._assert_not_reentered()
+                status = self.__diagnostics_hub.start_capture(
+                    label, now_ms, self._capture_metadata()
+                )
+                self.__mutations += 1
+                return self._success(
+                    201, request_id, {"capture": status}
+                )
+            if method == "DELETE":
+                self._authorize_mutation(request)
+                self._empty_body(request)
+                self._assert_not_reentered()
+                status = self.__diagnostics_hub.stop_capture(now_ms)
+                self.__mutations += 1
+                return self._success(
+                    200, request_id, {"capture": status}
+                )
+            raise _RestProblem(
+                405,
+                "method_not_allowed",
+                "Method not allowed",
+                {"Allow": "GET, POST, DELETE"},
+            )
+
+        if path == API_PREFIX + "/capture/export":
+            if method != "GET":
+                raise _RestProblem(
+                    405,
+                    "method_not_allowed",
+                    "Method not allowed",
+                    {"Allow": "GET"},
+                )
+            self._authorize_read(request)
+            offset, limit = _bounded_page(
+                request.query, "offset", MAX_CAPTURE_PAGE_SIZE
+            )
+            return self._success(
+                200,
+                request_id,
+                {
+                    "capture_export": self.__diagnostics_hub.capture_page(
+                        offset, limit
+                    )
+                },
+            )
 
         if path == API_PREFIX + "/heater/start":
             if method != "POST":
@@ -1738,6 +2028,18 @@ class RestApplication:
             ) from None
         except ManualControlConflictError:
             raise _RestProblem(409, "control_precondition_failed", "Requested State changed") from None
+        except DiagnosticsConflictError:
+            raise _RestProblem(
+                409,
+                "diagnostics_conflict",
+                "Diagnostic capture state changed",
+            ) from None
+        except DiagnosticsUnavailableError:
+            raise _RestProblem(
+                409,
+                "capture_unavailable",
+                "A completed capture is not available",
+            ) from None
         except (ManualControlUnavailableError, ConfigurationStateError):
             raise _RestProblem(503, "application_unavailable", "Application service is unavailable") from None
         except ConfigurationAPIValidationError:

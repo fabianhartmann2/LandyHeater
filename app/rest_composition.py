@@ -15,6 +15,7 @@ class ConfiguredRestRuntime:
         "_manual_gateway",
         "_security_policy",
         "_rate_limiter",
+        "_diagnostics_hub",
         "_configuration_generation",
     )
 
@@ -25,6 +26,7 @@ class ConfiguredRestRuntime:
         manual_gateway,
         security_policy,
         rate_limiter,
+        diagnostics_hub,
         configuration_generation,
     ):
         self._application = application
@@ -32,6 +34,7 @@ class ConfiguredRestRuntime:
         self._manual_gateway = manual_gateway
         self._security_policy = security_policy
         self._rate_limiter = rate_limiter
+        self._diagnostics_hub = diagnostics_hub
         self._configuration_generation = configuration_generation
 
     @property
@@ -55,6 +58,10 @@ class ConfiguredRestRuntime:
         return self._rate_limiter
 
     @property
+    def diagnostics_hub(self):
+        return self._diagnostics_hub
+
+    @property
     def configuration_generation(self):
         return self._configuration_generation
 
@@ -67,16 +74,28 @@ class ConfiguredRestRuntime:
         return result
 
     def deinit(self):
-        """Erase the CSRF token; sockets and Wi-Fi remain separately owned."""
+        """Erase ephemeral security and diagnostic data."""
 
         result = self._security_policy.deinit()
         if result is not None:
             raise RuntimeError("REST security deinit result is malformed")
+        result = self._diagnostics_hub.deinit()
+        if result is not None:
+            raise RuntimeError("diagnostics deinit result is malformed")
         return None
+
+    def step_diagnostics(self, now_ms=None):
+        """Perform one bounded collection step without touching hardware."""
+
+        result = self._diagnostics_hub.step(now_ms)
+        if type(result) is not int or result < 0:
+            raise RuntimeError("diagnostics step result is malformed")
+        return result
 
     def handle(self, request, peer_ip, ingress=None, local_ip=None):
         """Production handler passed to the peer-aware socket adapter."""
 
+        self.step_diagnostics()
         return self._application.handle(request, peer_ip, ingress, local_ip)
 
     def snapshot(self):
@@ -84,6 +103,7 @@ class ConfiguredRestRuntime:
             "configuration_generation": self._configuration_generation,
             "security": self._security_policy.snapshot(),
             "rate_limit": self._rate_limiter.snapshot(),
+            "phase11": self._diagnostics_hub.snapshot(),
             "application": self._application.snapshot(),
             "configuration_gateway": self._configuration_gateway.snapshot(),
             "manual_gateway": self._manual_gateway.snapshot(),
@@ -117,6 +137,8 @@ def build_rest_runtime(
     ticks_diff=None,
     ticks_add=None,
     mem_free=None,
+    protocol_transport=None,
+    protocol_parser=None,
 ):
     """Build one inert REST runtime from already-constructed application ports.
 
@@ -132,6 +154,7 @@ def build_rest_runtime(
     from app.rest_application import RestApplication
     from services.rest_rate_limiter import RestRateLimiter
     from services.rest_security import RestSecurityPolicy
+    from services.diagnostics_hub import DiagnosticsHub
 
     tick_values = (ticks_ms, ticks_diff, ticks_add)
     if any(value is not None for value in tick_values):
@@ -183,6 +206,27 @@ def build_rest_runtime(
         ingress,
     )
     rate_limiter = RestRateLimiter(ticks_diff=ticks_diff)
+    event_sources = []
+    for category, owner in (
+        ("configuration", config_manager),
+        ("heater", controller),
+        ("sensor", temperature_manager),
+        ("time", time_service),
+        ("scheduler", scheduler),
+        ("network", network_manager),
+    ):
+        if owner is not None and callable(getattr(owner, "drain_events", None)):
+            event_sources.append((category, owner))
+    if protocol_transport is not None and protocol_parser is None:
+        raise ValueError(
+            "protocol_parser is required with protocol_transport"
+        )
+    diagnostics_hub = DiagnosticsHub(
+        event_sources=event_sources,
+        protocol_transport=protocol_transport,
+        protocol_parser=protocol_parser,
+        ticks_ms=ticks_ms,
+    )
     application = RestApplication(
         configuration_gateway,
         manual_gateway,
@@ -199,6 +243,7 @@ def build_rest_runtime(
         ticks_diff=ticks_diff,
         mem_free=mem_free,
         rate_limiter=rate_limiter,
+        diagnostics_hub=diagnostics_hub,
     )
 
     if getattr(config_manager, "generation", None) != generation:
@@ -209,6 +254,7 @@ def build_rest_runtime(
         manual_gateway,
         security_policy,
         rate_limiter,
+        diagnostics_hub,
         generation,
     )
 

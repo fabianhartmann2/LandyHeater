@@ -51,12 +51,15 @@ class TestPhase9WebApplication(unittest.TestCase):
             "/assets/components.css",
             "/assets/session.css",
             "/assets/setup.css",
+            "/assets/diagnostics.css",
+            "/assets/diagnostics.html",
             "/assets/i18n.js",
             "/assets/app.js",
             "/assets/home.js",
             "/assets/timers.js",
             "/assets/settings.js",
             "/assets/setup.js",
+            "/assets/diagnostics.js",
         ):
             with self.subTest(path=path):
                 response = self.app.handle(request(target=path), PEER)
@@ -181,6 +184,30 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn(b"L.request(path,options)", app)
         self.assertNotIn(b'let body=""', app)
         self.assertNotIn(b"{method,headers,body}", app)
+
+    def test_phase11_diagnostics_surface_is_local_bounded_and_safe(self):
+        index = self.app.handle(request(), PEER).body
+        surface = self.app.handle(
+            request(target="/assets/diagnostics.html"), PEER
+        ).body
+        script = self.app.handle(
+            request(target="/assets/diagnostics.js"), PEER
+        ).body
+        self.assertIn(b'data-view="diagnostics"', index)
+        self.assertIn(b'id="view-diagnostics"', surface)
+        self.assertIn(b"/api/v1/events?", script)
+        self.assertIn(b'"/api/v1/capture"', script)
+        self.assertIn(b"/api/v1/capture/export?", script)
+        self.assertIn(b"/api/v1/diagnostics?event_after=", script)
+        self.assertIn(b"setTimeout(resolve,1300)", script)
+        self.assertIn(b"application/x-ndjson", script)
+        self.assertIn(b"async function hydrate()", script)
+        self.assertIn(b'if(name==="diagnostics"&&!state.hydrated)', script)
+        self.assertIn(b"setInterval(load,2000)", script)
+        self.assertIn(b"textContent", script)
+        self.assertNotIn(b"innerHTML", script)
+        self.assertNotIn(b"https://", surface + script)
+        self.assertNotIn(b"http://", surface + script)
 
 
 if __name__ == "__main__":

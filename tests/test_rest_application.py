@@ -27,6 +27,9 @@ from services.config_manager import (
 from services.http_protocol import parse_request
 from services.rest_security import RestSecurityPolicy
 from services.rest_rate_limiter import RestRateLimiter
+from services.diagnostics_hub import DiagnosticsHub
+from services.http_protocol import encode_json_response
+from services.strict_json import encode_json_bytes
 
 
 HOST = "192.168.4.1"
@@ -604,6 +607,7 @@ class Fixture:
         )
         self.security.start()
         self.clock = Clock()
+        self.diagnostics = DiagnosticsHub(ticks_ms=self.clock)
         self.app = RestApplication(
             self.configuration,
             self.manual,
@@ -620,6 +624,7 @@ class Fixture:
             ticks_diff=lambda newer, older: newer - older,
             mem_free=lambda: 54321,
             rate_limiter=rate_limiter,
+            diagnostics_hub=self.diagnostics,
         )
 
     def mutation_headers(self, generation=None):
@@ -677,6 +682,127 @@ class TestRestReadRoutes(unittest.TestCase):
         self.assertEqual(diagnostics.status, 200)
         self.assertNotIn(TOKEN, repr(diagnostics.body))
         self.assertNotIn("csrf_token", repr(diagnostics.body))
+
+    def test_phase11_event_and_protocol_pages_are_bounded_reads(self):
+        details = {
+            "field_{:02d}_xxxxxxxx".format(index): "v" * 96
+            for index in range(8)
+        }
+        for index in range(20):
+            self.fixture.diagnostics.record_event(
+                "heater", "event_{}".format(index), index, details
+            )
+        for index in range(4):
+            self.fixture.diagnostics.record_protocol_activity(
+                ("rx_frame", 50 + index, b"x" * 512, None)
+            )
+        events = self.fixture.app.handle(make_request(
+            target="/api/v1/events?after=0&limit=16"
+        ))
+        protocol = self.fixture.app.handle(make_request(
+            target="/api/v1/protocol-log?after=0&limit=4"
+        ))
+        self.assertEqual(events.status, 200)
+        self.assertEqual(len(events.body["events"]["items"]), 16)
+        self.assertTrue(events.body["events"]["has_more"])
+        self.assertEqual(protocol.status, 200)
+        self.assertEqual(len(protocol.body["protocol_log"]["items"]), 4)
+        for response in (events, protocol):
+            payload = encode_json_bytes(response.body)
+            encoded = encode_json_response(
+                response.status, payload, response.headers
+            )
+            self.assertLess(len(encoded), 8192 + 2048 + 64)
+            self.assertLessEqual(len(payload), 8192)
+
+    def test_phase11_combined_live_page_is_bounded(self):
+        details = {
+            "field_{:02d}_xxxxxxxx".format(index): "v" * 96
+            for index in range(8)
+        }
+        for index in range(8):
+            self.fixture.diagnostics.record_event(
+                "heater", "event_{}".format(index), index, details
+            )
+        self.fixture.diagnostics.record_protocol_activity(
+            ("rx_frame", 50, b"x" * 512, None)
+        )
+        response = self.fixture.app.handle(make_request(
+            target=(
+                "/api/v1/diagnostics?event_after=0&protocol_after=0"
+            )
+        ))
+        self.assertEqual(response.status, 200)
+        self.assertEqual(len(response.body["events"]["items"]), 4)
+        self.assertEqual(len(response.body["protocol_log"]["items"]), 1)
+        payload = encode_json_bytes(response.body)
+        self.assertLessEqual(len(payload), 8192)
+
+    def test_phase11_capture_lifecycle_and_paged_export_are_ap_mutations(self):
+        body = b'{"label":"Cold start"}'
+        started = self.fixture.app.handle(json_request(
+            "POST",
+            "/api/v1/capture",
+            body,
+            self.fixture.mutation_headers(),
+        ))
+        self.assertEqual(started.status, 201)
+        self.assertTrue(started.body["capture"]["active"])
+        duplicate = self.fixture.app.handle(json_request(
+            "POST",
+            "/api/v1/capture",
+            body,
+            self.fixture.mutation_headers(),
+        ))
+        self.assertEqual(duplicate.status, 409)
+        self.assertEqual(error_code(duplicate), "diagnostics_conflict")
+        stopped = self.fixture.app.handle(make_request(
+            "DELETE", "/api/v1/capture", self.fixture.mutation_headers()
+        ))
+        self.assertEqual(stopped.status, 200)
+        self.assertTrue(stopped.body["capture"]["available"])
+        exported = self.fixture.app.handle(make_request(
+            target="/api/v1/capture/export?offset=0&limit=4"
+        ))
+        self.assertEqual(exported.status, 200)
+        capture = exported.body["capture_export"]
+        self.assertEqual(capture["schema"], "landy-heater.protocol-capture")
+        self.assertEqual(capture["label"], "Cold start")
+        self.assertGreaterEqual(capture["total"], 2)
+        self.assertNotIn("password", repr(capture).lower())
+
+    def test_phase11_capture_rejects_bad_input_and_unavailable_export(self):
+        unavailable = self.fixture.app.handle(make_request(
+            target="/api/v1/capture/export"
+        ))
+        self.assertEqual(unavailable.status, 409)
+        self.assertEqual(error_code(unavailable), "capture_unavailable")
+        invalid = self.fixture.app.handle(json_request(
+            "POST",
+            "/api/v1/capture",
+            b'{"label":""}',
+            self.fixture.mutation_headers(),
+        ))
+        self.assertEqual(invalid.status, 422)
+        self.assertEqual(error_code(invalid), "validation_failed")
+
+    def test_phase11_query_and_method_surface_is_closed(self):
+        for target in (
+            "/api/v1/events?offset=0",
+            "/api/v1/events?after=0&limit=17",
+            "/api/v1/protocol-log?after=-1",
+            "/api/v1/capture/export?after=0",
+            "/api/v1/diagnostics?event_after=0",
+            "/api/v1/diagnostics?event_after=0&protocol_after=0&extra=1",
+        ):
+            with self.subTest(target=target):
+                response = self.fixture.app.handle(make_request(target=target))
+                self.assertEqual(response.status, 400)
+                self.assertEqual(error_code(response), "invalid_query")
+        response = self.fixture.app.handle(make_request(
+            "POST", "/api/v1/events", self.fixture.mutation_headers()
+        ))
+        self.assertEqual(response.status, 405)
 
     def test_station_listener_is_read_only_and_has_no_token_endpoint(self):
         fixture = Fixture("sta")
@@ -777,7 +903,6 @@ class TestRestReadRoutes(unittest.TestCase):
     def test_unknown_deferred_and_invalid_query_routes_are_closed(self):
         for path in (
             "/api/v1/session",
-            "/api/v1/events",
             "/api/v1/protocol-capture",
             "/api/v2/status",
         ):
@@ -1636,6 +1761,7 @@ class TestRestHardening(unittest.TestCase):
             target="/api/v1/diagnostics"
         ))
         self.assertEqual(response.status, 200)
+        self.assertEqual(response.body["uptime_ms"], 10000)
         self.assertEqual(response.body["heap_free_bytes"], 54321)
 
     def test_module_has_no_socket_hardware_protocol_or_direct_control_imports(self):

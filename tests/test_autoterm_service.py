@@ -48,6 +48,8 @@ class RecordingTransport:
         self.reset_rx_error = None
         self.rx_faulted = False
         self.tx_enabled = True
+        self.activities = []
+        self.activity_limits = []
 
     def poll(self, now_ms=None):
         self.poll_calls.append(now_ms)
@@ -81,6 +83,12 @@ class RecordingTransport:
             "tx_enabled": self.tx_enabled,
             "last_error": None,
         }
+
+    def drain_activity(self, limit):
+        self.activity_limits.append(limit)
+        values = self.activities[:limit]
+        self.activities = self.activities[limit:]
+        return values
 
 
 class NoWriteUART:
@@ -126,6 +134,29 @@ def authorized_service(transport):
 
 
 class TestAutotermProtocolServiceBoundaries(unittest.TestCase):
+    def test_diagnostics_activity_drain_is_bounded_and_never_polls_uart(self):
+        transport = RecordingTransport()
+        transport.activities = [
+            ("rx_frame", 10, REAL_OFF_STATUS, None),
+            ("tx_frame", 11, build_status_request(), None),
+        ]
+        service = AutotermProtocolService(transport)
+        self.assertEqual(
+            service.drain_activity(1),
+            [("rx_frame", 10, REAL_OFF_STATUS, None)],
+        )
+        self.assertEqual(transport.activity_limits, [1])
+        self.assertEqual(transport.poll_calls, [])
+        self.assertEqual(transport.sent, [])
+        with self.assertRaises(ValueError):
+            service.drain_activity(81)
+
+    def test_transport_without_diagnostic_queue_remains_compatible(self):
+        transport = RecordingTransport()
+        transport.drain_activity = None
+        service = AutotermProtocolService(transport)
+        self.assertEqual(service.drain_activity(4), [])
+
     def test_constructor_requires_poll_and_send_without_io(self):
         class MissingBoth:
             pass

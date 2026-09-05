@@ -10,12 +10,14 @@
   <link rel="stylesheet" href="/assets/components.css">
   <link rel="stylesheet" href="/assets/session.css">
   <link rel="stylesheet" href="/assets/setup.css">
+  <link rel="stylesheet" href="/assets/diagnostics.css">
   <script defer src="/assets/i18n.js"></script>
   <script defer src="/assets/app.js"></script>
   <script defer src="/assets/home.js"></script>
   <script defer src="/assets/timers.js"></script>
   <script defer src="/assets/settings.js"></script>
   <script defer src="/assets/setup.js"></script>
+  <script defer src="/assets/diagnostics.js"></script>
 </head>
 <body>
   <a class="skip" href="#content" data-i18n="skip">Zum Inhalt</a>
@@ -60,12 +62,13 @@
         <details class="card"><summary data-i18n="timersRuntime">Timer & Laufzeit</summary><div id="runtime-settings" class="definition-list"></div></details>
         <details class="card"><summary data-i18n="dateTime">Datum & Uhrzeit</summary><div id="time-settings" class="definition-list"></div></details>
         <details class="card"><summary data-i18n="system">System</summary><div class="form-grid"><label><span data-i18n="language">Sprache</span><select id="language"><option value="de">Deutsch</option><option value="en">English</option></select></label><div id="system-settings" class="definition-list"></div><button id="restart-setup" class="button secondary" type="button" data-i18n="restartSetup">Setup-Assistent starten</button></div></details>
-        <details class="card"><summary data-i18n="diagnostics">Diagnose</summary><button id="load-diagnostics" class="button secondary" type="button" data-i18n="loadDiagnostics">Diagnose laden</button><pre id="diagnostics-output" class="diagnostics">–</pre></details>
       </div>
     </section>
+
+    <section id="view-diagnostics" class="view" aria-label="Diagnose"><p class="muted" data-i18n="loadingDiagnostics">…</p></section>
   </main>
 
-  <nav class="bottom-nav" aria-label="Hauptnavigation" data-i18n-aria="mainNavigation"><button class="active" data-view="home" type="button"><span aria-hidden="true">⌂</span><span data-i18n="home">Home</span></button><button data-view="timers" type="button"><span aria-hidden="true">◷</span><span data-i18n="timers">Timer</span></button><button data-view="settings" type="button"><span aria-hidden="true">⚙</span><span data-i18n="settings">Einstellungen</span></button></nav>
+  <nav class="bottom-nav" aria-label="Hauptnavigation" data-i18n-aria="mainNavigation"><button class="active" data-view="home" type="button"><span aria-hidden="true">⌂</span><span data-i18n="home">Home</span></button><button data-view="timers" type="button"><span aria-hidden="true">◷</span><span data-i18n="timers">Timer</span></button><button data-view="diagnostics" type="button"><span aria-hidden="true">≋</span><span data-i18n="diagnostics">Diagnose</span></button><button data-view="settings" type="button"><span aria-hidden="true">⚙</span><span data-i18n="settings">Einstellungen</span></button></nav>
 
   <dialog id="start-dialog"><form id="start-form"><div class="dialog-heading"><h2 data-i18n="configureStart">Konfigurieren & starten</h2><button class="icon-button" value="cancel" formmethod="dialog" aria-label="Schließen">×</button></div><fieldset><legend data-i18n="mode">Modus</legend><div class="segmented"><label><input type="radio" name="mode" value="roof_tent_temperature" checked><span data-i18n="roofTent">Dachzelt</span></label><label><input type="radio" name="mode" value="cabin_temperature"><span data-i18n="cabin">Innenraum</span></label><label><input type="radio" name="mode" value="power"><span data-i18n="power">Leistung</span></label></div></fieldset><label id="start-target-wrap"><span data-i18n="targetTemperature">Zieltemperatur</span><output id="start-target-output">20 °C</output><input id="start-target" type="range" min="5" max="30" value="20"></label><label id="start-power-wrap" class="hidden"><span data-i18n="powerLevel">Leistungsstufe</span><output id="start-power-output">5 / 9</output><input id="start-power" type="range" min="1" max="9" value="5"></label><label><span data-i18n="duration">Dauer</span><select id="start-duration"><option value="30">30 min</option><option value="60" selected>60 min</option><option value="90">90 min</option><option value="120">120 min</option></select></label><div class="dialog-actions"><button class="button secondary" value="cancel" formmethod="dialog" data-i18n="cancel">Abbrechen</button><button class="button primary" type="submit" data-i18n="startHeater">Heizung starten</button></div></form></dialog>
 

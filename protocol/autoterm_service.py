@@ -60,6 +60,7 @@ class AutotermProtocolService:
         "__cleanup_complete",
         "__closed",
         "__deinit",
+        "__drain_activity",
         "__poll",
         "__reset_rx",
         "__send_frame",
@@ -73,6 +74,7 @@ class AutotermProtocolService:
         reset_rx = getattr(transport, "reset_rx", None)
         status = getattr(transport, "status", None)
         deinit = getattr(transport, "deinit", None)
+        drain_activity = getattr(transport, "drain_activity", None)
         if not callable(poll):
             raise ValueError("transport must provide poll()")
         if not callable(send_frame):
@@ -93,6 +95,9 @@ class AutotermProtocolService:
         self.__reset_rx = reset_rx
         self.__status = status
         self.__deinit = deinit
+        self.__drain_activity = (
+            drain_activity if callable(drain_activity) else None
+        )
         self.__transmit_capability = _transmit_capability
         self.__closed = False
         self.__cleanup_complete = False
@@ -142,6 +147,29 @@ class AutotermProtocolService:
         if isinstance(last_error, dict):
             snapshot["last_error"] = dict(last_error)
         return snapshot
+
+    def drain_activity(self, max_events):
+        """Drain bounded transport copies for the separate diagnostics hub.
+
+        Older injected transports without an activity queue remain valid and
+        simply provide no protocol log.  The method never polls UART and never
+        sends a frame.
+        """
+
+        if (
+            type(max_events) is not int
+            or max_events < 0
+            or max_events > _MAX_INBOUND_FRAMES_PER_POLL
+        ):
+            raise ValueError("max_events is outside its bound")
+        if self.__drain_activity is None:
+            return []
+        values = self.__drain_activity(max_events)
+        if type(values) not in (list, tuple) or len(values) > max_events:
+            raise AutotermProtocolServiceError(
+                "transport activity drain is malformed"
+            )
+        return values
 
     def reset_inbound(self):
         """Explicitly reset only the transport RX/framing fault state."""

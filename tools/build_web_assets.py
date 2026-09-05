@@ -1,4 +1,4 @@
-"""Build the deterministic frozen Phase-10 asset module.
+"""Build the deterministic frozen Phase-11 asset module.
 
 The source assets stay readable under ``web/``.  This tool converts them to
 immutable byte constants so a later explicitly approved firmware build can
@@ -17,12 +17,15 @@ ASSETS = (
     ("/assets/components.css", "text/css; charset=utf-8", "components.css"),
     ("/assets/session.css", "text/css; charset=utf-8", "session.css"),
     ("/assets/setup.css", "text/css; charset=utf-8", "setup.css"),
+    ("/assets/diagnostics.css", "text/css; charset=utf-8", "diagnostics.css"),
+    ("/assets/diagnostics.html", "text/html; charset=utf-8", "diagnostics.html"),
     ("/assets/i18n.js", "application/javascript; charset=utf-8", "i18n.js"),
     ("/assets/app.js", "application/javascript; charset=utf-8", "app.js"),
     ("/assets/home.js", "application/javascript; charset=utf-8", "home.js"),
     ("/assets/timers.js", "application/javascript; charset=utf-8", "timers.js"),
     ("/assets/settings.js", "application/javascript; charset=utf-8", "settings.js"),
     ("/assets/setup.js", "application/javascript; charset=utf-8", "setup.js"),
+    ("/assets/diagnostics.js", "application/javascript; charset=utf-8", "diagnostics.js"),
 )
 
 
@@ -34,7 +37,7 @@ def render():
             raise ValueError("web asset size is outside the frozen bound")
         rows.append((route, content_type, payload))
     lines = [
-        '"""Generated immutable Phase-10 Web-UI assets; do not edit by hand."""',
+        '"""Generated immutable Phase-11 Web-UI assets; do not edit by hand."""',
         "",
         "ASSETS = (",
     ]
