@@ -5,8 +5,10 @@
 The selected successor to the DFR0654 is the **DFRobot FireBeetle 2
 ESP32-S3-U, SKU DFR0975-U, module variant N16R8**. The board arrived and passed
 the non-writing USB identity gate on 2026-09-01. The active `board_config.py`
-now describes this exact received board with every electrical/radio approval
-closed. A path-bound reproducible MicroPython S3 artifact set is retained
+now describes this exact received board. After the three-sensor electrical
+gate, only its 1-Wire approval is open in the source candidate; every other
+electrical/radio/TX approval remains closed. A path-bound reproducible
+MicroPython S3 artifact set is retained
 under `firmware/dfr0975u_n16r8/`. After a fresh hash-bound authorization, the
 complete flash was erased and the verified combined image was written. Passive
 MicroPython identity and separate USB-only GC, PSRAM, internal and
@@ -88,7 +90,7 @@ that original board.
 | --- | --- |
 | Physical SKU, V1.0 revision, 1U-N16R8 module, antenna, flash and ROM PSRAM identity | complete, read-only evidence retained |
 | Confidential factory recovery image | complete: 16 MiB read plus independent device digest; owner-only outside Git |
-| Active DFR0975-U profile and S3 GPIO allow/deny rules | complete; every approval remains `False` |
+| Active DFR0975-U profile and S3 GPIO allow/deny rules | complete; only the electrically accepted GPIO4 1-Wire route is `True` in the source candidate; all other approvals remain `False` |
 | Legacy DFR0654 preservation | validation branch retained; DFR0654-only RX/capture/loopback tools deliberately reject the active S3 profile until a later S3 UART gate |
 | Phase-7/8 platform guards | bound to the exact custom MicroPython machine identity and S3 profile |
 | MicroPython 1.28 S3/Octal-PSRAM build | complete; two clean canonical builds matched for 15/15 outputs |
@@ -99,7 +101,7 @@ that original board.
 | VFS and isolated Phase-6 A/B storage | complete: full 12.9375-MiB VFS, bounded real write/readback, generation/recovery checks and exact cleanup |
 | Functional WLAN/DHCP | complete: one stable WPA2 phone client, `192.168.4.2/24`, router `192.168.4.1`, no listener, complete radio cleanup |
 | Phase-8 HTTP target gate | complete: one product listener on port 80, one real HTTP 200 JSON status response, all ten GC-heap boundaries, unchanged product storage and ordered cleanup |
-| Phase-13 DS18B20 gate | complete: GPIO4, external approximately 5-kOhm pull-up, three valid ROMs, shared conversion, three readings, role mapping and pin cleanup passed |
+| Phase-13 DS18B20 gate | electrical and host-composition parts complete: GPIO4, external approximately 5-kOhm pull-up, three valid ROMs, shared conversion, three readings, role mapping and pin cleanup passed; generation-bound product owner and bounded read-only USB runner implemented; combined target run pending |
 | Phase-13 DS3231M gate | partial: I2C1 at `0x68`, status read, staged UTC write and readback passed; battery retention failed with OSF returning after USB removal |
 
 The profile migration intentionally does not generalize the old
@@ -123,7 +125,7 @@ USB-only hardware gate succeeds.
 | Heater TX buffer enable | 12 | D12 | unapproved; external pull-down required |
 | DS3231 I2C1 SDA | 10 | A4 | electrical bus access passed; product approval remains closed pending a valid backup cell |
 | DS3231 I2C1 SCL | 11 | A5 | electrical bus access passed; product approval remains closed pending a valid backup cell |
-| DS18B20 1-Wire bus | 4 | A0 | electrical three-sensor gate passed; product flag remains closed until integrated-runtime release |
+| DS18B20 1-Wire bus | 4 | A0 | electrical three-sensor gate passed; source-candidate flag open, explicit runtime start only; combined target gate pending |
 
 The eventual heater TX interface must be a protected, tri-state-capable level
 stage. GPIO12 is an active-high enable and requires a physical pull-down so

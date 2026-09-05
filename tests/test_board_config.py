@@ -47,7 +47,7 @@ class TestDFR0975UBoardConfig(unittest.TestCase):
             board_config._active_profile(), board_config._PROFILE_DFR0975U
         )
 
-    def test_planned_routes_are_complete_but_every_lock_is_closed(self):
+    def test_planned_routes_are_complete_with_only_onewire_approved(self):
         self.assertEqual(
             (
                 board_config.UART_ID,
@@ -79,10 +79,10 @@ class TestDFR0975UBoardConfig(unittest.TestCase):
             "UART_PROTOCOL_TX_ENABLED",
             "UART_TX_GATE_APPROVED",
             "I2C_PINS_APPROVED",
-            "ONEWIRE_PIN_APPROVED",
             "WIFI_RADIO_APPROVED",
         ):
             self.assertIs(getattr(board_config, name), False, name)
+        self.assertIs(board_config.ONEWIRE_PIN_APPROVED, True)
 
     def test_uart_route_requires_approval_and_retains_9600_8n1(self):
         with self.assertRaisesRegex(RuntimeError, "not been electrically"):
@@ -191,10 +191,10 @@ class TestDFR0975UBoardConfig(unittest.TestCase):
                 board_config.require_i2c_configuration()
 
     def test_onewire_profile_is_bounded_and_independently_locked(self):
-        with self.assertRaisesRegex(RuntimeError, "not been electrically"):
-            board_config.require_onewire_configuration()
-        with mock.patch.object(board_config, "ONEWIRE_PIN_APPROVED", True):
-            self.assertIsNone(board_config.require_onewire_configuration())
+        self.assertIsNone(board_config.require_onewire_configuration())
+        with mock.patch.object(board_config, "ONEWIRE_PIN_APPROVED", False):
+            with self.assertRaisesRegex(RuntimeError, "not been electrically"):
+                board_config.require_onewire_configuration()
         self.assertEqual(board_config.ONEWIRE_CONVERSION_WAIT_MS, 750)
         self.assertEqual(board_config.ONEWIRE_POLL_INTERVAL_MS, 1000)
         self.assertEqual(board_config.ONEWIRE_DISCOVERY_INTERVAL_MS, 30000)

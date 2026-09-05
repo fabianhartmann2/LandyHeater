@@ -138,7 +138,6 @@ def run(
         "UART_PINS_APPROVED",
         "UART_PROTOCOL_TX_ENABLED",
         "UART_TX_GATE_APPROVED",
-        "ONEWIRE_PIN_APPROVED",
         "I2C_PINS_APPROVED",
         "WIFI_RADIO_APPROVED",
     ):
@@ -146,6 +145,10 @@ def run(
             getattr(config_module, name, None) is False,
             "{} must remain false".format(name),
         )
+    _require(
+        config_module.ONEWIRE_PIN_APPROVED is True,
+        "approved 1-Wire route differs",
+    )
 
     if esp_module is None:
         import esp as esp_module

@@ -53,10 +53,12 @@ UART_RX_ONLY_QUEUE_CAPACITY = 64
 UART_RX_ONLY_MAX_EMPTY_READY_READS = 3
 UART_RX_CAPTURE_MAX_DURATION_MS = 120000
 
-# A0/GPIO4 is reserved for the three-wire DS18B20 bus. The external 4.7-kOhm
-# pull-up and physical route still require their own approval.
+# A0/GPIO4 is reserved for the three-wire DS18B20 bus. The external pull-up
+# and physical route passed the bounded three-sensor Phase-13 gate on
+# 2026-09-05. This approval permits only an explicit sensor-runtime start;
+# boot.py and main.py remain passive and open no hardware.
 ONEWIRE_PIN = 4
-ONEWIRE_PIN_APPROVED = False
+ONEWIRE_PIN_APPROVED = True
 ONEWIRE_CONVERSION_WAIT_MS = 750
 ONEWIRE_POLL_INTERVAL_MS = 1000
 ONEWIRE_DISCOVERY_INTERVAL_MS = 30000

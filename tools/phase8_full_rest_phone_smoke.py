@@ -128,8 +128,8 @@ def _verify_hardware_locks(board_config):
     )
     _support_require(
         board_config.ONEWIRE_PIN == 4
-        and board_config.ONEWIRE_PIN_APPROVED is False,
-        "1-Wire is not locked",
+        and board_config.ONEWIRE_PIN_APPROVED is True,
+        "approved 1-Wire route differs",
     )
     _support_require(
         board_config.I2C_ID == 1

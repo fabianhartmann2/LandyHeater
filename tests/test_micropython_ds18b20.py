@@ -467,7 +467,7 @@ class TestMicroPythonDS18B20Factory(unittest.TestCase):
             namespace = runpy.run_path(hardware_module.__file__)
         self.assertIn("MicroPythonDS18B20Bus", namespace)
 
-    def test_delivered_board_lock_fails_before_hardware_import(self):
+    def test_closed_board_lock_fails_before_hardware_import(self):
         real_import = builtins.__import__
         hardware_imports = []
 
@@ -477,7 +477,9 @@ class TestMicroPythonDS18B20Factory(unittest.TestCase):
                 raise AssertionError("hardware import attempted")
             return real_import(name, *args, **kwargs)
 
-        with mock.patch("builtins.__import__", side_effect=guarded_import):
+        with mock.patch.object(
+            board_config, "ONEWIRE_PIN_APPROVED", False
+        ), mock.patch("builtins.__import__", side_effect=guarded_import):
             with self.assertRaisesRegex(RuntimeError, "not been electrically"):
                 open_ds18b20_adapter_from_board_config(TemperatureManager())
         self.assertEqual(hardware_imports, [])

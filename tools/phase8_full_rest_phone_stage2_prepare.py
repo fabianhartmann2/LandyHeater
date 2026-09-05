@@ -292,7 +292,7 @@ def prepare(capsule, state, temporary_password, window_seconds):
         and core.board_config.UART_TX_GATE_ACTIVE_LEVEL == 1
         and core.board_config.UART_TX_GATE_APPROVED is False
         and core.board_config.ONEWIRE_PIN == 4
-        and core.board_config.ONEWIRE_PIN_APPROVED is False
+        and core.board_config.ONEWIRE_PIN_APPROVED is True
         and core.board_config.I2C_ID == 1
         and core.board_config.I2C_SDA_PIN == 10
         and core.board_config.I2C_SCL_PIN == 11

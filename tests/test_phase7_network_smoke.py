@@ -183,7 +183,7 @@ class TestPhase7NetworkSmoke(unittest.TestCase):
         for name, value in (
             ("UART_PINS_APPROVED", True),
             ("UART_TX_GATE_APPROVED", True),
-            ("ONEWIRE_PIN_APPROVED", True),
+            ("ONEWIRE_PIN_APPROVED", False),
             ("I2C_PINS_APPROVED", True),
             ("ONEWIRE_PIN", None),
             ("I2C_SDA_PIN", None),
