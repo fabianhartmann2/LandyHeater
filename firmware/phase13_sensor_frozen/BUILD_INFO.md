@@ -77,7 +77,7 @@ erase:  no full-chip erase
 
 This record is evidence only and cannot authorize a later flash.
 
-## Target evidence and remaining gate
+## Target evidence and live UI gate
 
 Before freezing, the same current source candidate was mounted over the
 accepted Phase-11 image. With the soldered header and three assigned DS18B20
@@ -104,7 +104,15 @@ only in RAM and proved that `board_config.py` and
 The frozen runtime then completed three cycles and nine valid readings:
 29.6250 °C roof tent, 29.0625 °C cabin and 32.6250 °C outside. Storage stayed
 unchanged, both radios stayed inactive and GPIO4 was released. The exact
-result was again `PHASE13_SENSOR_RUNTIME_PASS_V1`. The remaining sensor gate
-is one live REST/UI temperature check. Before any later automatic product
+result was again `PHASE13_SENSOR_RUNTIME_PASS_V1`.
+
+The subsequent isolated phone gate started the same frozen sensor owner, real
+REST composition, embedded Web UI, captive DNS and one AP-bound port-80
+listener. The captive portal loaded and the owner visually confirmed all three
+temperatures in the UI. Three valid status responses reported 28.0000 °C roof
+tent, 27.5000 °C cabin and 32.0625 °C outside. Production storage stayed
+unchanged; isolated files and all radio/sensor/HTTP resources were cleaned up.
+The exact result was `PHASE13_SENSOR_WEB_PHONE_PASS_V1`. This closes the live
+DS18B20 REST/UI gate without another flash. Before any later automatic product
 startup, startup ownership must either enforce `.frozen` precedence or remove
 the obsolete VFS board profile through a separately authorized migration.

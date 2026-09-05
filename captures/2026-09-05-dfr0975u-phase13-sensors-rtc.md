@@ -166,6 +166,45 @@ gpio4_released=True
 PHASE13_SENSOR_RUNTIME_PASS_V1
 ```
 
-This accepts the exact frozen sensor runtime. One live REST/UI temperature
-gate remains. Any later automatic startup must explicitly own frozen-module
-precedence or migrate the obsolete VFS board profile under separate authority.
+This accepts the exact frozen sensor runtime. Any later automatic startup must
+explicitly own frozen-module precedence or migrate the obsolete VFS board
+profile under separate authority.
+
+## Live REST/API and Web-UI sensor gate
+
+A bounded phone runner then copied the trusted production configuration into
+isolated A/B test stores, preserved the three assignments, started the real
+`ConfiguredSensorRuntime`, REST runtime, Phase-9 Web application, one AP-bound
+port-80 listener and captive DNS. It never dispatched a mutating request and
+never accessed the heater protocol.
+
+The first connection attempt reached the captive portal, but the test wrapper
+still treated every browser-cancelled HTTP response as a fatal transport
+result and consequently shut down its own AP. This was a test-harness defect,
+not a password or DHCP failure. The wrapper was aligned with the already
+accepted Phase-10 transport rule: only a fully accounted
+`client_send_failed` caused by a browser cancelling a response is non-fatal;
+latched server faults, parser errors, re-entry and unaccounted transport errors
+still fail closed. Read-only `HEAD`/`OPTIONS` discovery is answered locally
+without product dispatch, while write methods remain blocked before the
+application.
+
+With the unchanged SSID and password, the repeated run opened the captive
+portal and loaded the real Heater UI. The UI displayed all three temperatures,
+which the owner confirmed visually. The same run reported three valid status
+responses:
+
+```text
+roof_tent_c=28.0000
+cabin_c=27.5000
+outside_c=32.0625
+status_reads=3
+production_storage_unchanged=True
+isolated_files_removed=True
+radio_sensor_http_cleanup=True
+PHASE13_SENSOR_WEB_PHONE_PASS_V1
+```
+
+This closes the Phase-13 live DS18B20-to-temperature-manager-to-REST-to-Web-UI
+gate. RTC battery retention, UART and heater integration remain separate and
+open. No additional flash or production-storage mutation was performed.
