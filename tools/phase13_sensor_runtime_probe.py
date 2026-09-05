@@ -126,9 +126,18 @@ def _validate_temperature_snapshot(snapshot):
             "{} value is invalid".format(role),
         )
         _require(reading.get("usable") is True, "{} is not usable".format(role))
-        _require(reading.get("health") == "healthy", "{} is not healthy".format(role))
+        _require(reading.get("health") == "ok", "{} is not healthy".format(role))
         values[role] = value
     return values
+
+
+def _first_scan_is_empty(adapter_status):
+    return (
+        type(adapter_status) is dict
+        and type(adapter_status.get("scans")) is int
+        and adapter_status["scans"] >= 1
+        and adapter_status.get("discovered_rom_ids") == ()
+    )
 
 
 def run(confirmation):
@@ -177,12 +186,26 @@ def run(confirmation):
             sensor_runtime.step()
             runtime_snapshot = sensor_runtime.snapshot()
             adapter_status = runtime_snapshot["adapter"]
+            if _first_scan_is_empty(adapter_status):
+                raise RuntimeError(
+                    "Phase-13 sensor runtime failed: the first scan found "
+                    "zero sensors"
+                )
             if adapter_status.get("completed_cycles", 0) >= REQUIRED_CYCLES:
                 break
-            _require(
-                ticks_diff(deadline, ticks_ms()) > 0,
-                "three sampling cycles timed out",
-            )
+            if ticks_diff(deadline, ticks_ms()) <= 0:
+                raise RuntimeError(
+                    "Phase-13 sensor runtime failed: sampling timeout "
+                    "(cycles={}, scans={}, conversions={}, reads={}, "
+                    "state={}, last_error={})".format(
+                        adapter_status.get("completed_cycles"),
+                        adapter_status.get("scans"),
+                        adapter_status.get("conversions"),
+                        adapter_status.get("read_attempts"),
+                        adapter_status.get("state"),
+                        adapter_status.get("last_error"),
+                    )
+                )
             sleep_ms(POLL_DELAY_MS)
 
         _require(runtime_snapshot["faulted"] is False, "sensor runtime faulted")

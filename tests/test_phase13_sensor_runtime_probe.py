@@ -44,13 +44,26 @@ class TestPhase13SensorRuntimeProbe(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "exact USB-only"):
                 probe.run("wrong")
 
+    def test_empty_discovery_is_rejected_without_waiting_for_timeout(self):
+        self.assertTrue(
+            probe._first_scan_is_empty(
+                {"scans": 1, "discovered_rom_ids": ()}
+            )
+        )
+        self.assertFalse(
+            probe._first_scan_is_empty(
+                {"scans": 1, "discovered_rom_ids": ("28aa",)}
+            )
+        )
+        self.assertFalse(probe._first_scan_is_empty({"scans": 0}))
+
     def test_temperature_result_requires_exact_roles_and_healthy_values(self):
         sensors = {
             role: {
                 "rom_id": rom_id,
                 "value_c": float(index + 10),
                 "usable": True,
-                "health": "healthy",
+                "health": "ok",
             }
             for index, (role, rom_id) in enumerate(
                 probe.EXPECTED_ASSIGNMENTS.items()
