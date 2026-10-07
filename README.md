@@ -183,7 +183,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 2 | UART Transport / Protocol Capture / Live Diagnostics | Transport-/Capture-Kern softwareseitig abgeschlossen; Browser-Live/Export bleibt Phase 11 und reale Heater-End-to-End-Abnahme Phase 13 |
 | 3 | HeaterController / Requested-/Actual-State-Machine | Hardwarefreier Controller-Kern und kalter Produkt-Lifecycle abgeschlossen; laufende Session-Updates sind in Phase 9 sicher ergänzt; reale INIT-/STATUS-Laufzeitsynchronisation sowie ein begrenzter siebenminütiger Power-1-START/SHUTDOWN-Lauf bis `ready`/`off` auf dem DFR0975-U bestanden |
 | 4 | DS18B20 / Sensor Management / Failure Handling | Softwarekern und expliziter Produkt-Lifecycle abgeschlossen; reale Phase-13-Gates für GPIO4, externen 5-kΩ-Pull-up, drei ROMs, Rollenidentifikation, drei kontinuierliche Produktzyklen sowie die echte REST-/Web-UI-Anzeige aller drei Temperaturen auf dem Handy mit unverändertem Produktionsspeicher und vollständigem Cleanup bestanden |
-| 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen; reales I2C-/DS3231M-Lese-/Schreibgate bestanden, aber Batteriepuffer mit der alten Zelle durch erneut gesetztes OSF widerlegt. Bis zur Ersatz-RTC ist ein ausdrücklich flüchtiger Handy-Zeitabgleich implementiert: Timer bleiben nach jedem Neustart bis zu einem neuen Abgleich gesperrt; vertrauenswürdige Offline-RTC und Produktintegration bleiben offen |
+| 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen; reales I2C-/DS3231M-Lese-/Schreibgate bestanden, aber Batteriepuffer mit der alten Zelle durch erneut gesetztes OSF widerlegt. Bis zur Ersatz-RTC ist ein ausdrücklich flüchtiger Handy-Zeitabgleich implementiert und auf dem DFR0975-U über die echte AP/Web-UI-Kette bestanden: Timer bleiben nach jedem Neustart bis zu einem neuen Abgleich gesperrt; die vertrauenswürdige Offline-RTC bleibt offen |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
 | **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
@@ -585,6 +585,14 @@ Korrektur dieselben Scheduler-Fences wie andere Zeitquellen. Nach einem Boot
 bleiben Timer gesperrt, bis ein neuer Abgleich zunächst nur eine frische
 Baseline hergestellt hat. Die DS3231 bleibt die verlangte dauerhafte
 Offline-Zeitquelle des Endprodukts.
+
+Der reale DFR0975-U-Zieltest bestätigte anschließend über den vollständigen
+AP-/Captive-Portal-/Web-UI-Pfad genau einen Browser-Zeitabgleich, eine danach
+vertrauenswürdige Timerzeit, unveränderte Produktionsspeicher sowie den
+vollständigen WLAN-/HTTP-Cleanup. Der begrenzte Lauf öffnete keinen UART und
+ließ jede Heizungsanforderung blockiert. Der derzeitige Phasenstand besitzt
+weiterhin keinen dauerhaften Produkt-Autostart; der Zieltest startete den
+Laufzeitverbund ausdrücklich über USB.
 
 Der Zeitkern unterstützt zwei explizite Regeln: einen festen UTC-Offset und
 die eingebettete, versionierte Fahrzeugzone `Europe/Zurich`. Der kanonische

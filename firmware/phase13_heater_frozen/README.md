@@ -14,8 +14,9 @@ hardware gate remains `False`. I2C and radio approvals remain closed.
 The ledger binds the exact current source bytes. `BUILD_INFO.md` records the
 pinned inputs, two byte-identical canonical-path builds, artifact hashes and
 layout. The retained candidate adds reboot-volatile browser time while keeping
-the RTC path. Its offline gates passed, but it has not been authorized,
-flashed or tested on the board. No artifact in this directory authorizes a
-board flash. The app-only image is 2,112,512 bytes with SHA-256
+the RTC path. Its offline gates, authorized app-only flash, complete readback
+and bounded real AP/Web-UI browser-time gate passed. No artifact in this
+directory authorizes a later board flash. The app-only image is 2,112,512
+bytes with SHA-256
 `741ad9f13d106035d8ffe45ed0d84e92815e3d54396cf1f80400f7d349c27d18`
-for a possible future write at offset `0x10000` without a full erase.
+at offset `0x10000` without a full erase.

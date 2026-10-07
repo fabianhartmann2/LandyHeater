@@ -1,9 +1,9 @@
 # Phase 13 heater activation frozen firmware build record
 
 Build date: 2026-10-07. Status: **exact 48-file source closure, browser-time
-host safety tests, two byte-identical canonical-path builds and offline
-artifact gates passed. This new image has not been authorized, flashed or
-tested on the target.**
+host safety tests, two byte-identical canonical-path builds, offline artifact
+gates, an authorized app-only flash with full readback, and the bounded real
+AP/Web-UI browser-time target gate passed.**
 
 This candidate extends the previously accepted heater lifecycle image with an
 AP-protected, reboot-volatile browser-time source while retaining the existing
@@ -85,10 +85,27 @@ This record is evidence only and does not authorize a later flash.
 
 ## Target status and prior active-cycle evidence
 
-The browser-time application above has not been authorized or written. Any
-future app-only flash requires a fresh approval that names its exact digest,
-offset `0x10000` and no-full-erase scope. Bootloader, partition table and VFS
-must remain untouched.
+The owner authorized the exact browser-time application digest for an
+app-only write at `0x10000` without full erase. Esptool wrote and verified
+2,112,512 bytes. A separate complete readback of the same range was
+byte-identical and retained SHA-256
+`741ad9f13d106035d8ffe45ed0d84e92815e3d54396cf1f80400f7d349c27d18`.
+Bootloader, partition table and VFS were not written by the flash operation.
+
+After manual reset, the passive USB check confirmed MicroPython 1.28.0, the
+DFR0975-U V1.0 N16R8 identity, about 8.3 MiB free GC heap, the retained VFS and
+the new browser-time method. The bounded USB-started phone gate then exposed
+one AP-bound listener and captive portal with the heater protocol replaced by
+a rejecting null port. The real browser performed exactly one
+`PUT /api/v1/time/browser-sync`; the next status reported source `browser`,
+reboot-volatile time, no RTC write/commit and trusted timer time. Production
+configuration and scheduler stores were unchanged, all disposable files were
+removed, and radio/HTTP cleanup passed. The target token was
+`BROWSER_TIME_PHONE_PASS_V1`.
+
+The current phase still has no durable product autostart. The phone gate was
+started explicitly over USB, and a fresh reset intentionally returns to the
+safe MicroPython boot state until that later integration step is authorized.
 
 The immediately preceding application (`f02d59e7...`) was independently
 authorized, written and fully read back. After manual reset, a passive check
