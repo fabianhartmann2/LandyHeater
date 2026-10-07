@@ -29,8 +29,11 @@ permanent verbundenen Pegelwandler ohne zusätzliche physische TX-Abschaltung
 zu verwenden; das dokumentierte Reset-/Software-Risiko ist akzeptiert.
 Der dafür getrennte 48-Datei-Aktivierungskandidat öffnet ausschließlich
 UART-Pins und Protokoll-TX, wurde zweimal mit 15/15 identischen Ausgaben gebaut
-und hat die Offline-Artefaktprüfung bestanden. Er ist noch nicht geflasht;
-die aktive Ausführung wartet auf eine neue, exakte Hashfreigabe.
+und hat die Offline-Artefaktprüfung bestanden. Der exakt freigegebene
+App-only-Flash, die vollständige bytegleiche Rücklesung und ein überwachter
+siebenminütiger Power-1-Lauf mit genau einem START und einem SHUTDOWN bis
+`ready`/`off` sind ebenfalls bestanden. Produktionsspeicher und Funkstatus
+blieben unverändert beziehungsweise inaktiv.
 
 Die folgende Darstellung enthält zusätzlich die historische Entwicklung bis
 zu diesem Stand.
@@ -178,7 +181,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 0 | Finale Spezifikation | Baseline abgeschlossen; offene Reverse-Engineering-Punkte sind ausdrücklich dokumentiert |
 | 1 | Autoterm Protocol Library | Softwareumfang abgeschlossen |
 | 2 | UART Transport / Protocol Capture / Live Diagnostics | Transport-/Capture-Kern softwareseitig abgeschlossen; Browser-Live/Export bleibt Phase 11 und reale Heater-End-to-End-Abnahme Phase 13 |
-| 3 | HeaterController / Requested-/Actual-State-Machine | Hardwarefreier Controller-Kern und kalter Produkt-Lifecycle abgeschlossen; laufende Session-Updates sind in Phase 9 sicher ergänzt; reale INIT-/STATUS-Laufzeitsynchronisation bis `ready`/`off` bestanden; begrenzter siebenminütiger Power-1-START/SHUTDOWN-Zieltest sowie reproduzierbarer Aktivierungsbuild vorbereitet, aber noch nicht geflasht oder ausgeführt |
+| 3 | HeaterController / Requested-/Actual-State-Machine | Hardwarefreier Controller-Kern und kalter Produkt-Lifecycle abgeschlossen; laufende Session-Updates sind in Phase 9 sicher ergänzt; reale INIT-/STATUS-Laufzeitsynchronisation sowie ein begrenzter siebenminütiger Power-1-START/SHUTDOWN-Lauf bis `ready`/`off` auf dem DFR0975-U bestanden |
 | 4 | DS18B20 / Sensor Management / Failure Handling | Softwarekern und expliziter Produkt-Lifecycle abgeschlossen; reale Phase-13-Gates für GPIO4, externen 5-kΩ-Pull-up, drei ROMs, Rollenidentifikation, drei kontinuierliche Produktzyklen sowie die echte REST-/Web-UI-Anzeige aller drei Temperaturen auf dem Handy mit unverändertem Produktionsspeicher und vollständigem Cleanup bestanden |
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen; reales I2C-/DS3231M-Lese-/Schreibgate bestanden, aber Batteriepuffer mit der alten Zelle durch erneut gesetztes OSF widerlegt; vertrauenswürdige Offline-RTC und Produktintegration bleiben offen |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
@@ -188,7 +191,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Der dabei gefundene leere DELETE-Body wurde korrigiert; erneuter A/B-Build, Artefaktprüfung, autorisierter App-only-Flash, vollständige Rücklesung, Speicher-Reload und Cleanup bestanden. Als Phase-13-Ergänzung offen: live aktualisierte Temperatur und Health pro physischer ROM-ID im Sensor-Zuordnungsschritt, auch vor der Rollenzuweisung.** |
 | **11** | **Events / Diagnostics / Capture Export** | **Software- und Zielabnahme bestanden: 200er Ereignisring, begrenztes Live-Protokoll, benannte RAM-Captures, kleine Cursor-/Exportseiten, JSON/NDJSON-Export und lazy geladene zweisekündige Diagnose-UI; reproduzierbarer A/B-Build, Offline-Artefaktgate, autorisierter App-only-Flash, vollständige Rücklesung sowie realer Handyablauf mit Capture/Export und vollständigem Cleanup bestätigt. Hardwarezugriffe bleiben entkoppelt; elektrische Abnahme folgt in Phase 13.** |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
-| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose und echte konfigurierte OFF-Synchronisierung bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; siebenminütiger Power-1-Aktivzyklus und eigener 48-Datei-Aktivierungsbuild sind reproduzierbar und offline geprüft, aber noch nicht geflasht; aktive Ausführung, live per ROM aktualisierte Setup-Sensorzuweisung und Ersatz-RTC bleiben offen |
+| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; live per ROM aktualisierte Setup-Sensorzuweisung und Ersatz-RTC bleiben offen |
 
 Vorgezogene Arbeiten aus Phase 11 oder 12 ändern die funktionale
 Phasenzuordnung nicht. Eine Phase gilt außerdem nicht allein wegen vorhandener
@@ -1294,15 +1297,14 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
     fünf bestandenen Speicherpunkten und vollständigem Funk-Cleanup.
 12. Phase 11 ist einschließlich Diagnose, Capture, Export, Flash/Readback und
     realem Handyablauf abgeschlossen.
-13. Für Phase 13 ist der begrenzte aktive Heater-Zyklus vorbereitet. Der
-    getrennte Aktivierungsbuild ist bei 48/48 Quellen gebunden, in zwei
-    vollständigen Builds 15/15 byteidentisch und offline geprüft. Vor dem
-    app-only Flash bei `0x10000` ohne Full Erase fehlt nur die neue exakte
-    Freigabe für SHA-256
-    `f02d59e7d8c501c387e837cbbbc38ec9725387e8ac9db18c1395df084298ca3d`.
+13. Für Phase 13 ist der getrennte Aktivierungsbuild bei 48/48 Quellen
+    gebunden, in zwei vollständigen Builds 15/15 byteidentisch und offline
+    geprüft. App-only Flash und vollständige Rücklesung bei `0x10000` sowie
+    der einmalige siebenminütige Power-1-Lauf bis bestätigt `ready`/`off` sind
+    bestanden.
 
-Nach einer solchen Freigabe folgt genau ein app-only Flash mit vollständiger
-Rücklesung. Erst danach wird bei zugänglicher physischer 12-V-Abschaltung genau
-ein überwachter Power-1-Lauf gestartet: mindestens fünf Minuten Anlauf und
-Einregelung, ungefähr zwei Minuten stabiler Betrieb und anschließend
-automatisches kontrolliertes SHUTDOWN bis zum bestätigten Zustand OFF.
+Als nächste Phase-13-Hardwarepunkte bleiben die live per ROM aktualisierte
+Sensorzuweisung im Setup-Assistenten und ein RTC-Retest mit neuer Batterie.
+Höhere Heizleistungen, Temperaturmodus, externe Temperaturübertragung,
+Endurance-Wiederholungen und automatischer Heater-Start sind durch den
+bestandenen Power-1-Gate nicht freigegeben.

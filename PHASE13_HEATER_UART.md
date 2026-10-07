@@ -2,6 +2,14 @@
 
 ## Current status
 
+The bounded active heater gate passed on the real DFR0975-U on 2026-10-07.
+The reviewed application was written app-only at `0x10000`, independently
+read back byte-for-byte, and then ran exactly one power-level-1 cycle for seven
+minutes. The controller observed STARTING, RUNNING and SHUTTING_DOWN and
+returned to synchronized `ready`/`off` at 12.2 V with one START, one SHUTDOWN,
+576 STATUS requests, unchanged production storage and inactive radios. Exact
+evidence is in `captures/2026-10-07-dfr0975u-heater-active-cycle.md`.
+
 The DFR0975-U receive-only driver and its pin cleanup passed on the real board
 on 2026-10-07. Passive checks produced no unsolicited frame, as expected for
 the heater's master/request-response protocol. A separately approved direct
@@ -136,18 +144,19 @@ board profile.
 4. **Complete:** owner decision accepts the proven permanently connected level
    shifter and its documented residual reset/software risk; D12 remains
    disconnected and `UART_TX_GATE_APPROVED=False`.
-5. **Prepared and software-bounded:** the active-cycle gate uses power level 1
+5. **Complete:** the active-cycle gate used power level 1
    for seven minutes from START, requires observed STARTING and RUNNING, then
    supervises automatic controlled SHUTDOWN until confirmed OFF. This gives
    the heater at least five minutes to start and settle plus roughly two
    minutes stable operation. It has no external-temperature or raw-send path,
    caps START/SHUTDOWN at two attempts and requires an accessible 12-V cutoff.
-6. **Complete offline:** the separate 48-file frozen candidate changes only
+6. **Complete:** the separate 48-file frozen candidate changes only
    `UART_PINS_APPROVED` and `UART_PROTOCOL_TX_ENABLED` from false to true,
    passed focused safety tests, produced two byte-identical 15-output builds
    and passed image/layout gates. Its app-only image is 2,109,520 bytes with
    SHA-256 `f02d59e7d8c501c387e837cbbbc38ec9725387e8ac9db18c1395df084298ca3d`.
-   It has not been flashed; a fresh exact hash authorization is still required.
-7. After authorized app-only flash at `0x10000` without full erase,
-   synchronize to confirmed OFF before one supervised START/SHUTDOWN cycle.
-   No repeated exploratory command runs are allowed.
+   It was authorized and flashed app-only at `0x10000`; a full independent
+   readback was byte-identical.
+7. **Complete:** one supervised START/SHUTDOWN cycle returned to confirmed
+   `ready`/`off` with one START and one SHUTDOWN. No repeated exploratory
+   command runs were performed or are authorized by this result.

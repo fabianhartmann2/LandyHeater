@@ -13,8 +13,9 @@ hardware gate remains `False`. I2C and radio approvals remain closed.
 
 The ledger binds the exact current source bytes. `BUILD_INFO.md` records the
 pinned inputs, two byte-identical canonical-path builds, artifact hashes,
-layout and the remaining target gate. All offline gates passed on 2026-10-07.
-No artifact in this directory authorizes a board flash. The retained app-only
-image is 2,109,520 bytes with SHA-256
+layout and the target gate. All offline gates, the authorized app-only flash,
+full readback and the single bounded active heater cycle passed on 2026-10-07.
+No artifact in this directory authorizes a later board flash. The retained
+app-only image is 2,109,520 bytes with SHA-256
 `f02d59e7d8c501c387e837cbbbc38ec9725387e8ac9db18c1395df084298ca3d`
 for offset `0x10000` without a full erase.

@@ -1,8 +1,9 @@
 # Phase 13 heater activation frozen firmware build record
 
 Build date: 2026-10-07. Status: **exact 48-file source closure, host safety
-tests, two byte-identical canonical-path builds and offline artifact gates
-passed; not flashed and not authorized for a target write**.
+tests, two byte-identical canonical-path builds, offline artifact gates,
+authorized app-only flash, full readback and one bounded active heater cycle
+through confirmed OFF passed**.
 
 This candidate adds the configured heater lifecycle owner to the accepted
 Phase-13 sensor image. Its private frozen `board_config.py` differs from the
@@ -79,7 +80,24 @@ sha256: f02d59e7d8c501c387e837cbbbc38ec9725387e8ac9db18c1395df084298ca3d
 erase:  no full-chip erase
 ```
 
-This record is evidence only. It does not authorize a flash. A later write
-requires a fresh owner confirmation containing this exact offset and SHA-256.
-After any authorized flash, the first live operation remains one supervised,
-bounded power-level-1 cycle with an accessible physical 12-V cutoff.
+This record is evidence only and does not authorize a later flash.
+
+## Target deployment and active-cycle result
+
+The owner authorized the exact application digest for an app-only write at
+`0x10000` without full erase. Esptool wrote and verified 2,109,520 bytes. An
+independent full readback of that exact range was byte-identical and retained
+the same SHA-256. Bootloader, partition table and VFS were not written.
+
+After manual reset, a passive check confirmed MicroPython 1.28.0, the exact
+DFR0975-U N16R8 identity, the frozen activation profile and inactive radios.
+It opened no UART and sent no heater command.
+
+The separately confirmed active gate then ran power level 1 for seven minutes,
+observed STARTING, RUNNING and SHUTTING_DOWN, and returned to synchronized
+`ready`/`off`. It required exactly one START, one SHUTDOWN and 576 STATUS
+requests; final reported voltage was 12.2 V. Production storage stayed
+unchanged, radios stayed inactive and UART cleanup completed normally. The
+exact result was `DFR0975U_ACTIVE_CYCLE_RUNNING_TO_OFF_PASS_V1`. Evidence is
+recorded in
+`../../captures/2026-10-07-dfr0975u-heater-active-cycle.md`.
