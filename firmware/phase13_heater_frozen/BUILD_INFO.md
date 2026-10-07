@@ -46,8 +46,8 @@ loaded. The repository-root `main.py` remains passive and is excluded.
 | --- | --- |
 | `manifest.py` | `a27ccfd4a4ea059a6979a4f2535872601ba22295bb1cc01560d22a25ef47ed01` |
 | `FROZEN_MODULES.txt` | `ab30f9421528d97ed68fc4d9aed78d659b18b1f3a292e826acd1f6a6722321c2` |
-| `CURRENT_FROZEN_SOURCES.sha256` | `6b8b1190ef5bf481645f06a7ec8905e8c7542176f276ddb8042d0514c8cfffb9` |
-| `artifacts/SHA256SUMS` | `9582a2f84f2544040bbf8686d0d371ec68e7fa81165d12bffd4179a31e8be4b7` |
+| `CURRENT_FROZEN_SOURCES.sha256` | `001fdf2c497ff4b469c74441a7dac9438ebaf47bf2659a4b5b41944f7f827791` |
+| `artifacts/SHA256SUMS` | `93256209d2000ff5ad475072769eeb122888e7f9875fb91804a41c4911ff2a3a` |
 
 The closure excludes credentials, persistent data, acceptance tools and tests.
 The VFS copy of `main.py` cannot override the private frozen entry point because
@@ -84,18 +84,18 @@ is no OTA partition.
 | --- | ---: |
 | Bootloader | 19,232 B; unchanged |
 | Partition table | 3,072 B; unchanged |
-| Factory application | 2,130,592 B used of 3,145,728 B |
-| Growth from accepted product-autostart image | 8,992 B |
-| Application margin | 1,015,136 B (about 32%) |
-| Combined image | 2,196,128 B; exact end `0x2182a0` |
+| Factory application | 2,131,568 B used of 3,145,728 B |
+| Growth from accepted product-autostart image | 9,968 B |
+| Application margin | 1,014,160 B (about 32%) |
+| Combined image | 2,197,104 B; exact end `0x218670` |
 
 The retained deployment subset is bound by `artifacts/SHA256SUMS`. The only
 image proposed for the next operation is:
 
 ```text
 offset: 0x10000
-size:   2130592 bytes
-sha256: 5f84832e5595368452b25e00a71d7be4e8e7903d1b0a9cf7e6a42f1da9d3878a
+size:   2131568 bytes
+sha256: c344bb3ca6f4f7540b1925e8d65a7a8cdc93328c230a8a640fe9c7c6b153aae9
 erase:  no full-chip erase
 ```
 
@@ -103,11 +103,22 @@ This record is evidence only and does not authorize a board flash.
 
 ## Target status and inherited evidence
 
-The serialized-UI live Setup-sensor candidate above is **not target-tested and
+The fully serialized-bootstrap candidate above is **not target-tested and
 not authorized for flash by this record**. Its target gate still requires a
 new hash-bound app-only authorization, full readback, protected-AP UI
 verification, live updates for all three physical sensors and verification of
 the explicit skip path. Heater 12 V must remain off.
+
+The preceding serialized-core image with SHA-256
+`5f84832e5595368452b25e00a71d7be4e8e7903d1b0a9cf7e6a42f1da9d3878a`
+was authorized, written app-only and independently read back byte-identical.
+The protected AP joined successfully and a manual UI load fell to about five
+seconds, but the connection badge stayed orange and all tabs remained inert.
+`/assets/app.js` was directly reachable. This showed that the remaining three
+initial subresources could still collide with captive-portal probes. The new
+candidate starts only `/assets/boot.js`; that bootstrap serializes CSS,
+translations and the app core with bounded retries, and the app serializes its
+initial API reads. Server client and backlog limits remain unchanged.
 
 The immediately preceding live Setup-sensor image with SHA-256
 `f28059c847a725fda41bfce19d353318bf7d64d7bd2bf0e4f8b16ce601fed6a6`

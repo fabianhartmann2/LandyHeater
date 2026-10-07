@@ -109,10 +109,11 @@ class _Port:
 
 class TestPhase10SetupPhoneSmoke(unittest.TestCase):
     def test_required_surface_is_exact_and_bounded(self):
-        self.assertEqual(len(smoke._STATIC_TARGETS), 8)
+        self.assertEqual(len(smoke._STATIC_TARGETS), 9)
         self.assertEqual(len(smoke._API_TARGETS), 5)
-        self.assertEqual(len(smoke._READ_TARGETS), 13)
-        self.assertEqual(len(set(smoke._READ_TARGETS)), 13)
+        self.assertEqual(len(smoke._READ_TARGETS), 14)
+        self.assertEqual(len(set(smoke._READ_TARGETS)), 14)
+        self.assertIn("/assets/boot.js", smoke._STATIC_TARGETS)
         self.assertIn("/assets/setup.js", smoke._STATIC_TARGETS)
         self.assertIn("/api/v1/setup", smoke._API_TARGETS)
 

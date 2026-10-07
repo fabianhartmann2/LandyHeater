@@ -93,11 +93,16 @@ Nach dem ersten Ziel-Flash dieser Ergänzung waren beide neuen API-Antworten
 gültig, die vollständige UI benötigte jedoch etwa 50 Sekunden und der Setup-
 Button blieb ohne Funktion. Ursache war kein Sensor- oder API-Fehler, sondern
 der parallele Start von fünf Stylesheets und sieben Skripten gegen den bewusst
-auf zwei aktive Clients und Backlog zwei begrenzten Server. Der korrigierte
-Kandidat bündelt alle Styles in einer Datei, lädt zunächst nur Übersetzung und
-App-Kern, danach Home/Timer/Einstellungen nacheinander sowie Setup und Diagnose
-erst bei Bedarf. Der anfängliche Burst sinkt damit von zwölf auf drei
-Subresource-Anfragen, ohne Servergrenzen zu lockern.
+auf zwei aktive Clients und Backlog zwei begrenzten Server. Der erste
+korrigierte Kandidat bündelte alle Styles in einer Datei und senkte den
+anfänglichen Burst von zwölf auf drei Subresource-Anfragen. Auf dem Ziel lud
+die sichtbare Seite dadurch in etwa fünf statt 50 Sekunden; eine der drei
+Startressourcen ging unter zusätzlicher Captive-Portal-Last jedoch weiterhin
+verloren, sodass Status und Tabs inaktiv blieben. Der Nachfolger fordert aus
+dem HTML nur noch einen 942-Byte-Bootstrap an. Dieser lädt CSS, Übersetzungen
+und App-Kern mit begrenzten Wiederholungen strikt nacheinander; auch Module und
+initiale API-Lesezugriffe werden geordnet ausgeführt. Setup und Diagnose
+bleiben bedarfsgesteuert. Die Servergrenzen werden nicht gelockert.
 
 Ein neues Stationsprofil startet bewusst als **geschützt / neues Passwort**.
 Ein leeres Passwort wird nicht mehr stillschweigend als offenes WLAN

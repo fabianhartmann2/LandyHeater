@@ -47,6 +47,7 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn("default-src 'self'", root.headers["Content-Security-Policy"])
         self.assertEqual(root.headers["X-Frame-Options"], "DENY")
         for path in (
+            "/assets/boot.js",
             "/assets/ui.css",
             "/assets/diagnostics.html",
             "/assets/i18n.js",
@@ -133,15 +134,25 @@ class TestPhase9WebApplication(unittest.TestCase):
 
     def test_frontend_boots_reads_without_requesting_mutation_token(self):
         index = self.app.handle(request(), PEER).body
+        loader = self.app.handle(request(target="/assets/boot.js"), PEER).body
         app = self.app.handle(request(target="/assets/app.js"), PEER).body
         boot = app.split(b"async function boot()", 1)[1]
         self.assertIn(b"await L.refresh()", boot)
         self.assertNotIn(b"await L.security();await L.refresh()", boot)
-        self.assertEqual(index.count(b'<link rel="stylesheet"'), 1)
-        self.assertEqual(index.count(b"<script defer"), 2)
-        self.assertIn(b'href="/assets/ui.css"', index)
+        self.assertEqual(index.count(b'<link rel="stylesheet"'), 0)
+        self.assertEqual(index.count(b"<script defer"), 1)
+        self.assertIn(b'src="/assets/boot.js"', index)
+        self.assertNotIn(b'src="/assets/app.js"', index)
+        self.assertIn(b'await load("link"', loader)
+        self.assertIn(b'await load("script"', loader)
+        self.assertLess(loader.index(b"/assets/ui.css"), loader.index(b"/assets/i18n.js"))
+        self.assertLess(loader.index(b"/assets/i18n.js"), loader.index(b"/assets/app.js"))
+        self.assertIn(b"attempt<3", loader)
         self.assertIn(b'for(const name of ["home","timers","settings"])', app)
         self.assertIn(b'loadModule("diagnostics")', app)
+        self.assertIn(b"await L.loadStatus();await L.loadSettings();await L.loadTimers", app)
+        self.assertNotIn(b"Promise.all([L.loadStatus()", app)
+        self.assertIn(b'document.readyState==="loading"', app)
 
     def test_browser_time_sync_is_utc_bounded_and_visible(self):
         index = self.app.handle(request(), PEER).body

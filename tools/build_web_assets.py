@@ -25,6 +25,7 @@ ASSETS = (
         ),
     ),
     ("/assets/diagnostics.html", "text/html; charset=utf-8", "diagnostics.html"),
+    ("/assets/boot.js", "application/javascript; charset=utf-8", "boot.js"),
     ("/assets/i18n.js", "application/javascript; charset=utf-8", "i18n.js"),
     ("/assets/app.js", "application/javascript; charset=utf-8", "app.js"),
     ("/assets/home.js", "application/javascript; charset=utf-8", "home.js"),

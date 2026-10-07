@@ -24,6 +24,7 @@ DEFAULT_WINDOW_SECONDS = 300
 
 _STATIC_TARGETS = (
     "/",
+    "/assets/boot.js",
     "/assets/ui.css",
     "/assets/i18n.js",
     "/assets/app.js",

@@ -48,5 +48,32 @@ browser burst:
 The new initial subresource count is three rather than twelve. The correction
 passed the current Web/Setup/API tests, the complete current frozen closure,
 JavaScript syntax/validation, two clean byte-identical firmware builds and
-offline image/artifact checks. It requires a separate hash-bound authorization
-before target flash.
+offline image/artifact checks.
+
+## Serialized-core target result
+
+The owner then authorized the 2,130,592-byte serialized-core image with
+SHA-256 `5f84832e5595368452b25e00a71d7be4e8e7903d1b0a9cf7e6a42f1da9d3878a`.
+It was written app-only at `0x10000` without full erase and independently read
+back byte-identical. The protected AP joined successfully. A manual UI load
+completed in about five seconds, improving the earlier 50-second result, but
+the badge remained orange after an additional 20 seconds and the tabs were
+inert. A direct request for `/assets/app.js` returned the expected source.
+
+This rejects the serialized-core image: the remaining parallel stylesheet,
+translation and application requests can still overlap the phone's captive-
+portal probes and lose a required startup resource.
+
+## Fully serialized bootstrap correction
+
+The next candidate keeps the two-client/two-backlog server boundary. The HTML
+requests only a 942-byte `/assets/boot.js`. That bootstrap loads
+`/assets/ui.css`, `/assets/i18n.js` and `/assets/app.js` strictly in order, with
+at most three bounded attempts per resource. The app then loads Home, Timers
+and Settings sequentially and also performs the initial status, settings and
+timer API reads sequentially. Setup and Diagnostics remain on demand.
+
+The replacement application is 2,131,568 bytes with SHA-256
+`c344bb3ca6f4f7540b1925e8d65a7a8cdc93328c230a8a640fe9c7c6b153aae9`.
+Two clean canonical builds were byte-identical. This record does not authorize
+its flash; a new exact hash-bound authorization is required.
