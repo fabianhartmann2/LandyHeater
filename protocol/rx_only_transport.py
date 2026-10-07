@@ -1,10 +1,11 @@
 """Raw receive-only UART path for passive Autoterm captures.
 
 This module deliberately provides no protocol framing and no transmission
-method.  On ESP32 MicroPython, UART2 always maps its TX signal to GPIO17 while
-the driver is constructed.  The guarded factory therefore returns GPIO17 to
-``Pin.IN`` before opening the UART, immediately afterwards, on setup errors,
-and again during deinitialization.
+method.  ESP32 MicroPython maps a TX signal while a UART driver is constructed,
+even for a receive-only use case.  Each guarded board-specific factory
+therefore requires that its TX route is physically disconnected and returns
+that GPIO to ``Pin.IN`` before opening the UART, immediately afterwards, on
+setup errors, and again during deinitialization.
 
 That software measure is defense in depth only.  GPIO17/D10 must remain
 physically disconnected from the heater bus and level converter.
@@ -63,9 +64,10 @@ class _BoundedChunkQueue:
 class _RXOnlyUARTReader:
     """Narrow internal facade: only receive and cleanup methods exist."""
 
-    def __init__(self, uart, neutralize_tx):
+    def __init__(self, uart, neutralize_tx, tx_pin):
         self._uart = uart
         self._neutralize_tx = neutralize_tx
+        self._tx_pin = tx_pin
         self._poll_closed = False
         self._driver_closed = False
         self._cleanup_complete = False
@@ -99,8 +101,8 @@ class _RXOnlyUARTReader:
             self._neutralize_tx()
         except Exception as neutralize_error:
             raise RXOnlyTransportError(
-                "failed to neutralize GPIO17 after UART deinit: {}".format(
-                    neutralize_error
+                "failed to neutralize GPIO{} after UART deinit: {}".format(
+                    self._tx_pin, neutralize_error
                 )
             )
 
@@ -359,6 +361,76 @@ def _require_rx_only_configuration(config_module):
         )
 
 
+def _require_dfr0975u_rx_only_configuration(config_module):
+    """Validate the closed DFR0975-U diagnostic profile without approving it."""
+
+    identity = (
+        config_module.BOARD_VENDOR,
+        config_module.BOARD_MODEL,
+        config_module.BOARD_SKU,
+        config_module.BOARD_HARDWARE_REVISION,
+        config_module.BOARD_MODULE,
+        config_module.MICROPYTHON_TARGET,
+        config_module.MICROPYTHON_VARIANT,
+        config_module.MICROPYTHON_BUILD_BOARD,
+        config_module.MICROPYTHON_VERSION,
+    )
+    if identity != (
+        "DFRobot",
+        "FireBeetle 2 ESP32-S3-U",
+        "DFR0975-U",
+        "1.0",
+        "ESP32-S3-WROOM-1U-N16R8",
+        "ESP32_GENERIC_S3",
+        "SPIRAM_OCT",
+        "DFR0975U_N16R8",
+        "1.28.0",
+    ):
+        raise RuntimeError("DFR0975-U RX-only identity differs")
+    if (
+        config_module.UART_ID,
+        config_module.UART_TX_PIN,
+        config_module.UART_RX_PIN,
+        config_module.UART_TX_GATE_PIN,
+        config_module.UART_TX_GATE_ACTIVE_LEVEL,
+    ) != (2, 14, 13, 12, 1):
+        raise RuntimeError(
+            "DFR0975-U RX-only capture requires UART2 TX=14 RX=13 gate=12"
+        )
+    for name in (
+        "UART_PINS_APPROVED",
+        "UART_PROTOCOL_TX_ENABLED",
+        "UART_TX_GATE_APPROVED",
+    ):
+        if getattr(config_module, name, None) is not False:
+            raise RuntimeError("{} must remain exactly False".format(name))
+    if (
+        config_module.UART_BAUDRATE,
+        config_module.UART_BITS,
+        config_module.UART_PARITY,
+        config_module.UART_STOP_BITS,
+    ) != (9600, 8, None, 1):
+        raise RuntimeError("DFR0975-U RX-only capture requires 9600/8N1")
+    if (
+        config_module.UART_DRIVER_TIMEOUT_MS,
+        config_module.UART_DRIVER_TIMEOUT_CHAR_MS,
+    ) != (0, 0):
+        raise RuntimeError("DFR0975-U RX-only capture requires non-blocking UART")
+    if config_module.UART_INVERT != 0:
+        raise RuntimeError("DFR0975-U RX-only capture requires non-inverted UART")
+    capture_profile = (
+        config_module.UART_RX_ONLY_BUFFER_SIZE,
+        config_module.UART_RX_ONLY_MAX_READ_BYTES,
+        config_module.UART_RX_ONLY_QUEUE_CAPACITY,
+        config_module.UART_RX_ONLY_MAX_EMPTY_READY_READS,
+    )
+    if capture_profile != (2048, 128, 64, 3):
+        raise RuntimeError(
+            "DFR0975-U RX-only profile must be buffer=2048, chunk=128, "
+            "queue=64, empty-ready-limit=3"
+        )
+
+
 def _neutralize_tx(pin_class, pin_number):
     input_mode = getattr(pin_class, "IN", None)
     if input_mode is None:
@@ -422,7 +494,9 @@ def open_rx_only_from_board_config(
             flow=0,
         )
         neutralize()
-        reader = _RXOnlyUARTReader(uart, neutralize)
+        reader = _RXOnlyUARTReader(
+            uart, neutralize, config_module.UART_TX_PIN
+        )
         transport = RXOnlyTransport(
             reader,
             max_read_bytes=config_module.UART_RX_ONLY_MAX_READ_BYTES,
@@ -457,6 +531,108 @@ def open_rx_only_from_board_config(
         if cleanup_errors:
             raise RXOnlyTransportError(
                 "RX-only setup failed ({}) and safety cleanup failed ({})".format(
+                    setup_error,
+                    "; ".join(str(error) for error in cleanup_errors),
+                )
+            )
+        raise
+
+
+def open_dfr0975u_rx_only_from_board_config(
+    config_module=None,
+    uart_class=None,
+    pin_class=None,
+    ticks_ms=None,
+):
+    """Open the exact locked DFR0975-U passive-capture diagnostic path.
+
+    GPIO14/D10 and GPIO12/D12 must both remain physically disconnected.  The
+    MicroPython UART constructor briefly maps TX14; the factory immediately
+    restores TX14 and the inactive TX-gate pin to input/no-pull and exposes no
+    write-capable object.
+    """
+
+    if config_module is None:
+        import board_config as config_module
+
+    _require_dfr0975u_rx_only_configuration(config_module)
+
+    if uart_class is None or pin_class is None:
+        try:
+            from machine import Pin, UART
+        except ImportError:
+            raise RuntimeError(
+                "machine.UART and machine.Pin are only available on MicroPython"
+            )
+        if uart_class is None:
+            uart_class = UART
+        if pin_class is None:
+            pin_class = Pin
+
+    neutral_pins = (
+        config_module.UART_TX_PIN,
+        config_module.UART_TX_GATE_PIN,
+    )
+
+    def neutralize():
+        for pin_number in neutral_pins:
+            _neutralize_tx(pin_class, pin_number)
+
+    neutralize()
+    uart = None
+    reader = None
+    try:
+        uart = uart_class(
+            config_module.UART_ID,
+            baudrate=config_module.UART_BAUDRATE,
+            bits=config_module.UART_BITS,
+            parity=config_module.UART_PARITY,
+            stop=config_module.UART_STOP_BITS,
+            tx=config_module.UART_TX_PIN,
+            rx=config_module.UART_RX_PIN,
+            timeout=config_module.UART_DRIVER_TIMEOUT_MS,
+            timeout_char=config_module.UART_DRIVER_TIMEOUT_CHAR_MS,
+            rxbuf=config_module.UART_RX_ONLY_BUFFER_SIZE,
+            invert=config_module.UART_INVERT,
+            flow=0,
+        )
+        neutralize()
+        reader = _RXOnlyUARTReader(
+            uart, neutralize, config_module.UART_TX_PIN
+        )
+        transport = RXOnlyTransport(
+            reader,
+            max_read_bytes=config_module.UART_RX_ONLY_MAX_READ_BYTES,
+            queue_capacity=config_module.UART_RX_ONLY_QUEUE_CAPACITY,
+            max_empty_ready_reads=(
+                config_module.UART_RX_ONLY_MAX_EMPTY_READY_READS
+            ),
+            ticks_ms=ticks_ms,
+        )
+        neutralize()
+        return transport
+    except Exception as setup_error:
+        cleanup_errors = []
+        if reader is not None:
+            try:
+                reader.deinit()
+            except Exception as error:
+                cleanup_errors.append(error)
+        elif uart is not None:
+            deinit = getattr(uart, "deinit", None)
+            if callable(deinit):
+                try:
+                    deinit()
+                except Exception as error:
+                    cleanup_errors.append(error)
+        try:
+            neutralize()
+        except Exception as error:
+            cleanup_errors.append(error)
+        if cleanup_errors:
+            raise RXOnlyTransportError(
+                "DFR0975-U RX-only setup failed ({}) and safety cleanup "
+                "failed ({})".format(
                     setup_error,
                     "; ".join(str(error) for error in cleanup_errors),
                 )

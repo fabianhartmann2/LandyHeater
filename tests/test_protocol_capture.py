@@ -6,6 +6,7 @@ from services.protocol_capture import ProtocolCaptureSession
 
 class FakeConfig:
     UART_ID = 2
+    UART_TX_PIN = 17
     UART_RX_PIN = 16
     UART_BAUDRATE = 9600
     UART_BITS = 8
@@ -53,6 +54,10 @@ class TestProtocolCaptureSession(unittest.TestCase):
 
         self.assertEqual(start["schema"], "landy-heater.rx-capture")
         self.assertEqual(start["gpio17_required"], "physically_disconnected")
+        self.assertEqual(start["tx_gpio"], 17)
+        self.assertEqual(
+            start["tx_gpio_required"], "physically_disconnected"
+        )
         self.assertFalse(start["tx_software_enabled"])
         self.assertEqual(
             chunk,

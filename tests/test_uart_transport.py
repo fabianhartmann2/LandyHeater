@@ -16,6 +16,7 @@ from protocol.uart_transport import (
     UARTTransport,
     UARTTransportError,
     UARTTransportTxDisabledError,
+    UARTTransportTxGateError,
     UARTTransportWriteError,
     open_from_board_config,
 )
@@ -57,6 +58,8 @@ class FakeUART:
         self.write_error = None
         self.read_calls = 0
         self.deinitialized = False
+        self.txdone_result = True
+        self.txdone_calls = 0
 
     def inject(self, data):
         self.rx.extend(data)
@@ -88,6 +91,10 @@ class FakeUART:
         if self.write_result is self.DEFAULT_WRITE:
             return len(raw)
         return self.write_result
+
+    def txdone(self):
+        self.txdone_calls += 1
+        return self.txdone_result
 
     def deinit(self):
         self.deinitialized = True
@@ -540,7 +547,47 @@ class FakeBoardConfig:
         return None
 
 
+class FakePin:
+    IN = "in"
+    OUT = "out"
+    events = []
+
+    def __init__(self, pin, mode, **kwargs):
+        self.pin = pin
+        self.mode = mode
+        self.current = kwargs.get("value")
+        self.__class__.events.append(("construct", pin, mode, dict(kwargs)))
+
+    def value(self, value=None):
+        if value is None:
+            return self.current
+        self.current = value
+        self.__class__.events.append(("value", self.pin, value))
+
+
+class GatedBoardConfig(FakeBoardConfig):
+    UART_TX_GATE_PIN = 12
+    UART_TX_GATE_ACTIVE_LEVEL = 1
+    UART_TX_GATE_APPROVED = True
+    UART_TX_DRAIN_TIMEOUT_MS = 5
+    UART_TX_DRAIN_POLL_MS = 1
+
+
+class DisableFailPin(FakePin):
+    events = []
+
+    def value(self, value=None):
+        if value == 0 and self.current == 1:
+            self.__class__.events.append(("value_error", self.pin, value))
+            raise OSError("cannot drive gate low")
+        return super().value(value)
+
+
 class TestUARTFactory(unittest.TestCase):
+    def setUp(self):
+        FakePin.events = []
+        DisableFailPin.events = []
+
     def test_real_board_config_builds_dfr0975u_uart2_profile_when_approved(self):
         created = []
 
@@ -631,6 +678,122 @@ class TestUARTFactory(unittest.TestCase):
         self.assertEqual(transport.max_read_bytes, 512)
         self.assertEqual(transport.max_empty_ready_reads, 3)
         self.assertTrue(transport.tx_enabled)
+
+    def test_gated_factory_holds_output_disabled_until_one_drained_write(self):
+        clock = FakeClock()
+        uart = FakeUART()
+        uart.txdone_result = False
+
+        def sleep_ms(milliseconds):
+            clock.advance(milliseconds)
+            uart.txdone_result = True
+
+        transport = open_from_board_config(
+            GatedBoardConfig,
+            lambda *args, **kwargs: uart,
+            pin_class=FakePin,
+            ticks_ms=clock.ticks_ms,
+            ticks_diff=clock.ticks_diff,
+            sleep_ms=sleep_ms,
+        )
+        raw = build_init_request()
+        self.assertEqual(transport.send_frame(raw), len(raw))
+        self.assertEqual(uart.writes, [raw])
+        self.assertEqual(uart.txdone_calls, 2)
+        self.assertEqual(
+            [event for event in FakePin.events if event[0] == "value"],
+            [
+                ("value", 12, 0),
+                ("value", 12, 1),
+                ("value", 12, 0),
+            ],
+        )
+
+        transport.deinit()
+        self.assertTrue(uart.deinitialized)
+        self.assertEqual(FakePin.events[-1][0:3], ("construct", 12, "in"))
+
+    def test_gated_write_timeout_forces_gate_inactive_without_retry(self):
+        clock = FakeClock()
+        uart = FakeUART()
+        uart.txdone_result = False
+
+        transport = open_from_board_config(
+            GatedBoardConfig,
+            lambda *args, **kwargs: uart,
+            pin_class=FakePin,
+            ticks_ms=clock.ticks_ms,
+            ticks_diff=clock.ticks_diff,
+            sleep_ms=clock.advance,
+        )
+        raw = build_status_request()
+        with self.assertRaisesRegex(
+            UARTTransportWriteError, "transmission state is unknown"
+        ):
+            transport.send_frame(raw)
+        self.assertEqual(uart.writes, [raw])
+        self.assertEqual(FakePin.events[-1], ("value", 12, 0))
+        self.assertEqual(transport.write_errors, 1)
+
+    def test_gated_short_write_disables_without_wait_or_retry(self):
+        uart = FakeUART()
+        uart.write_result = 3
+        transport = open_from_board_config(
+            GatedBoardConfig,
+            lambda *args, **kwargs: uart,
+            pin_class=FakePin,
+        )
+        raw = build_status_request()
+        with self.assertRaises(UARTTransportWriteError):
+            transport.send_frame(raw)
+        self.assertEqual(uart.writes, [raw])
+        self.assertEqual(uart.txdone_calls, 0)
+        self.assertEqual(FakePin.events[-1], ("value", 12, 0))
+
+    def test_gated_write_exception_disables_without_retry(self):
+        uart = FakeUART()
+        uart.write_error = OSError("write failed")
+        transport = open_from_board_config(
+            GatedBoardConfig,
+            lambda *args, **kwargs: uart,
+            pin_class=FakePin,
+        )
+        with self.assertRaises(UARTTransportWriteError):
+            transport.send_frame(build_init_request())
+        self.assertEqual(uart.writes, [])
+        self.assertEqual(uart.txdone_calls, 0)
+        self.assertEqual(FakePin.events[-1], ("value", 12, 0))
+
+    def test_gate_disable_failure_falls_back_to_input_release(self):
+        uart = FakeUART()
+        transport = open_from_board_config(
+            GatedBoardConfig,
+            lambda *args, **kwargs: uart,
+            pin_class=DisableFailPin,
+        )
+        with self.assertRaisesRegex(
+            UARTTransportWriteError, "transmission state is unknown"
+        ):
+            transport.send_frame(build_init_request())
+        self.assertEqual(len(uart.writes), 1)
+        self.assertIn(("value_error", 12, 0), DisableFailPin.events)
+        self.assertEqual(
+            DisableFailPin.events[-1][0:3], ("construct", 12, "in")
+        )
+
+    def test_gated_factory_requires_txdone_and_releases_gate(self):
+        uart = FakeUART()
+        uart.txdone = None
+        with self.assertRaisesRegex(
+            UARTTransportTxGateError, "requires UART.txdone"
+        ):
+            open_from_board_config(
+                GatedBoardConfig,
+                lambda *args, **kwargs: uart,
+                pin_class=FakePin,
+            )
+        self.assertTrue(uart.deinitialized)
+        self.assertEqual(FakePin.events[-1][0:3], ("construct", 12, "in"))
 
     def test_board_tx_lock_cannot_be_overridden_or_mutated(self):
         with self.assertRaises(TypeError):

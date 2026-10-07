@@ -123,6 +123,20 @@ class TestDFR0975UBoardConfig(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "must be 0 or 1"):
                 board_config.require_uart_configuration()
 
+        self.assertEqual(board_config.UART_TX_DRAIN_TIMEOUT_MS, 500)
+        self.assertEqual(board_config.UART_TX_DRAIN_POLL_MS, 1)
+        for name, value in (
+            ("UART_TX_DRAIN_TIMEOUT_MS", 0),
+            ("UART_TX_DRAIN_TIMEOUT_MS", True),
+            ("UART_TX_DRAIN_POLL_MS", 0),
+            ("UART_TX_DRAIN_POLL_MS", 500),
+        ):
+            with self.subTest(name=name, value=value), mock.patch.object(
+                board_config, "UART_PINS_APPROVED", True
+            ), mock.patch.object(board_config, name, value):
+                with self.assertRaises(RuntimeError):
+                    board_config.require_uart_configuration()
+
     def test_invalid_uart_profile_and_flag_types_fail_closed(self):
         for name, value in (
             ("UART_ID", 1),

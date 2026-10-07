@@ -103,12 +103,16 @@ that original board.
 | Phase-8 HTTP target gate | complete: one product listener on port 80, one real HTTP 200 JSON status response, all ten GC-heap boundaries, unchanged product storage and ordered cleanup |
 | Phase-13 DS18B20 gate | electrical, continuous source-runtime and frozen-runtime gates complete: GPIO4, external approximately 5-kOhm pull-up, three valid ROMs, role mapping, reproducible image, authorized app-only flash, full readback, three frozen product cycles, nine readings, read-only A/B storage and cleanup passed; live browser/API target gate pending |
 | Phase-13 DS3231M gate | partial: I2C1 at `0x68`, status read, staged UTC write and readback passed; battery retention failed with OSF returning after USB removal |
+| Phase-13 heater UART | disconnected and level-shifter-connected RX-only gates passed; no valid idle frame expected without the removed master controller; active TX awaits the documented hardware gate and electrical approval |
 
-The profile migration intentionally does not generalize the old
-`rx_only_transport`, UART loopback or UART capture path by changing constants.
-Those paths contain DFR0654-specific pin-neutralization assumptions and stay
-fail-closed until a disconnected S3-specific UART/level-interface test is
-designed and separately approved.
+The profile migration does not generalize the old DFR0654 factory by merely
+changing constants. A separate DFR0975-U RX-only factory now validates the
+exact S3 identity, UART2 TX14/RX13 route, GPIO12 active-high gate and all three
+closed UART/TX approvals before touching hardware. With D10, D11 and D12
+physically disconnected, its bounded target gate passed on 2026-10-07. It
+exposes no write method, releases GPIO14 and GPIO12 before/after UART setup and
+at cleanup, and leaves both radios inactive. Live heater capture remains a
+separate electrical gate.
 
 ## Fail-closed V1.0 pin plan
 
@@ -189,7 +193,10 @@ antenna improves RF placement but is unrelated to the Phase-8 heap failure.
 5. Flash only the newly approved S3 image and complete layout.
 6. Confirm passive `boot.py`/`main.py`, PSRAM, heap, flash/VFS and both radios
    initially inactive.
-7. Revalidate UART lock/loopback and RX-only neutralization with no heater.
+7. Revalidate UART lock and RX-only neutralization with no heater.
+   **Complete: the DFR0975-U disconnected RX-only target gate passed on
+   2026-10-07; evidence is in
+   `captures/2026-10-07-dfr0975u-uart-rx-only-disconnected.md`.**
 8. Revalidate AP association and automatic DHCP. **Complete on the received
    DFR0975-U; evidence is in
    `captures/2026-09-01-dfr0975u-wlan-dhcp-gate.md`.**

@@ -1105,17 +1105,23 @@ Pull-down und geeigneter Tri-State-/Pegelstufe. Im aktuellen Projekt bleiben
 sowohl Protokoll-TX als auch Gate- und UART-Pinfreigabe `False`. `main.py`
 importiert weder Protokoll noch `machine` und öffnet keine Hardware.
 
-Der passive Capture- und Loopbackpfad bleibt ausdrücklich DFR0654-spezifisch.
-Dort ordnet die Factory UART2 während ihrer Erzeugung kurz GPIO17 als TX zu
-und neutralisiert ihn anschließend als `Pin.IN` ohne Pull. Diese Annahme ist
-nicht auf den S3 übertragen: Die alten Werkzeuge lehnen das aktive DFR0975-U-
-Profil ab. Ein neuer RX-/Loopbacktest folgt erst nach einem eigenen,
-unbeschalteten S3-Gate; bis dahin wird keine UART-Hardware geöffnet.
+Der historische passive Capture- und Loopbackpfad bleibt ausdrücklich
+DFR0654-spezifisch. Für das DFR0975-U existiert inzwischen eine eigene,
+streng an Identität und Pins gebundene RX-only-Factory. Sie verlangt UART2
+TX14/RX13, das inactive-high TX-Gate GPIO12 und alle drei UART-/TX-Freigaben
+exakt `False`. D10/GPIO14 und D12/GPIO12 müssen physisch getrennt bleiben;
+beide Pins werden vor, unmittelbar nach und beim Schließen des UART-Treibers
+als Eingänge ohne Pull freigegeben. Das reale, unbeschaltete USB-only-Gate
+bestand am 2026-10-07 ohne Schreiboberfläche und mit inaktiven Funkmodulen.
+Das dabei auf dem offenen RX-Eingang gelesene einzelne Nullbyte wird als
+elektrisches Floating-Störsignal gewertet und ist keine Heizungsnachricht.
 
 Der schrittweise USB- und Loopback-Ablauf steht in
 [FIREBEETLE_BRINGUP.md](FIREBEETLE_BRINGUP.md) und gilt als historische
 DFR0654-Anleitung; die S3-Abfolge steht in
 [DFR0975U_MIGRATION.md](DFR0975U_MIGRATION.md).
+Der aktuelle elektrische RX-/TX-Gate-Stand und die weitere Phase-13-Abnahme
+stehen in [PHASE13_HEATER_UART.md](PHASE13_HEATER_UART.md).
 
 Die UART-Anbindung orientiert sich an der stabilen MicroPython-1.28-API:
 
@@ -1169,10 +1175,10 @@ funktionierenden Altcontroller. Bevorzugt wird dafür der eindeutig bestätigte
 3,3-V-Knoten des **bereits funktionierenden** Wandlers angezapft, der zum
 Raspberry-UART-RX führt. Ein zusätzlicher, unbekannter Wandler wird nicht
 parallel eingesetzt. Der hochohmige Tap kann nach elektrischer Prüfung über
-einen 10-kΩ-Serienwiderstand zu GPIO16/D11 geführt werden; dazu kommt nur die
+einen 10-kΩ-Serienwiderstand zu GPIO13/D11 geführt werden; dazu kommt nur die
 gemeinsame Signalmasse. FireBeetle-3V3 und -5V werden nicht mit den
-Versorgungsschienen des bestehenden Wandlers verbunden. GPIO17/D10 bleibt
-physisch vollständig frei.
+Versorgungsschienen des bestehenden Wandlers verbunden. GPIO14/D10 und das
+Gate GPIO12/D12 bleiben physisch vollständig frei.
 
 Ist nur die 5-V-Seite zugänglich, braucht es stattdessen einen exakt
 identifizierten und elektrisch geprüften, fest gerichteten 5→3,3-V-RX-Pfad.

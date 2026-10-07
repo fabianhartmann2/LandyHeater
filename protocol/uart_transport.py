@@ -10,10 +10,14 @@ never at module import time.
 """
 
 try:
+    from time import sleep_ms as _platform_sleep_ms
     from time import ticks_diff as _platform_ticks_diff
     from time import ticks_ms as _platform_ticks_ms
 except ImportError:  # CPython
     import time as _time
+
+    def _platform_sleep_ms(milliseconds):
+        _time.sleep(milliseconds / 1000)
 
     def _platform_ticks_ms():
         return int(_time.monotonic() * 1000)
@@ -47,6 +51,214 @@ class UARTTransportWriteError(UARTTransportError):
 
 class UARTTransportTxDisabledError(UARTTransportError):
     """Protocol TX is blocked by the current board safety policy."""
+
+
+class UARTTransportTxGateError(UARTTransportError):
+    """The hardware TX gate could not be controlled safely."""
+
+
+class UARTTransportTxDrainTimeoutError(UARTTransportError):
+    """The UART did not confirm physical transmission completion in time."""
+
+
+class _ActiveHighTXGate:
+    """Own one active-high output-enable pin with fail-safe release."""
+
+    def __init__(self, pin_class, pin_number):
+        if pin_class is None:
+            raise ValueError("pin_class is required for the TX gate")
+        if type(pin_number) is not int:
+            raise ValueError("TX gate pin must be an integer")
+        self._pin_class = pin_class
+        self._pin_number = pin_number
+        self._pin = None
+        self._released = False
+
+        # The mandatory external pull-down owns the safe state while changing
+        # modes.  Drive low before retaining the output object.
+        pin_class(pin_number, pin_class.IN, pull=None, hold=False)
+        try:
+            self._pin = pin_class(
+                pin_number,
+                pin_class.OUT,
+                value=0,
+                pull=None,
+                hold=False,
+            )
+            self._pin.value(0)
+        except BaseException as primary_error:
+            try:
+                pin_class(pin_number, pin_class.IN, pull=None, hold=False)
+            except BaseException as release_error:
+                raise UARTTransportTxGateError(
+                    "TX gate setup failed ({}); input release also failed "
+                    "({})".format(primary_error, release_error)
+                )
+            raise
+
+    def enable(self):
+        if self._released or self._pin is None:
+            raise UARTTransportTxGateError("TX gate has been released")
+        self._pin.value(1)
+
+    def disable(self):
+        if self._released or self._pin is None:
+            return
+        self._pin.value(0)
+
+    def release(self):
+        if self._released:
+            return
+        errors = []
+        try:
+            self.disable()
+        except BaseException as error:
+            errors.append(error)
+        try:
+            # Releasing the GPIO to the mandatory external pull-down is the
+            # independent fallback if actively driving the gate low failed.
+            self._pin_class(
+                self._pin_number,
+                self._pin_class.IN,
+                pull=None,
+                hold=False,
+            )
+        except BaseException as error:
+            errors.append(error)
+        self._pin = None
+        self._released = True
+        if errors:
+            raise UARTTransportTxGateError(
+                "TX gate release failed: {}".format(
+                    "; ".join(str(error) for error in errors)
+                )
+            )
+
+
+class _GatedUART:
+    """UART facade that enables TX only around one physically drained write."""
+
+    def __init__(
+        self,
+        uart,
+        gate,
+        drain_timeout_ms,
+        drain_poll_ms,
+        ticks_ms=None,
+        ticks_diff=None,
+        sleep_ms=None,
+    ):
+        if not callable(getattr(uart, "txdone", None)):
+            raise UARTTransportTxGateError(
+                "gated TX requires UART.txdone()"
+            )
+        for name in ("enable", "disable", "release"):
+            if not callable(getattr(gate, name, None)):
+                raise UARTTransportTxGateError(
+                    "TX gate must provide {}()".format(name)
+                )
+        if type(drain_timeout_ms) is not int or drain_timeout_ms <= 0:
+            raise ValueError("drain_timeout_ms must be a positive integer")
+        if (
+            type(drain_poll_ms) is not int
+            or drain_poll_ms <= 0
+            or drain_poll_ms >= drain_timeout_ms
+        ):
+            raise ValueError(
+                "drain_poll_ms must be positive and shorter than timeout"
+            )
+        self._uart = uart
+        self._gate = gate
+        self._drain_timeout_ms = drain_timeout_ms
+        self._drain_poll_ms = drain_poll_ms
+        self._ticks_ms = ticks_ms or _platform_ticks_ms
+        self._ticks_diff = ticks_diff or _platform_ticks_diff
+        self._sleep_ms = sleep_ms or _platform_sleep_ms
+        self._closed = False
+
+    def any(self):
+        return self._uart.any()
+
+    def read(self, count):
+        return self._uart.read(count)
+
+    def write(self, data):
+        if self._closed:
+            raise UARTTransportTxGateError("gated UART is closed")
+        raw = bytes(data)
+        primary_error = None
+        result = None
+        try:
+            self._gate.enable()
+            result = self._uart.write(raw)
+            if type(result) is int and result == len(raw):
+                started_ms = self._ticks_ms()
+                while True:
+                    done = self._uart.txdone()
+                    if type(done) is not bool:
+                        raise UARTTransportTxGateError(
+                            "UART.txdone() must return boolean"
+                        )
+                    if done:
+                        break
+                    if self._ticks_diff(
+                        self._ticks_ms(), started_ms
+                    ) >= self._drain_timeout_ms:
+                        raise UARTTransportTxDrainTimeoutError(
+                            "UART TX drain timed out; gate forced inactive"
+                        )
+                    self._sleep_ms(self._drain_poll_ms)
+        except BaseException as error:
+            primary_error = error
+
+        disable_error = None
+        try:
+            self._gate.disable()
+        except BaseException as error:
+            disable_error = error
+
+        if disable_error is not None:
+            release_error = None
+            try:
+                self._gate.release()
+            except BaseException as error:
+                release_error = error
+            raise UARTTransportTxGateError(
+                "TX gate disable failed after write ({}); fallback release {}"
+                .format(
+                    disable_error,
+                    "succeeded" if release_error is None else "failed ({})".format(
+                        release_error
+                    ),
+                )
+            )
+        if primary_error is not None:
+            raise primary_error
+        return result
+
+    def deinit(self):
+        if self._closed:
+            return
+        errors = []
+        try:
+            self._gate.disable()
+        except BaseException as error:
+            errors.append(error)
+        try:
+            self._uart.deinit()
+        except BaseException as error:
+            errors.append(error)
+        try:
+            self._gate.release()
+        except BaseException as error:
+            errors.append(error)
+        self._closed = True
+        if errors:
+            raise UARTTransportTxGateError(
+                "gated UART cleanup failed: {}".format(
+                    "; ".join(str(error) for error in errors)
+                )
+            )
 
 
 class _BoundedActivityQueue:
@@ -609,11 +821,13 @@ def _open_uart_from_board_config(config_module=None, uart_class=None):
 def open_from_board_config(
     config_module=None,
     uart_class=None,
+    pin_class=None,
     framer=None,
     activity_queue_capacity=None,
     max_empty_ready_reads=None,
     ticks_ms=None,
     ticks_diff=None,
+    sleep_ms=None,
 ):
     """Create ``UARTTransport`` without coupling module import to hardware."""
 
@@ -624,8 +838,39 @@ def open_from_board_config(
     if not isinstance(tx_enabled, bool):
         raise ValueError("UART_PROTOCOL_TX_ENABLED must be boolean")
 
-    uart = _open_uart_from_board_config(config_module, uart_class)
+    gated_profile = (
+        tx_enabled
+        and getattr(config_module, "UART_TX_GATE_PIN", None) is not None
+    )
+    gate = None
+    uart = None
+    transport_uart = None
     try:
+        if gated_profile:
+            if pin_class is None:
+                try:
+                    from machine import Pin as pin_class
+                except ImportError:
+                    raise RuntimeError(
+                        "machine.Pin is only available on MicroPython"
+                    )
+            gate = _ActiveHighTXGate(
+                pin_class, config_module.UART_TX_GATE_PIN
+            )
+
+        uart = _open_uart_from_board_config(config_module, uart_class)
+        transport_uart = uart
+        if gated_profile:
+            transport_uart = _GatedUART(
+                uart=uart,
+                gate=gate,
+                drain_timeout_ms=config_module.UART_TX_DRAIN_TIMEOUT_MS,
+                drain_poll_ms=config_module.UART_TX_DRAIN_POLL_MS,
+                ticks_ms=ticks_ms,
+                ticks_diff=ticks_diff,
+                sleep_ms=sleep_ms,
+            )
+
         if activity_queue_capacity is None:
             activity_queue_capacity = getattr(
                 config_module, "UART_ACTIVITY_QUEUE_CAPACITY", 32
@@ -635,7 +880,7 @@ def open_from_board_config(
                 config_module, "UART_MAX_EMPTY_READY_READS", 3
             )
         return UARTTransport(
-            uart=uart,
+            uart=transport_uart,
             framer=framer,
             inter_byte_timeout_ms=config_module.UART_INTER_BYTE_TIMEOUT_MS,
             max_read_bytes=config_module.UART_MAX_READ_BYTES,
@@ -649,16 +894,26 @@ def open_from_board_config(
         )
     except BaseException as primary_error:
         cleanup_error = None
-        for _ in range(2):
+        cleanup_target = transport_uart if transport_uart is not None else uart
+        if cleanup_target is not None:
+            for _ in range(2):
+                try:
+                    deinit = getattr(cleanup_target, "deinit", None)
+                    if not callable(deinit):
+                        raise RuntimeError("opened UART has no deinit()")
+                    deinit()
+                    cleanup_error = None
+                    break
+                except BaseException as error:
+                    cleanup_error = error
+        if gate is not None and not isinstance(
+            transport_uart, _GatedUART
+        ):
             try:
-                deinit = getattr(uart, "deinit", None)
-                if not callable(deinit):
-                    raise RuntimeError("opened UART has no deinit()")
-                deinit()
-                cleanup_error = None
-                break
+                gate.release()
             except BaseException as error:
-                cleanup_error = error
+                if cleanup_error is None:
+                    cleanup_error = error
 
         if cleanup_error is not None:
             raise UARTTransportError(

@@ -35,6 +35,8 @@ UART_PROTOCOL_TX_ENABLED = False
 UART_TX_GATE_PIN = 12
 UART_TX_GATE_ACTIVE_LEVEL = 1
 UART_TX_GATE_APPROVED = False
+UART_TX_DRAIN_TIMEOUT_MS = 500
+UART_TX_DRAIN_POLL_MS = 1
 UART_INTER_BYTE_TIMEOUT_MS = 200
 UART_RESPONSE_TIMEOUT_MS = 10000
 UART_RX_BUFFER_SIZE = 512
@@ -285,6 +287,19 @@ def require_uart_configuration():
         ):
             raise RuntimeError(
                 "protocol TX requires an electrically approved hardware gate"
+            )
+        for name, value in (
+            ("UART_TX_DRAIN_TIMEOUT_MS", UART_TX_DRAIN_TIMEOUT_MS),
+            ("UART_TX_DRAIN_POLL_MS", UART_TX_DRAIN_POLL_MS),
+        ):
+            if (
+                type(value) is not int
+                or value <= 0
+            ):
+                raise RuntimeError("{} must be a positive integer".format(name))
+        if UART_TX_DRAIN_POLL_MS >= UART_TX_DRAIN_TIMEOUT_MS:
+            raise RuntimeError(
+                "UART TX drain poll interval must be shorter than timeout"
             )
 
 

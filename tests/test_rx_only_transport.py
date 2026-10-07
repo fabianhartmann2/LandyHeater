@@ -3,6 +3,7 @@ import unittest
 from protocol.rx_only_transport import (
     RXOnlyTransport,
     RXOnlyTransportError,
+    open_dfr0975u_rx_only_from_board_config,
     open_rx_only_from_board_config,
 )
 
@@ -28,6 +29,37 @@ class FakeConfig:
     @staticmethod
     def require_uart_configuration():
         return None
+
+
+class FakeS3Config:
+    BOARD_VENDOR = "DFRobot"
+    BOARD_MODEL = "FireBeetle 2 ESP32-S3-U"
+    BOARD_SKU = "DFR0975-U"
+    BOARD_HARDWARE_REVISION = "1.0"
+    BOARD_MODULE = "ESP32-S3-WROOM-1U-N16R8"
+    MICROPYTHON_TARGET = "ESP32_GENERIC_S3"
+    MICROPYTHON_VARIANT = "SPIRAM_OCT"
+    MICROPYTHON_BUILD_BOARD = "DFR0975U_N16R8"
+    MICROPYTHON_VERSION = "1.28.0"
+    UART_ID = 2
+    UART_TX_PIN = 14
+    UART_RX_PIN = 13
+    UART_TX_GATE_PIN = 12
+    UART_TX_GATE_ACTIVE_LEVEL = 1
+    UART_PINS_APPROVED = False
+    UART_PROTOCOL_TX_ENABLED = False
+    UART_TX_GATE_APPROVED = False
+    UART_BAUDRATE = 9600
+    UART_BITS = 8
+    UART_PARITY = None
+    UART_STOP_BITS = 1
+    UART_DRIVER_TIMEOUT_MS = 0
+    UART_DRIVER_TIMEOUT_CHAR_MS = 0
+    UART_INVERT = 0
+    UART_RX_ONLY_BUFFER_SIZE = 2048
+    UART_RX_ONLY_MAX_READ_BYTES = 128
+    UART_RX_ONLY_QUEUE_CAPACITY = 64
+    UART_RX_ONLY_MAX_EMPTY_READY_READS = 3
 
 
 class FakePin:
@@ -186,6 +218,7 @@ class TestRXOnlyFactory(unittest.TestCase):
         self.assertFalse(hasattr(transport, "uart"))
         self.assertEqual(uart.writes, [])
 
+
     def test_deinit_closes_uart_and_neutralizes_tx_again(self):
         transport = open_rx_only_from_board_config(
             FakeConfig,
@@ -268,6 +301,95 @@ class TestRXOnlyFactory(unittest.TestCase):
         self.assertEqual(transport.poll(10), [b"\x00\xaa\xff"])
         transport.deinit()
         self.assertEqual(uart.writes, [])
+
+
+class TestDFR0975URXOnlyFactory(unittest.TestCase):
+    def setUp(self):
+        reset_fakes()
+
+    def test_requires_all_uart_and_gate_approvals_to_remain_closed(self):
+        for field in (
+            "UART_PINS_APPROVED",
+            "UART_PROTOCOL_TX_ENABLED",
+            "UART_TX_GATE_APPROVED",
+        ):
+            unsafe = type("UnsafeS3", (FakeS3Config,), {field: True})
+            with self.subTest(field=field), self.assertRaises(RuntimeError):
+                open_dfr0975u_rx_only_from_board_config(
+                    unsafe,
+                    uart_class=FakeRawUART,
+                    pin_class=FakePin,
+                )
+            self.assertEqual(FakePin.events, [])
+            self.assertEqual(FakeRawUART.instances, [])
+
+    def test_exact_s3_factory_neutralizes_tx_and_gate_around_uart_open(self):
+        transport = open_dfr0975u_rx_only_from_board_config(
+            FakeS3Config,
+            uart_class=FakeRawUART,
+            pin_class=FakePin,
+            ticks_ms=lambda: 0,
+        )
+        self.assertEqual(
+            FakePin.events[:7],
+            [
+                ("pin", 14, FakePin.IN, None, False),
+                ("pin", 12, FakePin.IN, None, False),
+                (
+                    "uart_open",
+                    (2,),
+                    {
+                        "baudrate": 9600,
+                        "bits": 8,
+                        "parity": None,
+                        "stop": 1,
+                        "tx": 14,
+                        "rx": 13,
+                        "timeout": 0,
+                        "timeout_char": 0,
+                        "rxbuf": 2048,
+                        "invert": 0,
+                        "flow": 0,
+                    },
+                ),
+                ("pin", 14, FakePin.IN, None, False),
+                ("pin", 12, FakePin.IN, None, False),
+                ("pin", 14, FakePin.IN, None, False),
+                ("pin", 12, FakePin.IN, None, False),
+            ],
+        )
+        self.assertFalse(hasattr(transport, "write"))
+        self.assertFalse(hasattr(transport, "uart"))
+        uart = FakeRawUART.instances[0]
+        self.assertEqual(uart.writes, [])
+        transport.deinit()
+        self.assertTrue(uart.deinitialized)
+        self.assertEqual(
+            FakePin.events[-2:],
+            [
+                ("pin", 14, FakePin.IN, None, False),
+                ("pin", 12, FakePin.IN, None, False),
+            ],
+        )
+        self.assertEqual(uart.writes, [])
+
+    def test_s3_uart_open_failure_releases_both_output_side_pins(self):
+        FakeRawUART.fail_on_open = True
+        with self.assertRaises(OSError):
+            open_dfr0975u_rx_only_from_board_config(
+                FakeS3Config,
+                uart_class=FakeRawUART,
+                pin_class=FakePin,
+            )
+        pin_events = [item for item in FakePin.events if item[0] == "pin"]
+        self.assertGreaterEqual(len(pin_events), 4)
+        self.assertTrue(
+            all(
+                item[1] in (12, 14)
+                and item[2:] == (FakePin.IN, None, False)
+                for item in pin_events
+            )
+        )
 
 
 class TestRXOnlyTransport(unittest.TestCase):

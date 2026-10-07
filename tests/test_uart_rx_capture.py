@@ -6,6 +6,7 @@ from tools.uart_rx_capture import RX_ONLY_CONFIRMATION, run
 
 class FakeConfig:
     UART_ID = 2
+    UART_TX_PIN = 17
     UART_RX_PIN = 16
     UART_BAUDRATE = 9600
     UART_BITS = 8

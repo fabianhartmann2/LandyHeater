@@ -50,7 +50,7 @@ class ProtocolCaptureSession:
         self._emitted_bytes = 0
 
     def start_record(self):
-        return {
+        record = {
             "schema": CAPTURE_SCHEMA,
             "version": CAPTURE_VERSION,
             "type": "start",
@@ -64,8 +64,12 @@ class ProtocolCaptureSession:
                 "stop": self.config.UART_STOP_BITS,
             },
             "tx_software_enabled": False,
-            "gpio17_required": "physically_disconnected",
+            "tx_gpio": self.config.UART_TX_PIN,
+            "tx_gpio_required": "physically_disconnected",
         }
+        if self.config.UART_TX_PIN == 17:
+            record["gpio17_required"] = "physically_disconnected"
+        return record
 
     def chunk_record(self, chunk):
         if not isinstance(chunk, (tuple, list)) or len(chunk) != 3:
