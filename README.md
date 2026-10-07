@@ -33,13 +33,19 @@ und hat die Offline-Artefaktprüfung bestanden. Der exakt freigegebene
 App-only-Flash, die vollständige bytegleiche Rücklesung und ein überwachter
 siebenminütiger Power-1-Lauf mit genau einem START und einem SHUTDOWN bis
 `ready`/`off` sind ebenfalls bestanden. Produktionsspeicher und Funkstatus
-blieben unverändert beziehungsweise inaktiv. Darauf aufbauend liegt nun ein
-50-Datei-Produkt-Autostart-Kandidat vor: Er startet den vollständigen Verbund
+blieben unverändert beziehungsweise inaktiv. Darauf aufbauend wurde der
+50-Datei-Produkt-Autostart-Kandidat abgenommen: Er startet den vollständigen Verbund
 nach Reset, hält den AP während der dynamischen Heimnetz-Anbindung aktiv und
 lässt bei optionalen WLAN-/Webfehlern die Heizungsüberwachung weiterlaufen.
-Hosttests, zwei bytegleiche Builds und Offline-Artefaktgates sind bestanden;
-Flash, Rücklesung und USB-only/12-V-off-Zielabnahme stehen noch aus. Details
-stehen in `PRODUCT_AUTOSTART.md`.
+Hosttests, zwei bytegleiche Builds, Offline-Artefaktgates, der exakt autorisierte
+App-only-Flash und die vollständige bytegleiche Rücklesung sind bestanden. Der
+erste unprovisionierte Start verweigerte erwartungsgemäß ein offenes AP. Nach
+expliziter lokaler Provisionierung startete das Produkt nach Reset, das Handy
+verband sich mit dem geschützten `Landy Heater`-AP, das Captive Portal öffnete
+automatisch und zeigte den weiterhin unvollständigen Setup-Assistenten. Es
+wurden keine Heimnetzprofile angelegt; Heizung 12 V blieb aus. Details stehen
+in `PRODUCT_AUTOSTART.md` und
+`captures/2026-10-07-dfr0975u-product-autostart-gate.md`.
 
 Die folgende Darstellung enthält zusätzlich die historische Entwicklung bis
 zu diesem Stand.
@@ -190,14 +196,14 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 3 | HeaterController / Requested-/Actual-State-Machine | Hardwarefreier Controller-Kern und kalter Produkt-Lifecycle abgeschlossen; laufende Session-Updates sind in Phase 9 sicher ergänzt; reale INIT-/STATUS-Laufzeitsynchronisation sowie ein begrenzter siebenminütiger Power-1-START/SHUTDOWN-Lauf bis `ready`/`off` auf dem DFR0975-U bestanden |
 | 4 | DS18B20 / Sensor Management / Failure Handling | Softwarekern und expliziter Produkt-Lifecycle abgeschlossen; reale Phase-13-Gates für GPIO4, externen 5-kΩ-Pull-up, drei ROMs, Rollenidentifikation, drei kontinuierliche Produktzyklen sowie die echte REST-/Web-UI-Anzeige aller drei Temperaturen auf dem Handy mit unverändertem Produktionsspeicher und vollständigem Cleanup bestanden |
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen; reales I2C-/DS3231M-Lese-/Schreibgate bestanden, aber Batteriepuffer mit der alten Zelle durch erneut gesetztes OSF widerlegt. Bis zur Ersatz-RTC ist ein ausdrücklich flüchtiger Handy-Zeitabgleich implementiert und auf dem DFR0975-U über die echte AP/Web-UI-Kette bestanden: Timer bleiben nach jedem Neustart bis zu einem neuen Abgleich gesperrt; die vertrauenswürdige Offline-RTC bleibt offen |
-| 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
-| 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; der neue Produkt-Autostart integriert diesen Pfad, seine Zielabnahme ist offen |
+| 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; der Produkt-Autostart lädt und prüft beide Stores vor jeder Laufzeitaktivierung und hat das unprovisionierte Fail-closed-Gate bestanden |
+| 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; der Produkt-Autostart integriert den geschützten Recovery-AP und dessen Zielabnahme ist bestanden; Heimnetz/mDNS bleibt im integrierten Autostart noch offen |
 | **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
-| **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; der neue Produkt-Autostart integriert die UI, seine Zielabnahme ist offen** |
+| **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; die integrierte Autostart-Auslieferung des Setup-Assistenten über Captive Portal ist ebenfalls zielseitig bestätigt** |
 | **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Der dabei gefundene leere DELETE-Body wurde korrigiert; erneuter A/B-Build, Artefaktprüfung, autorisierter App-only-Flash, vollständige Rücklesung, Speicher-Reload und Cleanup bestanden. Als Phase-13-Ergänzung offen: live aktualisierte Temperatur und Health pro physischer ROM-ID im Sensor-Zuordnungsschritt, auch vor der Rollenzuweisung.** |
 | **11** | **Events / Diagnostics / Capture Export** | **Software- und Zielabnahme bestanden: 200er Ereignisring, begrenztes Live-Protokoll, benannte RAM-Captures, kleine Cursor-/Exportseiten, JSON/NDJSON-Export und lazy geladene zweisekündige Diagnose-UI; reproduzierbarer A/B-Build, Offline-Artefaktgate, autorisierter App-only-Flash, vollständige Rücklesung sowie realer Handyablauf mit Capture/Export und vollständigem Cleanup bestätigt. Hardwarezugriffe bleiben entkoppelt; elektrische Abnahme folgt in Phase 13.** |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
-| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; Produkt-Autostart ist offline gebaut und geprüft, aber noch nicht geflasht oder zielseitig abgenommen; live per ROM aktualisierte Setup-Sensorzuweisung und Ersatz-RTC bleiben offen |
+| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; Produkt-Autostart wurde exakt geflasht, vollständig rückgelesen und mit geschütztem AP, automatischem Captive Portal und Setup-Assistent zielseitig abgenommen; live per ROM aktualisierte Setup-Sensorzuweisung und Ersatz-RTC bleiben offen |
 
 Vorgezogene Arbeiten aus Phase 11 oder 12 ändern die funktionale
 Phasenzuordnung nicht. Eine Phase gilt außerdem nicht allein wegen vorhandener
@@ -1296,8 +1302,9 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
 8. Phase 9 ist vollständig bestanden: A/B-Build, Artefaktprüfung, autorisierter
    App-Flash ohne Full Erase, komplette Rückleseprüfung sowie der reale
    Ein-Listener-Handygate mit 9/9 UI-Ressourcen, 4/4 API-Lesezugriffen, null
-   Mutationen und vollständigem Cleanup. Der aktuelle Produkt-Autostart ist
-   separat gebaut; seine Zielabnahme steht aus.
+   Mutationen und vollständigem Cleanup. Der Produkt-Autostart wurde separat
+   gebaut, exakt app-only geflasht, vollständig rückgelesen und über den
+   geschützten AP/Captive-Portal-Pfad zielseitig abgenommen.
 9. Phase 10 ist softwareseitig korrigiert und in
    `PHASE10_SETUP_ASSISTANT.md` dokumentiert. Netzwerkzugangsdaten sind
    write-only, Passwort-/Open-Auswahl ist ausdrücklich, ungültige Eingaben
@@ -1331,8 +1338,10 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
 13. Für Phase 13 sind der frühere Aktivierungsbuild samt App-only-Flash,
     vollständiger Rücklesung und einmaligem siebenminütigem Power-1-Lauf bis
     bestätigt `ready`/`off` bestanden. Der darauf aufbauende 50/50-Quellen-
-    Produkt-Autostart ist in zwei vollständigen Builds 15/15 byteidentisch und
-    offline geprüft; sein Flash und Zielgate stehen noch aus.
+    Produkt-Autostart ist in zwei vollständigen Builds 15/15 byteidentisch,
+    offline geprüft, exakt app-only geflasht, vollständig rückgelesen und über
+    geschützten AP, automatisches Captive Portal und Setup-Assistent bei
+    abgeschalteter Heater-12-V-Versorgung zielseitig abgenommen.
 
 Als nächste Phase-13-Hardwarepunkte bleiben die live per ROM aktualisierte
 Sensorzuweisung im Setup-Assistenten und ein RTC-Retest mit neuer Batterie.

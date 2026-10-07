@@ -2,8 +2,9 @@
 
 Build date: 2026-10-07. Status: **exact 50-file source closure, host lifecycle
 and resilience tests, two byte-identical canonical-path builds and offline
-artifact gates passed. The product-autostart image has not yet been authorized,
-flashed, read back or accepted on the target.**
+artifact gates passed. The exact product-autostart application was authorized,
+written app-only, completely read back byte-identical and accepted through the
+real protected AP/captive-portal/Setup-Assistant path with heater 12 V off.**
 
 This candidate extends the accepted heater and browser-time image with a
 private frozen `main.py` and `app/product_runtime.py`. At every normal reset it
@@ -92,12 +93,28 @@ This record is evidence only and does not authorize a board flash.
 
 ## Target status and inherited evidence
 
-The new product-autostart image is **not target-tested**. Its first target gate
-must keep heater 12 V off and use USB only. It must prove automatic AP/captive
-portal/UI startup after reset, requested-OFF heater state, sensor visibility,
-browser-time synchronization, stable heap and continued heater supervision
-when optional station connectivity is absent. Readback must match the exact
-application digest above before any powered-heater test is considered.
+The product-autostart image was authorized and written only at `0x10000`; no
+full erase occurred. The independent complete 2,121,600-byte readback was
+byte-identical and matched the application digest above. Heater 12 V remained
+off for the target gate.
+
+The first normal reset correctly failed closed because production storage had
+no AP password, Setup was incomplete and no home-network profile existed. The
+owner then explicitly authorized a one-time USB provisioning mutation that set
+only a private AP credential, retained `setup_complete=false` and retained zero
+home-network profiles. The credential is neither embedded here nor recorded in
+Git. Fresh storage readback confirmed network startup allowed, timer startup
+blocked and no fault.
+
+After the next normal reset, USB output contained
+`LANDY_HEATER_PRODUCT_AUTOSTART_V1` without a subsequent fault. The phone saw
+and joined the protected `Landy Heater` AP, the captive portal opened
+automatically and the incomplete Setup Assistant became fully visible. This
+accepts the normal-reset entry point and recovery UI path. Sensor display,
+browser-time synchronization, home-network/mDNS behavior, live Setup sensor
+assignment and powered-heater operation were outside this narrow gate. Detailed
+evidence is in
+`../../captures/2026-10-07-dfr0975u-product-autostart-gate.md`.
 
 The immediately preceding browser-time application
 `741ad9f13d106035d8ffe45ed0d84e92815e3d54396cf1f80400f7d349c27d18`

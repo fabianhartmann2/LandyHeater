@@ -53,7 +53,14 @@ requirement for the finished product.
 
 ## Acceptance state
 
-Host tests and two reproducible firmware builds pass. The candidate still
-needs a hash-bound app-only flash, complete readback and a USB-only/12-V-off
-target gate before product autostart is accepted. Powered-heater operation is
-not part of that first gate.
+Host tests and two reproducible firmware builds pass. The exact application
+was authorized, written app-only at `0x10000` without full erase and completely
+read back byte-identical. The first unprovisioned boot correctly failed closed
+instead of opening an unsecured AP. After an owner-authorized USB provisioning
+that set only a private AP credential, kept Setup incomplete and retained zero
+home-network profiles, the next normal reset emitted the product-autostart
+marker without a fault. The phone saw and joined the protected `Landy Heater`
+AP, the captive portal opened automatically and the Setup Assistant became
+fully visible. Heater 12 V remained off. The full evidence and remaining
+boundary are recorded in
+`captures/2026-10-07-dfr0975u-product-autostart-gate.md`.

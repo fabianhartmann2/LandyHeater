@@ -21,5 +21,8 @@ this closure.
 artifact checks and inherited target evidence. The new app-only image is
 2,121,600 bytes with SHA-256
 `66c0799515b45334b2f852d66a4c347614a65b2109883c9f89f253df00a68a5f`
-at `0x10000` without full erase. It has not yet been authorized or target-
-tested. No file in this directory authorizes a board flash.
+at `0x10000` without full erase. That exact application was subsequently
+authorized, written app-only, completely read back byte-identical and accepted
+through the protected recovery AP, automatic captive portal and incomplete
+Setup Assistant with heater 12 V off. The private device credential is not
+stored in Git. No file in this directory authorizes a future board flash.
