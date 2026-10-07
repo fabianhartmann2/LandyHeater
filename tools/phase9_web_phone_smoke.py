@@ -24,9 +24,7 @@ DEFAULT_WINDOW_SECONDS = 300
 
 _STATIC_TARGETS = (
     "/",
-    "/assets/base.css",
-    "/assets/components.css",
-    "/assets/session.css",
+    "/assets/ui.css",
     "/assets/i18n.js",
     "/assets/app.js",
     "/assets/home.js",

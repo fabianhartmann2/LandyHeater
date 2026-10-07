@@ -25,9 +25,14 @@ preserves all existing assignments; it cannot silently clear or modify them.
 
 `BUILD_INFO.md` records inputs, source ledger, two byte-identical builds,
 artifact checks and inherited target evidence. The new app-only image is
-2,130,032 bytes with SHA-256
-`f28059c847a725fda41bfce19d353318bf7d64d7bd2bf0e4f8b16ce601fed6a6`
+2,130,592 bytes with SHA-256
+`5f84832e5595368452b25e00a71d7be4e8e7903d1b0a9cf7e6a42f1da9d3878a`
 at `0x10000` without full erase. It has not been flashed or target-accepted.
 The preceding product-autostart image remains the last target-accepted image.
 The private device credential is not stored in Git. No file in this directory
 authorizes a future board flash.
+
+This candidate also corrects the target-observed UI request burst without
+raising the bounded server's client or backlog limits. One combined stylesheet
+and two initial scripts replace twelve parallel subresource requests; core
+modules load sequentially, while Setup and Diagnostics load only when needed.

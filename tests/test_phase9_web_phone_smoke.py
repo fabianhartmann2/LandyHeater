@@ -82,10 +82,10 @@ class _Port:
 
 class TestPhase9WebPhoneSmoke(unittest.TestCase):
     def test_required_surface_is_exact_and_bounded(self):
-        self.assertEqual(len(smoke._STATIC_TARGETS), 9)
+        self.assertEqual(len(smoke._STATIC_TARGETS), 7)
         self.assertEqual(len(smoke._API_TARGETS), 4)
-        self.assertEqual(len(smoke._REQUIRED_TARGETS), 13)
-        self.assertEqual(len(set(smoke._REQUIRED_TARGETS)), 13)
+        self.assertEqual(len(smoke._REQUIRED_TARGETS), 11)
+        self.assertEqual(len(set(smoke._REQUIRED_TARGETS)), 11)
         self.assertIn("/api/v1/status", smoke._API_TARGETS)
         self.assertNotIn("/api/v1/diagnostics", smoke._API_TARGETS)
 

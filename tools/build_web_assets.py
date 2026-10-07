@@ -13,11 +13,17 @@ OUTPUT = PROJECT_ROOT / "app" / "web_assets.py"
 MAXIMUM_ASSET_BYTES = 16 * 1024
 ASSETS = (
     ("/index.html", "text/html; charset=utf-8", "index.html"),
-    ("/assets/base.css", "text/css; charset=utf-8", "base.css"),
-    ("/assets/components.css", "text/css; charset=utf-8", "components.css"),
-    ("/assets/session.css", "text/css; charset=utf-8", "session.css"),
-    ("/assets/setup.css", "text/css; charset=utf-8", "setup.css"),
-    ("/assets/diagnostics.css", "text/css; charset=utf-8", "diagnostics.css"),
+    (
+        "/assets/ui.css",
+        "text/css; charset=utf-8",
+        (
+            "base.css",
+            "components.css",
+            "session.css",
+            "setup.css",
+            "diagnostics.css",
+        ),
+    ),
     ("/assets/diagnostics.html", "text/html; charset=utf-8", "diagnostics.html"),
     ("/assets/i18n.js", "application/javascript; charset=utf-8", "i18n.js"),
     ("/assets/app.js", "application/javascript; charset=utf-8", "app.js"),
@@ -32,7 +38,13 @@ ASSETS = (
 def render():
     rows = []
     for route, content_type, relative_path in ASSETS:
-        payload = (PROJECT_ROOT / "web" / relative_path).read_bytes()
+        if isinstance(relative_path, tuple):
+            payload = b"\n".join(
+                (PROJECT_ROOT / "web" / item).read_bytes()
+                for item in relative_path
+            )
+        else:
+            payload = (PROJECT_ROOT / "web" / relative_path).read_bytes()
         if not payload or len(payload) > MAXIMUM_ASSET_BYTES:
             raise ValueError("web asset size is outside the frozen bound")
         rows.append((route, content_type, payload))

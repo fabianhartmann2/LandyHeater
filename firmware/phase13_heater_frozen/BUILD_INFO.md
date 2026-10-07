@@ -46,8 +46,8 @@ loaded. The repository-root `main.py` remains passive and is excluded.
 | --- | --- |
 | `manifest.py` | `a27ccfd4a4ea059a6979a4f2535872601ba22295bb1cc01560d22a25ef47ed01` |
 | `FROZEN_MODULES.txt` | `ab30f9421528d97ed68fc4d9aed78d659b18b1f3a292e826acd1f6a6722321c2` |
-| `CURRENT_FROZEN_SOURCES.sha256` | `4da4fe5b48721a78696a39ad998ec24f6c3d1c4b288a9674f7dd62aa8d776393` |
-| `artifacts/SHA256SUMS` | `7a40c0c0a24cbb291e665f31f9dcec211d475b59f52661e7a180402c4f4d3f7d` |
+| `CURRENT_FROZEN_SOURCES.sha256` | `6b8b1190ef5bf481645f06a7ec8905e8c7542176f276ddb8042d0514c8cfffb9` |
+| `artifacts/SHA256SUMS` | `9582a2f84f2544040bbf8686d0d371ec68e7fa81165d12bffd4179a31e8be4b7` |
 
 The closure excludes credentials, persistent data, acceptance tools and tests.
 The VFS copy of `main.py` cannot override the private frozen entry point because
@@ -62,8 +62,9 @@ table, application, combined image, UF2, final and combined configurations,
 four flash-argument files, flasher JSON, frozen C, ELF and map. The dependency
 lock matched the retained DFR0975-U lock byte-for-byte.
 
-The focused sensor, REST, configuration, Web and frozen-artifact matrix passed
-108/108 tests, and the browser Setup validation runner passed. The complete
+The focused sensor, REST, configuration, Web, smoke-runner and frozen-artifact
+matrix passed 122/122 tests, and the browser Setup validation runner passed.
+The complete
 repository suite ran 1,289 tests: 1,287 passed and only the two deliberately
 immutable historical Phase-11 and early Phase-13 source ledgers reported the
 expected mismatch against today's evolved working sources. The current
@@ -83,18 +84,18 @@ is no OTA partition.
 | --- | ---: |
 | Bootloader | 19,232 B; unchanged |
 | Partition table | 3,072 B; unchanged |
-| Factory application | 2,130,032 B used of 3,145,728 B |
-| Growth from accepted product-autostart image | 8,432 B |
-| Application margin | 1,015,696 B (about 32%) |
-| Combined image | 2,195,568 B; exact end `0x218070` |
+| Factory application | 2,130,592 B used of 3,145,728 B |
+| Growth from accepted product-autostart image | 8,992 B |
+| Application margin | 1,015,136 B (about 32%) |
+| Combined image | 2,196,128 B; exact end `0x2182a0` |
 
 The retained deployment subset is bound by `artifacts/SHA256SUMS`. The only
 image proposed for the next operation is:
 
 ```text
 offset: 0x10000
-size:   2130032 bytes
-sha256: f28059c847a725fda41bfce19d353318bf7d64d7bd2bf0e4f8b16ce601fed6a6
+size:   2130592 bytes
+sha256: 5f84832e5595368452b25e00a71d7be4e8e7903d1b0a9cf7e6a42f1da9d3878a
 erase:  no full-chip erase
 ```
 
@@ -102,11 +103,25 @@ This record is evidence only and does not authorize a board flash.
 
 ## Target status and inherited evidence
 
-The live Setup-sensor candidate above is **not target-tested and not
-authorized for flash by this record**. Its target gate still requires a new
-hash-bound app-only authorization, full readback, protected-AP UI verification,
-live updates for all three physical sensors and verification of the explicit
-skip path. Heater 12 V must remain off.
+The serialized-UI live Setup-sensor candidate above is **not target-tested and
+not authorized for flash by this record**. Its target gate still requires a
+new hash-bound app-only authorization, full readback, protected-AP UI
+verification, live updates for all three physical sensors and verification of
+the explicit skip path. Heater 12 V must remain off.
+
+The immediately preceding live Setup-sensor image with SHA-256
+`f28059c847a725fda41bfce19d353318bf7d64d7bd2bf0e4f8b16ce601fed6a6`
+was authorized, written app-only and completely read back byte-identical. Its
+real captive portal opened automatically, and both `/api/v1/status` and
+`/api/v1/setup` returned valid JSON. It was rejected because the browser's
+parallel request burst exceeded the intentionally bounded two-client/two-
+backlog HTTP service: full UI load took about 50 seconds and `setup.js` was not
+activated, leaving the Setup button inert. The correction retains the same
+server bounds, combines the five stylesheets into one 15,713-byte asset, loads
+only `i18n.js` and `app.js` initially, then loads the core modules sequentially
+and Setup/Diagnostics on demand. Initial subresource fan-out falls from twelve
+requests to three. Detailed evidence is in
+`../../captures/2026-10-07-dfr0975u-live-setup-ui-preflash.md`.
 
 The preceding product-autostart image with SHA-256
 `66c0799515b45334b2f852d66a4c347614a65b2109883c9f89f253df00a68a5f`

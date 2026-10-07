@@ -89,6 +89,16 @@ bleibt temperaturgeregelter Heizbetrieb durch die bestehenden Safety-Gates
 gesperrt, Leistungsbetrieb und eine spätere erneute Einrichtung bleiben
 möglich.
 
+Nach dem ersten Ziel-Flash dieser Ergänzung waren beide neuen API-Antworten
+gültig, die vollständige UI benötigte jedoch etwa 50 Sekunden und der Setup-
+Button blieb ohne Funktion. Ursache war kein Sensor- oder API-Fehler, sondern
+der parallele Start von fünf Stylesheets und sieben Skripten gegen den bewusst
+auf zwei aktive Clients und Backlog zwei begrenzten Server. Der korrigierte
+Kandidat bündelt alle Styles in einer Datei, lädt zunächst nur Übersetzung und
+App-Kern, danach Home/Timer/Einstellungen nacheinander sowie Setup und Diagnose
+erst bei Bedarf. Der anfängliche Burst sinkt damit von zwölf auf drei
+Subresource-Anfragen, ohne Servergrenzen zu lockern.
+
 Ein neues Stationsprofil startet bewusst als **geschützt / neues Passwort**.
 Ein leeres Passwort wird nicht mehr stillschweigend als offenes WLAN
 interpretiert; **offenes WLAN** muss ausdrücklich gewählt werden. Die

@@ -1,7 +1,7 @@
 "use strict";
 (function(){
 const L=window.Landy,roles=["roof_tent","cabin","outside"],modes=["roof_tent_temperature","cabin_temperature","power"];
-let data=null,step=0,required=false,opening=false,sensorTimer=null,sensorBusy=false;
+let data=null,step=0,required=false,opening=false,sensorTimer=null,sensorBusy=false,bound=false;
 const clone=value=>JSON.parse(JSON.stringify(value));
 const bytes=value=>new TextEncoder().encode(value).length;
 const integer=value=>value!==""&&Number.isInteger(Number(value))?Number(value):null;
@@ -112,6 +112,6 @@ async function finish(event){
 }
 async function open(isRequired=false){if(opening)return;opening=true;required=isRequired;try{data=await L.request("/api/v1/setup");fill();setStep(0);L.$("setup-cancel").classList.toggle("hidden",required);if(!L.$("setup-dialog").open)L.$("setup-dialog").showModal();syncSensorPolling()}catch(error){L.toast(error.message||L.t("requestFailed"),true)}finally{opening=false}}
 function autoOpen(){if(L.state.settings?.system?.setup_complete===false)open(true)}
-function bind(){L.$("restart-setup").addEventListener("click",()=>open(false));L.$("setup-language").addEventListener("change",event=>L.applyLanguage(event.target.value));L.$("setup-sync-browser-time").addEventListener("click",syncBrowserTime);L.$("setup-mode").addEventListener("change",syncMode);L.$("setup-ap-action").addEventListener("change",syncApAction);L.$("setup-sensor-skip").addEventListener("change",syncSensorSkip);L.$("setup-add-network").addEventListener("click",()=>{if(L.$("setup-networks").children.length>=8){L.toast(L.t("networkLimit"),true);return}L.$("setup-networks").append(configuredNetwork({}))});L.$("setup-back").addEventListener("click",()=>setStep(step-1));L.$("setup-next").addEventListener("click",()=>{if(validatePage())setStep(step+1)});L.$("setup-cancel").addEventListener("click",()=>L.$("setup-dialog").close());L.$("setup-form").addEventListener("submit",finish);L.$("setup-dialog").addEventListener("cancel",event=>{if(required)event.preventDefault()});L.$("setup-dialog").addEventListener("close",stopSensorPolling)}
+function bind(){if(bound)return;bound=true;L.$("setup-language").addEventListener("change",event=>L.applyLanguage(event.target.value));L.$("setup-sync-browser-time").addEventListener("click",syncBrowserTime);L.$("setup-mode").addEventListener("change",syncMode);L.$("setup-ap-action").addEventListener("change",syncApAction);L.$("setup-sensor-skip").addEventListener("change",syncSensorSkip);L.$("setup-add-network").addEventListener("click",()=>{if(L.$("setup-networks").children.length>=8){L.toast(L.t("networkLimit"),true);return}L.$("setup-networks").append(configuredNetwork({}))});L.$("setup-back").addEventListener("click",()=>setStep(step-1));L.$("setup-next").addEventListener("click",()=>{if(validatePage())setStep(step+1)});L.$("setup-cancel").addEventListener("click",()=>L.$("setup-dialog").close());L.$("setup-form").addEventListener("submit",finish);L.$("setup-dialog").addEventListener("cancel",event=>{if(required)event.preventDefault()});L.$("setup-dialog").addEventListener("close",stopSensorPolling)}
 L.modules.setup={bind,autoOpen,open,validation};
 })();

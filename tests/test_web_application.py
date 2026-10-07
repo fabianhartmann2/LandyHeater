@@ -47,11 +47,7 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn("default-src 'self'", root.headers["Content-Security-Policy"])
         self.assertEqual(root.headers["X-Frame-Options"], "DENY")
         for path in (
-            "/assets/base.css",
-            "/assets/components.css",
-            "/assets/session.css",
-            "/assets/setup.css",
-            "/assets/diagnostics.css",
+            "/assets/ui.css",
             "/assets/diagnostics.html",
             "/assets/i18n.js",
             "/assets/app.js",
@@ -136,10 +132,16 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertEqual(runtime.calls[-1][2:], ("sta", "10.0.0.17"))
 
     def test_frontend_boots_reads_without_requesting_mutation_token(self):
+        index = self.app.handle(request(), PEER).body
         app = self.app.handle(request(target="/assets/app.js"), PEER).body
         boot = app.split(b"async function boot()", 1)[1]
         self.assertIn(b"await L.refresh()", boot)
         self.assertNotIn(b"await L.security();await L.refresh()", boot)
+        self.assertEqual(index.count(b'<link rel="stylesheet"'), 1)
+        self.assertEqual(index.count(b"<script defer"), 2)
+        self.assertIn(b'href="/assets/ui.css"', index)
+        self.assertIn(b'for(const name of ["home","timers","settings"])', app)
+        self.assertIn(b'loadModule("diagnostics")', app)
 
     def test_browser_time_sync_is_utc_bounded_and_visible(self):
         index = self.app.handle(request(), PEER).body
@@ -164,7 +166,7 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertNotIn(b"<script>", index.lower())
         self.assertIn(b'data-i18n="home"', index)
         self.assertIn(b'prefers-color-scheme', self.app.handle(
-            request(target="/assets/base.css"), PEER
+            request(target="/assets/ui.css"), PEER
         ).body)
 
     def test_generated_frozen_assets_match_the_readable_sources_exactly(self):
@@ -191,6 +193,10 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn(b'id="setup-sensor-skip"', index)
         self.assertIn(b'setTimeout(refreshSensorData,1500)', setup)
         self.assertIn(b'L.request("/api/v1/setup")', setup)
+        self.assertNotIn(b'src="/assets/setup.js"', index)
+        app = self.app.handle(request(target="/assets/app.js"), PEER).body
+        self.assertIn(b'loadModule("setup")', app)
+        self.assertIn(b'L.openSetup(false)', app)
         self.assertNotIn(b"localStorage", setup)
         self.assertNotIn(b"http://", setup)
         self.assertNotIn(b"https://", setup)

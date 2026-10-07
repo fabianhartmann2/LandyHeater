@@ -24,7 +24,7 @@ DEFAULT_WINDOW_SECONDS = 300
 _SECRET_SENTINEL = "PHASE11-MUST-NOT-LEAK"
 
 _STATIC_TARGETS = (
-    "/assets/diagnostics.css",
+    "/assets/ui.css",
     "/assets/diagnostics.js",
     "/assets/diagnostics.html",
 )

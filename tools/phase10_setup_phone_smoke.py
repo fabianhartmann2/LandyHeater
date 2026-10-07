@@ -25,10 +25,7 @@ DEFAULT_WINDOW_SECONDS = _phase9.DEFAULT_WINDOW_SECONDS
 
 _STATIC_TARGETS = (
     "/",
-    "/assets/base.css",
-    "/assets/components.css",
-    "/assets/session.css",
-    "/assets/setup.css",
+    "/assets/ui.css",
     "/assets/i18n.js",
     "/assets/app.js",
     "/assets/home.js",
