@@ -3,11 +3,26 @@
 ## Current status
 
 The DFR0975-U receive-only driver and its pin cleanup passed on the real board
-on 2026-10-07. The passive level-shifter checks with heater power off and in
-powered idle were electrically quiet and produced no valid frame. This is
-expected because the removed Node-RED controller was the protocol master; the
-heater responds to INIT/STATUS requests and was not shown to publish status
-unsolicited.
+on 2026-10-07. Passive checks produced no unsolicited frame, as expected for
+the heater's master/request-response protocol. A separately approved direct
+bench exception then proved UART2 and the existing passive level shifter at
+9600/8N1: request `AA030000049F3D` received the CRC-valid INIT response
+`AA04050004128A003DD6CBA6` on the first attempt. No START, SHUTDOWN, external
+temperature or power-setting command was sent.
+
+The separately approved follow-up also passed on its first attempt. After one
+valid INIT exchange, STATUS request `AA0300000F587C` received CRC-valid frame
+`AA0413000F000100107F007A0121000000000000000000601A48`. The established
+parser reported heater state `off`, supply voltage `12.2 V`, glow-plug raw
+value `33` and fan raw value `0`. Both rejected-frame counters remained zero;
+UART and GPIOs were released immediately afterward.
+
+The first received response exposed a target-only parser defect: MicroPython's
+`bytearray` does not support item or slice deletion. `RawFrameStreamParser`
+now rebinds sliced buffers instead. The known INIT response was parsed on the
+real target with one frame and an empty remainder, and the subsequent live
+INIT gate passed. Earlier no-response runs were caused by intermittent/wrong
+pin contact; the final successful wiring is recorded below.
 
 The active product profile remains closed:
 
@@ -17,19 +32,22 @@ UART_TX_GATE_APPROVED = False
 UART_PROTOCOL_TX_ENABLED = False
 ```
 
-No heater command has been transmitted by the DFR0975-U.
+These bench probes do not open the product path. The product profile cannot
+transmit while the three flags remain closed, and the direct probes are inert
+unless source-mounted and invoked with their exact confirmations.
 
 ## Confirmed controller-side conductors
 
 | Conductor | Meaning | DFR0975-U route now |
 | --- | --- | --- |
-| green | controller RX, heater-to-controller | through 10 kOhm to D11/GPIO13 |
-| white | controller TX, controller-to-heater | disconnected and insulated |
+| green | controller RX, heater-to-controller | through 10 kOhm to D11/GPIO13 for the approved bench probe |
+| white | controller TX, controller-to-heater | D10/GPIO14 only for the approved bench probe |
 | yellow | signal ground | GND |
 | brown | low-side level supply | 3.3 V; not supplied elsewhere |
 
-D10/GPIO14 and D12/GPIO12 remain physically disconnected until the TX gate
-below is assembled and electrically checked.
+D12/GPIO12 remained physically disconnected throughout. The direct D10 bench
+connection is a temporary diagnostic exception based on the converter's known
+prior Raspberry-Pi use; it does not replace the required product TX gate.
 
 ## Required active-high TX gate
 
@@ -43,9 +61,9 @@ lock by itself. The topology and intended I2C use correspond to NXP AN10441's
 pass-MOSFET level-shifting circuit.
 
 The converter previously worked with the Raspberry/Node-RED controller at
-9600 baud, and the short powered-idle checks were electrically quiet. It may
-therefore remain for the bounded bench bring-up, but real edge quality and a
-CRC-valid response are still required before it is accepted for UART. The
+9600 baud. It has now also carried CRC-valid INIT and STATUS exchanges on the
+DFR0975-U, confirming the bounded bench path and its edge quality for those
+exchanges. This does not qualify it as the final protected product interface. The
 additional gate is inserted on the 3.3-V side between D10 and the exposed
 white TX conductor. When disabled, the gate output is high impedance and the
 converter's existing pull-ups hold both sides at UART idle-high; critically,
@@ -94,21 +112,20 @@ completion API and the ESP32 implementation's non-blocking `txdone()` result.
 The product flags remain closed, so this code cannot transmit from the current
 board profile.
 
-## Remaining acceptance order
+## Acceptance progress and remaining order
 
-1. Heater 12 V and USB off; restore green through 10 kOhm to D11 and insulate
-   white until the new interface is ready.
-2. Assemble the documented TX gate with 10-kOhm OE pull-down and local 100-nF
+1. **Complete:** RX-only checks, powered idle checks and bounded direct INIT
+   and STATUS exchanges on the existing level shifter.
+2. **Complete:** the source-mounted status diagnostic sent exactly one INIT
+   and one STATUS request, accepted both CRC-valid responses, rejected no
+   frames, and released UART and GPIOs. It has no retry or dangerous-command
+   surface.
+3. Assemble the documented TX gate with 10-kOhm OE pull-down and local 100-nF
    bypass capacitor.
-3. With the heater disconnected, verify continuity, no shorts, correct 3.3-V
+4. With the heater disconnected, verify continuity, no shorts, correct 3.3-V
    and regulated 5-V rails, OE low at reset and heater-facing output high-Z.
-4. USB-only target test: verify `UART.txdone()` exists, D12 remains low through
+5. USB-only target test: verify `UART.txdone()` exists, D12 remains low through
    reset/boot and one isolated logic-side loopback can be gated cleanly.
-5. Obtain a fresh explicit approval for the exact live INIT diagnostic. Open
-   the three flags only in RAM, transmit exactly one canonical INIT frame, wait
-   for one CRC-valid INIT response, then close and release all pins. The inert
-   source candidate is `tools/dfr0975u_uart_init_probe.py`; it has no START,
-   SHUTDOWN, external-temperature or retry path and must not run before this
-   approval.
-6. Only after INIT passes, repeat with exactly one STATUS request. START,
-   SHUTDOWN and external-temperature commands remain blocked.
+6. Only after the protected gate passes, consider opening the three product
+   flags in a separately reviewed source candidate. START, SHUTDOWN and
+   external-temperature commands remain blocked until their own later gates.

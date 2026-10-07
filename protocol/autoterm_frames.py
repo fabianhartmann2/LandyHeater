@@ -56,7 +56,10 @@ class RawFrameStreamParser:
         self.rejected_candidates = 0
 
     def _discard_first_byte(self):
-        del self.buffer[0]
+        # MicroPython's bytearray implementation does not support item or
+        # slice deletion.  Rebinding a sliced bytearray is portable across
+        # MicroPython and CPython.
+        self.buffer = self.buffer[1:]
         self.discarded_bytes += 1
 
     def _extract_frames(self):
@@ -90,7 +93,7 @@ class RawFrameStreamParser:
                 continue
 
             frames.append(candidate)
-            del self.buffer[:expected_length]
+            self.buffer = self.buffer[expected_length:]
 
         return frames
 

@@ -474,6 +474,27 @@ AA 04 05 00 04 12 8A 00 3D D6 CB A6
 This is a real RX observation. The five payload bytes are intentionally kept
 opaque because no supplied source establishes their meaning.
 
+### 12.9 DFR0975-U live heater status RX — reported Off state
+
+After one CRC-valid live INIT exchange, the separately approved DFR0975-U
+bench probe transmitted exactly one STATUS request:
+
+```text
+AA 03 00 00 0F 58 7C
+```
+
+It received this frame without rejected candidates:
+
+```text
+AA 04 13 00 0F 00 01 00 10 7F 00 7A 01 21 00 00 00 00 00 00 00 00 00 60 1A 48
+```
+
+CRC `1A 48` is valid. The established field mapping reports supply voltage
+`12.2 V`, heater state `off`, glow-plug raw value `33` and fan raw value `0`.
+This vector was captured on 2026-10-07 through the existing level shifter with
+white on D10/TX and green on D11/RX. No START, SHUTDOWN, temperature or power
+command was transmitted.
+
 ## 13. Initialization — command `0x04`
 
 Controller base frame:
