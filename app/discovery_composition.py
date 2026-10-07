@@ -92,6 +92,63 @@ class ConfiguredDiscoveryRuntime:
         self._started = True
         return True
 
+    @staticmethod
+    def _validate_service(service):
+        for method in ("start", "step", "deinit", "snapshot"):
+            if not callable(getattr(service, method, None)):
+                raise ValueError("discovery dependency is malformed")
+        return service
+
+    def attach_station_http(self, station_http_server):
+        """Attach one DHCP-address-bound station listener at runtime."""
+
+        if self._closed:
+            raise DiscoveryRuntimeError("discovery_closed")
+        if self._station_http is not None:
+            return False
+        service = self._validate_service(station_http_server)
+        if self._started:
+            try:
+                if service.start() is not True:
+                    raise DiscoveryRuntimeError(
+                        "station_http_start_contract_failed"
+                    )
+            except BaseException:
+                self._last_error = "station_http_attach_failed"
+                try:
+                    service.deinit()
+                except BaseException:
+                    pass
+                raise
+        self._station_http = service
+        self._last_error = None
+        self._services = (self._ap_http, service, self._dns)
+        self._service_names = ("ap_http", "station_http", "dns")
+        self._next_service = 0
+        return True
+
+    def detach_station_http(self):
+        """Stop and remove the station listener while retaining AP services."""
+
+        service = self._station_http
+        if service is None:
+            return False
+        try:
+            if service.deinit() is not None:
+                raise DiscoveryRuntimeError(
+                    "station_http_cleanup_contract_failed"
+                )
+        except BaseException:
+            self._faulted = True
+            self._last_error = "station_http_detach_failed"
+            raise
+        self._station_http = None
+        self._services = (self._ap_http, self._dns)
+        self._service_names = ("ap_http", "dns")
+        self._next_service = 0
+        self._last_error = None
+        return True
+
     def step(self):
         if not self._started or self._closed:
             return False

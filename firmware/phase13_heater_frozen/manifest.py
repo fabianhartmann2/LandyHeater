@@ -6,6 +6,7 @@ PROJECT_ROOT = "../.."
 CANDIDATE_ROOT = "."
 
 module("board_config.py", base_path=CANDIDATE_ROOT, opt=0)
+module("main.py", base_path=CANDIDATE_ROOT, opt=0)
 
 package(
     "adapters",
@@ -38,6 +39,7 @@ package(
         "network_composition.py",
         "network_configuration.py",
         "network_manager.py",
+        "product_runtime.py",
         "rest_application.py",
         "rest_composition.py",
         "scheduler.py",

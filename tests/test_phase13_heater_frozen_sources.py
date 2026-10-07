@@ -12,13 +12,18 @@ class TestPhase13HeaterFrozenSources(unittest.TestCase):
         files = (CANDIDATE / "FROZEN_MODULES.txt").read_text(
             encoding="utf-8"
         ).splitlines()
-        self.assertEqual(len(files), 48)
+        self.assertEqual(len(files), 50)
         self.assertEqual(len(files), len(set(files)))
         self.assertEqual(
             files[0],
             "firmware/phase13_heater_frozen/board_config.py",
         )
+        self.assertEqual(
+            files[1],
+            "firmware/phase13_heater_frozen/main.py",
+        )
         self.assertIn("app/heater_composition.py", files)
+        self.assertIn("app/product_runtime.py", files)
         for excluded in ("boot.py", "main.py"):
             self.assertNotIn(excluded, files)
 
@@ -61,9 +66,10 @@ class TestPhase13HeaterFrozenSources(unittest.TestCase):
     def test_manifest_declares_every_frozen_module(self):
         manifest = (CANDIDATE / "manifest.py").read_text(encoding="utf-8")
         self.assertIn('module("board_config.py", base_path=CANDIDATE_ROOT', manifest)
+        self.assertIn('module("main.py", base_path=CANDIDATE_ROOT', manifest)
         for relative in (CANDIDATE / "FROZEN_MODULES.txt").read_text(
             encoding="utf-8"
-        ).splitlines()[1:]:
+        ).splitlines()[2:]:
             package, name = relative.split("/", 1)
             self.assertIn('package(\n    "{}",'.format(package), manifest)
             self.assertIn('        "{}",'.format(name), manifest)

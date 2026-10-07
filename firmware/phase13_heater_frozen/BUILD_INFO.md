@@ -1,23 +1,31 @@
-# Phase 13 heater activation frozen firmware build record
+# Phase 13 product-autostart frozen firmware build record
 
-Build date: 2026-10-07. Status: **exact 48-file source closure, browser-time
-host safety tests, two byte-identical canonical-path builds, offline artifact
-gates, an authorized app-only flash with full readback, and the bounded real
-AP/Web-UI browser-time target gate passed.**
+Build date: 2026-10-07. Status: **exact 50-file source closure, host lifecycle
+and resilience tests, two byte-identical canonical-path builds and offline
+artifact gates passed. The product-autostart image has not yet been authorized,
+flashed, read back or accepted on the target.**
 
-This candidate extends the previously accepted heater lifecycle image with an
-AP-protected, reboot-volatile browser-time source while retaining the existing
-RTC path. Its private frozen `board_config.py` differs from the
-safe repository profile in exactly two values:
-`UART_PINS_APPROVED=True` and `UART_PROTOCOL_TX_ENABLED=True`. The selected
-direct level-shifter approval remains explicit; the nonexistent GPIO12 gate,
-I2C and radio approvals remain closed. Normal `boot.py` and `main.py` behavior
-remains passive and is not part of the frozen closure.
+This candidate extends the accepted heater and browser-time image with a
+private frozen `main.py` and `app/product_runtime.py`. At every normal reset it
+loads the trusted production stores, starts sensors and the heater protocol in
+requested-OFF state, brings up the recovery AP and Web UI, and only then arms
+the Scheduler. A station listener is attached dynamically after DHCP/mDNS,
+without stopping the AP listener or captive DNS. Runtime WLAN, HTTP-listener
+and diagnostics failures degrade those optional services without ending heater
+supervision. Safety-critical failures enter the existing controlled heater
+shutdown path.
+
+The private frozen `board_config.py` differs from the safe repository profile
+in exactly two values: `UART_PINS_APPROVED=True` and
+`UART_PROTOCOL_TX_ENABLED=True`. The owner-approved direct level shifter
+remains selected. The nonexistent GPIO12 gate and I2C approval remain closed;
+the Wi-Fi gate is opened only by the product factory after trusted storage has
+loaded. The repository-root `main.py` remains passive and is excluded.
 
 ## Pinned inputs
 
-- repository baseline before the browser-time candidate: `f63e049`;
-- 48 exact project-source files bound by `CURRENT_FROZEN_SOURCES.sha256`;
+- repository baseline before product autostart: `fee7faf`;
+- 50 exact project-source files bound by `CURRENT_FROZEN_SOURCES.sha256`;
 - MicroPython v1.28.0 commit
   `e0e9fbb17ed6fd06bb76e266ae554784c9c80804`;
 - ESP-IDF v5.5.1 commit
@@ -34,15 +42,14 @@ remains passive and is not part of the frozen closure.
 
 | Candidate input | SHA-256 |
 | --- | --- |
-| `manifest.py` | `7cfda15fe94561841d57ae9e8c6e18cd2b03c00eba29161142f13bc2d21f3f7e` |
-| `FROZEN_MODULES.txt` | `d456642d89ff3c5ce7742c6e5858d3de244ae11a0b1ad2629838b2a23a6a0621` |
-| `CURRENT_FROZEN_SOURCES.sha256` | `8746384554cd03934430d29178d508b1f2477ee807a0c421e5056e26941dd827` |
-| `artifacts/SHA256SUMS` | `86cf1e4da1583fac966aeb4637e579a7d72843d6c58ba9ba2f0a0cc59594e8c7` |
+| `manifest.py` | `a27ccfd4a4ea059a6979a4f2535872601ba22295bb1cc01560d22a25ef47ed01` |
+| `FROZEN_MODULES.txt` | `ab30f9421528d97ed68fc4d9aed78d659b18b1f3a292e826acd1f6a6722321c2` |
+| `CURRENT_FROZEN_SOURCES.sha256` | `9e8b2bd70a8c2a9ffa54aa12ac094f13387780f2883499d796860f6f689926b3` |
+| `artifacts/SHA256SUMS` | `efa11800656d74f440256a074b19d4b6a5dce0be3f48922beae625d3d773fa8f` |
 
-The closure freezes the private activation profile and
-`app/heater_composition.py`. It excludes `boot.py`, `main.py`, credentials,
-persistent data, acceptance tools and tests. The bounded active-cycle probe is
-therefore invoked explicitly over USB; it cannot run automatically at boot.
+The closure excludes credentials, persistent data, acceptance tools and tests.
+The VFS copy of `main.py` cannot override the private frozen entry point because
+that entry point moves `.frozen` to the front before importing product modules.
 
 ## Reproducibility proof
 
@@ -51,7 +58,7 @@ first build directory was moved aside before that exact output path was
 recreated. All 15 compared outputs were byte-identical: bootloader, partition
 table, application, combined image, UF2, final and combined configurations,
 four flash-argument files, flasher JSON, frozen C, ELF and map. The dependency
-lock also matched the retained DFR0975-U lock byte-for-byte.
+lock matched the retained DFR0975-U lock byte-for-byte.
 
 ## Image, layout and retained artifacts
 
@@ -66,57 +73,40 @@ is no OTA partition.
 | --- | ---: |
 | Bootloader | 19,232 B; unchanged |
 | Partition table | 3,072 B; unchanged |
-| Factory application | 2,112,512 B used of 3,145,728 B |
-| Growth from accepted heater image | 2,992 B |
-| Application margin | 1,033,216 B (about 33%) |
-| Combined image | 2,178,048 B; exact end `0x213c00` |
+| Factory application | 2,121,600 B used of 3,145,728 B |
+| Growth from accepted browser-time image | 9,088 B |
+| Application margin | 1,024,128 B (about 33%) |
+| Combined image | 2,187,136 B; exact end `0x215f80` |
 
 The retained deployment subset is bound by `artifacts/SHA256SUMS`. The only
 image proposed for the next operation is:
 
 ```text
 offset: 0x10000
-size:   2112512 bytes
-sha256: 741ad9f13d106035d8ffe45ed0d84e92815e3d54396cf1f80400f7d349c27d18
+size:   2121600 bytes
+sha256: 66c0799515b45334b2f852d66a4c347614a65b2109883c9f89f253df00a68a5f
 erase:  no full-chip erase
 ```
 
-This record is evidence only and does not authorize a later flash.
+This record is evidence only and does not authorize a board flash.
 
-## Target status and prior active-cycle evidence
+## Target status and inherited evidence
 
-The owner authorized the exact browser-time application digest for an
-app-only write at `0x10000` without full erase. Esptool wrote and verified
-2,112,512 bytes. A separate complete readback of the same range was
-byte-identical and retained SHA-256
-`741ad9f13d106035d8ffe45ed0d84e92815e3d54396cf1f80400f7d349c27d18`.
-Bootloader, partition table and VFS were not written by the flash operation.
+The new product-autostart image is **not target-tested**. Its first target gate
+must keep heater 12 V off and use USB only. It must prove automatic AP/captive
+portal/UI startup after reset, requested-OFF heater state, sensor visibility,
+browser-time synchronization, stable heap and continued heater supervision
+when optional station connectivity is absent. Readback must match the exact
+application digest above before any powered-heater test is considered.
 
-After manual reset, the passive USB check confirmed MicroPython 1.28.0, the
-DFR0975-U V1.0 N16R8 identity, about 8.3 MiB free GC heap, the retained VFS and
-the new browser-time method. The bounded USB-started phone gate then exposed
-one AP-bound listener and captive portal with the heater protocol replaced by
-a rejecting null port. The real browser performed exactly one
-`PUT /api/v1/time/browser-sync`; the next status reported source `browser`,
-reboot-volatile time, no RTC write/commit and trusted timer time. Production
-configuration and scheduler stores were unchanged, all disposable files were
-removed, and radio/HTTP cleanup passed. The target token was
-`BROWSER_TIME_PHONE_PASS_V1`.
+The immediately preceding browser-time application
+`741ad9f13d106035d8ffe45ed0d84e92815e3d54396cf1f80400f7d349c27d18`
+was independently authorized, written, fully read back and accepted through
+the real AP/captive-portal/Web-UI path. Its phone supplied one reboot-volatile
+UTC sample and timer time became trusted without an RTC write.
 
-The current phase still has no durable product autostart. The phone gate was
-started explicitly over USB, and a fresh reset intentionally returns to the
-safe MicroPython boot state until that later integration step is authorized.
-
-The immediately preceding application (`f02d59e7...`) was independently
-authorized, written and fully read back. After manual reset, a passive check
-confirmed MicroPython 1.28.0, the exact DFR0975-U N16R8 identity, the frozen
-activation profile and inactive radios.
-
-The separately confirmed active gate then ran power level 1 for seven minutes,
-observed STARTING, RUNNING and SHUTTING_DOWN, and returned to synchronized
-`ready`/`off`. It required exactly one START, one SHUTDOWN and 576 STATUS
-requests; final reported voltage was 12.2 V. Production storage stayed
-unchanged, radios stayed inactive and UART cleanup completed normally. The
-exact result was `DFR0975U_ACTIVE_CYCLE_RUNNING_TO_OFF_PASS_V1`. Evidence is
-recorded in
+The preceding heater image also passed the separately controlled seven-minute
+power-1 run: STARTING, RUNNING and SHUTTING_DOWN returned to synchronized
+`ready`/`off` with exactly one START and one SHUTDOWN. Production storage was
+unchanged. Evidence remains in
 `../../captures/2026-10-07-dfr0975u-heater-active-cycle.md`.

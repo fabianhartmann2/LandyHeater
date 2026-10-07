@@ -8,13 +8,14 @@ from app.discovery_composition import (
 
 
 class FakeService:
-    def __init__(self, steps=()):
+    def __init__(self, steps=(), start_result=True):
         self.steps = list(steps)
+        self.start_result = start_result
         self.calls = []
 
     def start(self):
         self.calls.append("start")
-        return True
+        return self.start_result
 
     def step(self):
         self.calls.append("step")
@@ -113,6 +114,41 @@ class TestDiscoveryComposition(unittest.TestCase):
         self.assertFalse(runtime.step())
         self.assertFalse(runtime.step())
         self.assertIsNone(runtime.snapshot()["station_http"])
+
+    def test_station_listener_attaches_and_detaches_without_stopping_ap(self):
+        ap_http = FakeService()
+        dns = FakeService()
+        station_http = FakeService((True,))
+        runtime = ConfiguredDiscoveryRuntime(ap_http, dns)
+        runtime.start()
+
+        self.assertTrue(runtime.attach_station_http(station_http))
+        self.assertFalse(runtime.attach_station_http(FakeService()))
+        self.assertFalse(runtime.step())
+        self.assertTrue(runtime.step())
+        self.assertTrue(runtime.detach_station_http())
+        self.assertFalse(runtime.detach_station_http())
+        self.assertIsNone(runtime.station_http_server)
+        self.assertEqual(station_http.calls, ["start", "step", "deinit"])
+        self.assertEqual(ap_http.calls, ["start", "step"])
+        self.assertEqual(dns.calls, ["start"])
+
+    def test_failed_station_attach_keeps_ap_and_dns_owned(self):
+        ap_http = FakeService()
+        dns = FakeService()
+        station_http = FakeService(start_result=False)
+        runtime = ConfiguredDiscoveryRuntime(ap_http, dns)
+        runtime.start()
+
+        with self.assertRaises(DiscoveryRuntimeError):
+            runtime.attach_station_http(station_http)
+        self.assertFalse(runtime.snapshot()["faulted"])
+        self.assertEqual(
+            runtime.snapshot()["last_error"], "station_http_attach_failed"
+        )
+        self.assertIsNone(runtime.station_http_server)
+        self.assertEqual(ap_http.calls, ["start"])
+        self.assertEqual(dns.calls, ["start"])
 
     def test_cleanup_closes_dns_before_http_and_is_terminal(self):
         order = []

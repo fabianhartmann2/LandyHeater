@@ -27,13 +27,19 @@ Speicher und geschlossene Produkt-TX-Aktivierungsflags blieben unverändert.
 Der Eigentümer hat anschließend ausdrücklich entschieden, den bewährten,
 permanent verbundenen Pegelwandler ohne zusätzliche physische TX-Abschaltung
 zu verwenden; das dokumentierte Reset-/Software-Risiko ist akzeptiert.
-Der dafür getrennte 48-Datei-Aktivierungskandidat öffnet ausschließlich
-UART-Pins und Protokoll-TX, wurde zweimal mit 15/15 identischen Ausgaben gebaut
+Der dafür getrennte Aktivierungskandidat öffnete ausschließlich UART-Pins und
+Protokoll-TX, wurde zweimal mit 15/15 identischen Ausgaben gebaut
 und hat die Offline-Artefaktprüfung bestanden. Der exakt freigegebene
 App-only-Flash, die vollständige bytegleiche Rücklesung und ein überwachter
 siebenminütiger Power-1-Lauf mit genau einem START und einem SHUTDOWN bis
 `ready`/`off` sind ebenfalls bestanden. Produktionsspeicher und Funkstatus
-blieben unverändert beziehungsweise inaktiv.
+blieben unverändert beziehungsweise inaktiv. Darauf aufbauend liegt nun ein
+50-Datei-Produkt-Autostart-Kandidat vor: Er startet den vollständigen Verbund
+nach Reset, hält den AP während der dynamischen Heimnetz-Anbindung aktiv und
+lässt bei optionalen WLAN-/Webfehlern die Heizungsüberwachung weiterlaufen.
+Hosttests, zwei bytegleiche Builds und Offline-Artefaktgates sind bestanden;
+Flash, Rücklesung und USB-only/12-V-off-Zielabnahme stehen noch aus. Details
+stehen in `PRODUCT_AUTOSTART.md`.
 
 Die folgende Darstellung enthält zusätzlich die historische Entwicklung bis
 zu diesem Stand.
@@ -185,13 +191,13 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 4 | DS18B20 / Sensor Management / Failure Handling | Softwarekern und expliziter Produkt-Lifecycle abgeschlossen; reale Phase-13-Gates für GPIO4, externen 5-kΩ-Pull-up, drei ROMs, Rollenidentifikation, drei kontinuierliche Produktzyklen sowie die echte REST-/Web-UI-Anzeige aller drei Temperaturen auf dem Handy mit unverändertem Produktionsspeicher und vollständigem Cleanup bestanden |
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen; reales I2C-/DS3231M-Lese-/Schreibgate bestanden, aber Batteriepuffer mit der alten Zelle durch erneut gesetztes OSF widerlegt. Bis zur Ersatz-RTC ist ein ausdrücklich flüchtiger Handy-Zeitabgleich implementiert und auf dem DFR0975-U über die echte AP/Web-UI-Kette bestanden: Timer bleiben nach jedem Neustart bis zu einem neuen Abgleich gesperrt; die vertrauenswürdige Offline-RTC bleibt offen |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
-| 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; produktiver Auto-Start bleibt bewusst aus |
+| 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; der neue Produkt-Autostart integriert diesen Pfad, seine Zielabnahme ist offen |
 | **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
-| **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; kein Auto-Start** |
+| **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; der neue Produkt-Autostart integriert die UI, seine Zielabnahme ist offen** |
 | **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Der dabei gefundene leere DELETE-Body wurde korrigiert; erneuter A/B-Build, Artefaktprüfung, autorisierter App-only-Flash, vollständige Rücklesung, Speicher-Reload und Cleanup bestanden. Als Phase-13-Ergänzung offen: live aktualisierte Temperatur und Health pro physischer ROM-ID im Sensor-Zuordnungsschritt, auch vor der Rollenzuweisung.** |
 | **11** | **Events / Diagnostics / Capture Export** | **Software- und Zielabnahme bestanden: 200er Ereignisring, begrenztes Live-Protokoll, benannte RAM-Captures, kleine Cursor-/Exportseiten, JSON/NDJSON-Export und lazy geladene zweisekündige Diagnose-UI; reproduzierbarer A/B-Build, Offline-Artefaktgate, autorisierter App-only-Flash, vollständige Rücklesung sowie realer Handyablauf mit Capture/Export und vollständigem Cleanup bestätigt. Hardwarezugriffe bleiben entkoppelt; elektrische Abnahme folgt in Phase 13.** |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
-| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; live per ROM aktualisierte Setup-Sensorzuweisung und Ersatz-RTC bleiben offen |
+| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; Produkt-Autostart ist offline gebaut und geprüft, aber noch nicht geflasht oder zielseitig abgenommen; live per ROM aktualisierte Setup-Sensorzuweisung und Ersatz-RTC bleiben offen |
 
 Vorgezogene Arbeiten aus Phase 11 oder 12 ändern die funktionale
 Phasenzuordnung nicht. Eine Phase gilt außerdem nicht allein wegen vorhandener
@@ -590,9 +596,10 @@ Der reale DFR0975-U-Zieltest bestätigte anschließend über den vollständigen
 AP-/Captive-Portal-/Web-UI-Pfad genau einen Browser-Zeitabgleich, eine danach
 vertrauenswürdige Timerzeit, unveränderte Produktionsspeicher sowie den
 vollständigen WLAN-/HTTP-Cleanup. Der begrenzte Lauf öffnete keinen UART und
-ließ jede Heizungsanforderung blockiert. Der derzeitige Phasenstand besitzt
-weiterhin keinen dauerhaften Produkt-Autostart; der Zieltest startete den
-Laufzeitverbund ausdrücklich über USB.
+ließ jede Heizungsanforderung blockiert. Dieser Test startete den Verbund noch
+über USB. Der danach erstellte Produkt-Autostart-Kandidat bindet denselben
+Browser-Zeitpfad in den vollständigen Verbund ein; seine Zielabnahme ist noch
+offen.
 
 Der Zeitkern unterstützt zwei explizite Regeln: einen festen UTC-Offset und
 die eingebettete, versionierte Fahrzeugzone `Europe/Zurich`. Der kanonische
@@ -1106,8 +1113,10 @@ Bestätigt beziehungsweise vorgesehen sind:
   1-Wire sowie der DS3231M-
   Buszugriff wurden getrennt elektrisch geprüft; im sicheren Repositoryprofil
   bleiben Protokoll-TX, UART-Pinaktivierung, I2C und WLAN `False`. Nur der
-  getrennte, noch ungeflashte Heater-Aktivierungskandidat öffnet die beiden
-  UART-Freigaben; 1-Wire und die Direct-TX-Topologieentscheidung bleiben erfasst
+  getrennte Produkt-Autostart-Kandidat öffnet die beiden UART-Freigaben und
+  aktiviert WLAN erst nach erfolgreichem Laden der vertrauenswürdigen
+  Produktionseinstellungen; 1-Wire und die Direct-TX-Topologieentscheidung
+  bleiben erfasst. Der Kandidat ist noch ungeflasht
 - geeigneter 5-V-↔-3,3-V-Pegelwandler für die Autoterm-UART
 - drei bestätigte DS18B20-Sensoren mit dauerhaft gespeicherter Zuordnung
 - DS3231M-RTC mit bestandenem Buszugriff, aber ausgefallenem Batteriepuffer
@@ -1122,7 +1131,7 @@ Die geprüften Alternativboards und Auswahlkriterien stehen in
 `board_config.py` ist auf die physisch bestätigte S3-Identität gebunden. Für
 1-Wire sind der externe 5-kΩ-Pull-up, die konfliktfreie GPIO4-Verdrahtung und
 drei reale Sensoren inzwischen bestätigt; `ONEWIRE_PIN_APPROVED=True` wird
-im getrennt zu bauenden Produktintegrations-Kandidaten geführt. Der Validator
+im getrennten Produktintegrations-Kandidaten geführt. Der Validator
 sperrt PMIC-, UART0-, USB-, Flash/PSRAM-, Boot-Strapping-, LED-, Taster-,
 Kamera- und JTAG-Routen.
 Für I2C gilt eine getrennte, ebenso strikte Freigabe: SDA/SCL müssen
@@ -1149,9 +1158,11 @@ bewusst geänderte beziehungsweise ersetzte Low-Level-Konfiguration mit
 Meilenstein autorisieren. Die Produktfactory verlangt zusätzlich die explizit
 ausgewählte und genehmigte Schnittstellentopologie. Der Eigentümer hat für den
 DFR0975-U den vorhandenen direkten Pegelwandler samt dokumentiertem Restrisiko
-akzeptiert; D12 bleibt unbenutzt und `UART_TX_GATE_APPROVED=False`. Im
-aktuellen Projekt bleiben Protokoll-TX und UART-Pinaktivierung `False`. `main.py`
-importiert weder Protokoll noch `machine` und öffnet keine Hardware.
+akzeptiert; D12 bleibt unbenutzt und `UART_TX_GATE_APPROVED=False`. Im sicheren
+Repository-Standard bleiben Protokoll-TX und UART-Pinaktivierung `False`; das
+dortige `main.py` importiert weder Protokoll noch `machine` und öffnet keine
+Hardware. Nur der getrennte 50-Datei-Produktkandidat besitzt das eingefrorene
+Aktivierungsprofil und einen eingefrorenen Autostart-Einstieg.
 
 Der historische passive Capture- und Loopbackpfad bleibt ausdrücklich
 DFR0654-spezifisch. Für das DFR0975-U existiert inzwischen eine eigene,
@@ -1285,7 +1296,8 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
 8. Phase 9 ist vollständig bestanden: A/B-Build, Artefaktprüfung, autorisierter
    App-Flash ohne Full Erase, komplette Rückleseprüfung sowie der reale
    Ein-Listener-Handygate mit 9/9 UI-Ressourcen, 4/4 API-Lesezugriffen, null
-   Mutationen und vollständigem Cleanup. Produktiver Auto-Start bleibt aus.
+   Mutationen und vollständigem Cleanup. Der aktuelle Produkt-Autostart ist
+   separat gebaut; seine Zielabnahme steht aus.
 9. Phase 10 ist softwareseitig korrigiert und in
    `PHASE10_SETUP_ASSISTANT.md` dokumentiert. Netzwerkzugangsdaten sind
    write-only, Passwort-/Open-Auswahl ist ausdrücklich, ungültige Eingaben
@@ -1316,11 +1328,11 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
     fünf bestandenen Speicherpunkten und vollständigem Funk-Cleanup.
 12. Phase 11 ist einschließlich Diagnose, Capture, Export, Flash/Readback und
     realem Handyablauf abgeschlossen.
-13. Für Phase 13 ist der getrennte Aktivierungsbuild bei 48/48 Quellen
-    gebunden, in zwei vollständigen Builds 15/15 byteidentisch und offline
-    geprüft. App-only Flash und vollständige Rücklesung bei `0x10000` sowie
-    der einmalige siebenminütige Power-1-Lauf bis bestätigt `ready`/`off` sind
-    bestanden.
+13. Für Phase 13 sind der frühere Aktivierungsbuild samt App-only-Flash,
+    vollständiger Rücklesung und einmaligem siebenminütigem Power-1-Lauf bis
+    bestätigt `ready`/`off` bestanden. Der darauf aufbauende 50/50-Quellen-
+    Produkt-Autostart ist in zwei vollständigen Builds 15/15 byteidentisch und
+    offline geprüft; sein Flash und Zielgate stehen noch aus.
 
 Als nächste Phase-13-Hardwarepunkte bleiben die live per ROM aktualisierte
 Sensorzuweisung im Setup-Assistenten und ein RTC-Retest mit neuer Batterie.

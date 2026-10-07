@@ -972,6 +972,19 @@ Heater supervision must continue even when:
 
 No optional service may be a prerequisite for heater state supervision.
 
+The production image shall start the integrated runtime after every normal
+reset without a USB runner. Startup shall load trusted storage first, create
+the heater controller requested OFF, make the recovery AP/Web UI available and
+only then arm timer execution. A runtime failure of station Wi-Fi, an HTTP
+listener or diagnostics shall degrade that optional service without ending
+heater supervision. A safety-critical failure shall request controlled heater
+shutdown and shall not release the UART owner until OFF is confirmed.
+
+After a committed configuration change, the running composition shall disarm
+timers and require a deliberate board restart before generation-bound sensor,
+network or scheduler owners use the new values. The recovery AP/UI should stay
+available to tell the user that this restart is required.
+
 ## 40. Concurrency model
 
 Prefer `uasyncio`.
