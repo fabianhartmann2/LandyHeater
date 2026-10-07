@@ -51,6 +51,9 @@ system or an automotive-qualified interface.
 
 ## Next gate
 
-Prepare and software-test a bounded START/controlled-SHUTDOWN acceptance tool.
-Only after code review, reproducible artifact generation, hash-bound approval
-and an OFF synchronization may a single supervised active cycle be attempted.
+The bounded START/controlled-SHUTDOWN acceptance tool is now prepared and
+software-tested. It fixes the first cycle at power level 1 for seven minutes
+from START, requires observed STARTING and RUNNING, then supervises automatic
+controlled shutdown until confirmed OFF. Only after reproducible artifact
+generation, hash-bound approval and an initial OFF synchronization may this
+single supervised active cycle be attempted.

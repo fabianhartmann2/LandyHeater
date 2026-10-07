@@ -469,6 +469,16 @@ pin and protocol activation remain `False`, so the current source cannot start
 product UART hardware. Direct writes still require a complete driver write and
 bounded `UART.txdone()` confirmation.
 
+The first active Phase-13 gate remains separate from normal product startup.
+Its fixed envelope is power mode level 1 for seven minutes from the START
+request, allowing at least five minutes for startup/settling and approximately
+two minutes stable operation. It requires observed STARTING and RUNNING,
+allows at most two START and two SHUTDOWN attempts through the existing
+controller, performs no external-temperature transmission and keeps polling
+STATUS through automatic session expiry and controlled shutdown until a
+CRC-confirmed OFF state. The tool remains unusable while product pin and
+protocol-TX activation flags are closed.
+
 ## 15. Sensor-health timing
 
 Conceptual states:

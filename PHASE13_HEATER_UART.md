@@ -136,8 +136,12 @@ board profile.
 4. **Complete:** owner decision accepts the proven permanently connected level
    shifter and its documented residual reset/software risk; D12 remains
    disconnected and `UART_TX_GATE_APPROVED=False`.
-5. Prepare and software-test a bounded START/controlled-SHUTDOWN gate with an
-   accessible external 12-V cutoff and no external-temperature command.
+5. **Prepared and software-bounded:** the active-cycle gate uses power level 1
+   for seven minutes from START, requires observed STARTING and RUNNING, then
+   supervises automatic controlled SHUTDOWN until confirmed OFF. This gives
+   the heater at least five minutes to start and settle plus roughly two
+   minutes stable operation. It has no external-temperature or raw-send path,
+   caps START/SHUTDOWN at two attempts and requires an accessible 12-V cutoff.
 6. Build a separately reviewed candidate that opens only the required pin and
    protocol flags, then perform reproducibility, artifact and hash approval.
 7. After authorized flash, synchronize to confirmed OFF before one supervised
