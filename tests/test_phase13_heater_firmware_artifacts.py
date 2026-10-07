@@ -34,10 +34,10 @@ class TestPhase13HeaterFirmwareArtifacts(unittest.TestCase):
         partition = (
             ARTIFACTS / "partition_table/partition-table.bin"
         ).read_bytes()
-        self.assertEqual(len(application), 2_109_520)
+        self.assertEqual(len(application), 2_112_512)
         self.assertEqual(
             hashlib.sha256(application).hexdigest(),
-            "f02d59e7d8c501c387e837cbbbc38ec9725387e8ac9db18c1395df084298ca3d",
+            "741ad9f13d106035d8ffe45ed0d84e92815e3d54396cf1f80400f7d349c27d18",
         )
         self.assertEqual(combined[: len(bootloader)], bootloader)
         self.assertEqual(combined[0x8000:0x8000 + len(partition)], partition)

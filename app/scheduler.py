@@ -19,6 +19,7 @@ import time as _time
 
 from app.application_state import validate_start_request
 from services.time_service import (
+    CLOCK_SOURCE_BROWSER,
     CLOCK_SOURCES,
     CLOCK_HEALTH_HOLDOVER,
     CLOCK_HEALTH_OK,
@@ -875,10 +876,22 @@ class Scheduler:
             CLOCK_HEALTH_HOLDOVER,
         ):
             return None
-        # A correction that has not reached the authoritative RTC cannot
-        # authorize a heater timer yet.  Holdover after a later RTC fault is
-        # also fenced because rtc_health is no longer OK.
-        if snapshot.get("rtc_health") != RTC_HEALTH_OK:
+        volatile_browser_time = snapshot.get("volatile_browser_time")
+        timer_trusted = snapshot.get("timer_trusted")
+        if (
+            type(volatile_browser_time) is not bool
+            or type(timer_trusted) is not bool
+        ):
+            return None
+        if timer_trusted is not True:
+            return None
+        # Normal NTP/browser corrections must reach the authoritative RTC.
+        # The explicit volatile-browser mode is the sole exception: it is
+        # trusted only for the current boot and only from a browser sample.
+        if volatile_browser_time:
+            if snapshot.get("source") != CLOCK_SOURCE_BROWSER:
+                return None
+        elif snapshot.get("rtc_health") != RTC_HEALTH_OK:
             return None
         if snapshot.get("rtc_write_pending") is not False:
             return None

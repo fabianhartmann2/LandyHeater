@@ -467,14 +467,26 @@ class FakeTemperatureManager:
 
 
 class FakeTimeService:
+    def __init__(self):
+        self.browser_utc_seconds = None
+
+    def set_volatile_browser_time(self, utc_seconds, now_ms):
+        if type(utc_seconds) is not int or utc_seconds < 0:
+            raise ValueError("unsupported browser time")
+        self.browser_utc_seconds = utc_seconds
+        return True
+
     def snapshot(self, now_ms):
+        browser = self.browser_utc_seconds is not None
         return {
             "valid": True,
             "health": "ok",
             "rtc_health": "ok",
             "rtc_write_pending": False,
             "rtc_commit_revision": None,
-            "source": "rtc",
+            "volatile_browser_time": browser,
+            "timer_trusted": True,
+            "source": "browser" if browser else "rtc",
             "timezone": "Europe/Zurich",
             "timezone_rule": "CET/CEST",
             "timezone_rule_version": 1,
@@ -958,6 +970,43 @@ class TestRestManualMutations(unittest.TestCase):
         return self.fixture.app.handle(json_request(
             "POST", "/api/v1/heater/start", body, headers
         ))
+
+    def test_browser_time_sync_accepts_unix_utc_without_configuration_etag(self):
+        response = self.fixture.app.handle(
+            json_request(
+                "PUT",
+                "/api/v1/time/browser-sync",
+                b'{"unix_epoch_seconds":1786400000}',
+                self.fixture.mutation_headers(),
+            )
+        )
+        self.assertEqual(response.status, 200)
+        self.assertTrue(response.body["synchronized"])
+        self.assertEqual(
+            self.fixture.time.browser_utc_seconds,
+            1786400000 - 946684800,
+        )
+        self.assertTrue(response.body["time"]["volatile_browser_time"])
+        self.assertTrue(response.body["time"]["timer_trusted"])
+        self.assertEqual(response.body["time"]["source"], "browser")
+
+    def test_browser_time_sync_rejects_malformed_or_out_of_range_time(self):
+        cases = (
+            b'{"unix_epoch_seconds":true}',
+            b'{"unix_epoch_seconds":0}',
+            b'{"unix_epoch_seconds":1786400000,"extra":1}',
+        )
+        for body in cases:
+            with self.subTest(body=body):
+                response = self.fixture.app.handle(
+                    json_request(
+                        "PUT",
+                        "/api/v1/time/browser-sync",
+                        body,
+                        self.fixture.mutation_headers(),
+                    )
+                )
+                self.assertEqual(response.status, 422)
 
     def test_start_delegates_all_preconditions_and_returns_requested_not_actual(self):
         response = self._start()

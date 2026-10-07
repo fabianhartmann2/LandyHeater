@@ -316,6 +316,13 @@ Clock-source strategy:
 3. the web browser/device may provide time to correct the RTC
 4. timer operation must not require internet
 
+Until the replacement RTC is available during integration, an explicit
+volatile browser-time mode is permitted. It shall accept UTC only through the
+AP-protected mutation API, shall never claim RTC persistence, and shall be
+lost on every reboot. Timers shall remain blocked after boot until a fresh
+browser sample has established a scheduler baseline. This temporary mode does
+not remove the DS3231 requirement for the final product.
+
 The DS3231 shall store UTC only. Local civil time shall be derived in
 `TimeService`; timer and UI code must not reinterpret RTC register values as
 local time.

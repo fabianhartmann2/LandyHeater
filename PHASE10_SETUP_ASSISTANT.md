@@ -17,7 +17,8 @@ Zieltest samt Cleanup.
 Die Oberfläche bildet den festgelegten Ablauf mit neun Schritten ab:
 
 1. Sprache (Deutsch/Englisch, lokal im Browser gespeichert)
-2. Datum, Uhrzeit und bereits vorliegender RTC-Zustand
+2. Datum, Uhrzeit und Zeitquelle; bis zur Ersatz-RTC kann die UTC-Zeit des
+   Handys ausdrücklich übernommen werden
 3. bis zu acht bekannte WLANs mit ausdrücklicher Passwort-/Sicherheitsauswahl
 4. individuelles Passwort des festen AP `Landy Heater` mit ausdrücklicher
    Auswahl **beibehalten** oder **ersetzen**
@@ -38,10 +39,19 @@ löschen.
 |---|---|---|
 | `GET` | `/api/v1/setup` | Nur vorhandene öffentliche Konfiguration und passive Laufzeitbeobachtungen lesen |
 | `PUT` | `/api/v1/setup` | Vollständigen Assistentenabschluss in genau einem generationsgeschützten Commit speichern |
+| `PUT` | `/api/v1/time/browser-sync` | UTC-Handyzeit flüchtig bis zum nächsten Neustart übernehmen |
 
 `PUT` ist wie alle Mutationen nur am AP-Eingang mit gültigem Origin, CSRF-Token
 und aktuellem `If-Match` möglich. Die allgemeine
 `PATCH /api/v1/settings`-Grenze bleibt für Netzwerkdaten geschlossen.
+
+Der Browser-Zeitabgleich benötigt kein Konfigurations-ETag, bleibt aber wie
+jede Mutation auf den AP-Eingang mit gültigem Origin und CSRF-Token begrenzt.
+Beim ersten UI-Laden wird er automatisch ausgeführt, wenn die Uhr ungültig ist;
+im Assistenten und unter **Einstellungen → Datum & Uhrzeit** kann er manuell
+wiederholt werden. Ohne RTC wird nichts dauerhaft gespeichert. Nach jedem
+Neustart ist die Uhr wieder ungültig und der Scheduler bleibt bis zum neuen
+Abgleich fail-closed.
 
 Passwörter sind ausschließlich write-only. Der Browser kann ein neues
 Passwort übergeben oder ein schon vorhandenes Passwort durch die Aktion

@@ -15,6 +15,7 @@ from services.time_service import (
     EUROPE_ZURICH_TIMEZONE_NAME,
     TIMEZONE_RULE_EUROPE_ZURICH,
     TimeService,
+    civil_to_utc_seconds,
 )
 
 
@@ -389,6 +390,15 @@ class TestSchedulerOccurrenceLogic(unittest.TestCase):
         clock.report_rtc_error(500, "fault")
         self.assertIsNone(scheduler.step(1001, True))
         self.assertEqual(scheduler.snapshot()["occurrences"], {})
+
+    def test_volatile_browser_time_can_authorize_after_boot_baseline(self):
+        clock = TimeService()
+        clock.set_volatile_browser_time(
+            civil_to_utc_seconds(2026, 8, 9, 14, 29, 59), 0
+        )
+        scheduler, _ = armed_scheduler(clock=clock)
+        self.assertIsNone(scheduler.step(0, True))
+        self.assertIsNotNone(scheduler.step(1000, True))
 
     def test_in_progress_rtc_commit_is_not_timer_trusted(self):
         clock = TimeService()

@@ -239,6 +239,9 @@ class _TimeService:
     def snapshot(self, now_ms=None):
         return {"valid": False}
 
+    def set_volatile_browser_time(self, utc_seconds, now_ms):
+        return True
+
 
 class _ConfiguredRuntime:
     __slots__ = ("scheduler", "temperature_manager", "time_service")

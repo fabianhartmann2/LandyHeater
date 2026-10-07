@@ -141,6 +141,21 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn(b"await L.refresh()", boot)
         self.assertNotIn(b"await L.security();await L.refresh()", boot)
 
+    def test_browser_time_sync_is_utc_bounded_and_visible(self):
+        index = self.app.handle(request(), PEER).body
+        app = self.app.handle(request(target="/assets/app.js"), PEER).body
+        settings = self.app.handle(
+            request(target="/assets/settings.js"), PEER
+        ).body
+        self.assertIn(b'id="sync-browser-time"', index)
+        self.assertIn(b'id="setup-sync-browser-time"', index)
+        self.assertIn(b"Math.floor(Date.now()/1000)", app)
+        self.assertIn(b'"/api/v1/time/browser-sync"', app)
+        self.assertIn(b"unix_epoch_seconds", app)
+        self.assertIn(b"L.state.status?.time?.valid!==true", app)
+        self.assertIn(b"volatile_browser_time", settings)
+        self.assertIn(b"timer_trusted", settings)
+
     def test_frontend_has_no_external_dependency_or_inline_executable_code(self):
         index = self.app.handle(request(), PEER).body
         self.assertNotIn(b"http://", index)

@@ -1,12 +1,13 @@
 # Phase 13 heater activation frozen firmware build record
 
-Build date: 2026-10-07. Status: **exact 48-file source closure, host safety
-tests, two byte-identical canonical-path builds, offline artifact gates,
-authorized app-only flash, full readback and one bounded active heater cycle
-through confirmed OFF passed**.
+Build date: 2026-10-07. Status: **exact 48-file source closure, browser-time
+host safety tests, two byte-identical canonical-path builds and offline
+artifact gates passed. This new image has not been authorized, flashed or
+tested on the target.**
 
-This candidate adds the configured heater lifecycle owner to the accepted
-Phase-13 sensor image. Its private frozen `board_config.py` differs from the
+This candidate extends the previously accepted heater lifecycle image with an
+AP-protected, reboot-volatile browser-time source while retaining the existing
+RTC path. Its private frozen `board_config.py` differs from the
 safe repository profile in exactly two values:
 `UART_PINS_APPROVED=True` and `UART_PROTOCOL_TX_ENABLED=True`. The selected
 direct level-shifter approval remains explicit; the nonexistent GPIO12 gate,
@@ -15,13 +16,13 @@ remains passive and is not part of the frozen closure.
 
 ## Pinned inputs
 
-- repository baseline before the candidate: `372caad75ef54a4dcb740a11c93059c7751206fc`;
+- repository baseline before the browser-time candidate: `f63e049`;
 - 48 exact project-source files bound by `CURRENT_FROZEN_SOURCES.sha256`;
 - MicroPython v1.28.0 commit
   `e0e9fbb17ed6fd06bb76e266ae554784c9c80804`;
 - ESP-IDF v5.5.1 commit
   `fcae32885b0296b32044cb99ecbdc50d98dddb83`;
-- Python 3.12.7;
+- Python 3.14.6;
 - `mpy-cross` v1.28.0, MPY format 6, executable SHA-256
   `ceda0dfb2f800a3970f2be6a036aedfc3e9bcdb49579aeb3d5a0cb1a0390c849`;
 - esptool 4.12.0;
@@ -35,8 +36,8 @@ remains passive and is not part of the frozen closure.
 | --- | --- |
 | `manifest.py` | `7cfda15fe94561841d57ae9e8c6e18cd2b03c00eba29161142f13bc2d21f3f7e` |
 | `FROZEN_MODULES.txt` | `d456642d89ff3c5ce7742c6e5858d3de244ae11a0b1ad2629838b2a23a6a0621` |
-| `CURRENT_FROZEN_SOURCES.sha256` | `6450f3d3f596b18945e22e07d6552465d3ddb3483621719a5296c48e1070ce94` |
-| `artifacts/SHA256SUMS` | `813eae359b89670a4a81feca9e5395e69c9f9af785d671175717c2c142f80546` |
+| `CURRENT_FROZEN_SOURCES.sha256` | `8746384554cd03934430d29178d508b1f2477ee807a0c421e5056e26941dd827` |
+| `artifacts/SHA256SUMS` | `86cf1e4da1583fac966aeb4637e579a7d72843d6c58ba9ba2f0a0cc59594e8c7` |
 
 The closure freezes the private activation profile and
 `app/heater_composition.py`. It excludes `boot.py`, `main.py`, credentials,
@@ -65,33 +66,34 @@ is no OTA partition.
 | --- | ---: |
 | Bootloader | 19,232 B; unchanged |
 | Partition table | 3,072 B; unchanged |
-| Factory application | 2,109,520 B used of 3,145,728 B |
-| Growth from accepted Phase-13 sensor image | 10,864 B |
-| Application margin | 1,036,208 B (about 33%) |
-| Combined image | 2,175,056 B; exact end `0x213050` |
+| Factory application | 2,112,512 B used of 3,145,728 B |
+| Growth from accepted heater image | 2,992 B |
+| Application margin | 1,033,216 B (about 33%) |
+| Combined image | 2,178,048 B; exact end `0x213c00` |
 
 The retained deployment subset is bound by `artifacts/SHA256SUMS`. The only
 image proposed for the next operation is:
 
 ```text
 offset: 0x10000
-size:   2109520 bytes
-sha256: f02d59e7d8c501c387e837cbbbc38ec9725387e8ac9db18c1395df084298ca3d
+size:   2112512 bytes
+sha256: 741ad9f13d106035d8ffe45ed0d84e92815e3d54396cf1f80400f7d349c27d18
 erase:  no full-chip erase
 ```
 
 This record is evidence only and does not authorize a later flash.
 
-## Target deployment and active-cycle result
+## Target status and prior active-cycle evidence
 
-The owner authorized the exact application digest for an app-only write at
-`0x10000` without full erase. Esptool wrote and verified 2,109,520 bytes. An
-independent full readback of that exact range was byte-identical and retained
-the same SHA-256. Bootloader, partition table and VFS were not written.
+The browser-time application above has not been authorized or written. Any
+future app-only flash requires a fresh approval that names its exact digest,
+offset `0x10000` and no-full-erase scope. Bootloader, partition table and VFS
+must remain untouched.
 
-After manual reset, a passive check confirmed MicroPython 1.28.0, the exact
-DFR0975-U N16R8 identity, the frozen activation profile and inactive radios.
-It opened no UART and sent no heater command.
+The immediately preceding application (`f02d59e7...`) was independently
+authorized, written and fully read back. After manual reset, a passive check
+confirmed MicroPython 1.28.0, the exact DFR0975-U N16R8 identity, the frozen
+activation profile and inactive radios.
 
 The separately confirmed active gate then ran power level 1 for seven minutes,
 observed STARTING, RUNNING and SHUTTING_DOWN, and returned to synchronized

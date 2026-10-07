@@ -59,6 +59,9 @@ class _TimeService:
     def snapshot(self):
         return {}
 
+    def set_volatile_browser_time(self, utc_seconds, now_ms):
+        return True
+
 
 class _ConfiguredRuntime:
     def __init__(self):

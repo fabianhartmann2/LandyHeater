@@ -440,6 +440,7 @@ class TimeService:
         self._rtc_write_pending = False
         self._rtc_write_revision = None
         self._rtc_commit_revision = None
+        self._volatile_browser_time = False
         self._last_error = None
 
         self._events = []
@@ -562,6 +563,7 @@ class TimeService:
         self._valid = True
         self._clock_revision += 1
         self._utc_revision += 1
+        self._volatile_browser_time = False
         self._last_error = None
         if source == CLOCK_SOURCE_RTC:
             self._rtc_health = RTC_HEALTH_OK
@@ -574,6 +576,37 @@ class TimeService:
             "clock_synchronized",
             now_ms,
             {"source": source, "clock_revision": self._clock_revision},
+        )
+        return True
+
+    def set_volatile_browser_time(self, utc_seconds, now_ms):
+        """Accept one browser UTC sample for this boot only.
+
+        This deliberately bypasses RTC persistence for the temporary
+        hardware-without-RTC operating mode.  The accepted wall clock is
+        still fenced like every other correction and disappears on reboot.
+        Callers must supply UTC, never local civil time.
+        """
+
+        _require_integer("utc_seconds", utc_seconds)
+        civil = epoch_seconds_to_civil(utc_seconds)
+        self.set_utc_datetime(
+            civil["year"],
+            civil["month"],
+            civil["day"],
+            civil["hour"],
+            civil["minute"],
+            civil["second"],
+            CLOCK_SOURCE_BROWSER,
+            now_ms,
+        )
+        self._rtc_write_pending = False
+        self._rtc_write_revision = None
+        self._volatile_browser_time = True
+        self._emit(
+            "volatile_browser_time_accepted",
+            now_ms,
+            {"clock_revision": self._clock_revision},
         )
         return True
 
@@ -805,6 +838,7 @@ class TimeService:
         self._rtc_health = RTC_HEALTH_ERROR
         self._rtc_write_pending = False
         self._rtc_write_revision = None
+        self._volatile_browser_time = False
         self._last_error = reason
         self._emit(
             "clock_invalid",
@@ -826,6 +860,16 @@ class TimeService:
             "rtc_write_pending": self._rtc_write_pending,
             "rtc_write_revision": self._rtc_write_revision,
             "rtc_commit_revision": self._rtc_commit_revision,
+            "volatile_browser_time": self._volatile_browser_time,
+            "timer_trusted": (
+                self._valid
+                and self._rtc_commit_revision is None
+                and self._rtc_write_pending is False
+                and (
+                    self._volatile_browser_time
+                    or self._rtc_health == RTC_HEALTH_OK
+                )
+            ),
             "source": self._source,
             "clock_revision": self._clock_revision,
             "utc_revision": self._utc_revision,

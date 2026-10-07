@@ -191,6 +191,34 @@ class TestTimeServiceState(unittest.TestCase):
         self.assertEqual(later["local"]["second"], 1)
         self.assertEqual(later["sync_age_ms"], 2000)
         self.assertEqual(later["rtc_health"], RTC_HEALTH_OK)
+        self.assertTrue(later["timer_trusted"])
+        self.assertFalse(later["volatile_browser_time"])
+
+    def test_volatile_browser_time_is_trusted_only_for_the_current_instance(self):
+        service = TimeService()
+        sample = civil_to_utc_seconds(2026, 10, 7, 12, 34, 56)
+        self.assertTrue(service.set_volatile_browser_time(sample, 100))
+        snapshot = service.snapshot(100)
+        self.assertTrue(snapshot["valid"])
+        self.assertEqual(snapshot["source"], CLOCK_SOURCE_BROWSER)
+        self.assertTrue(snapshot["volatile_browser_time"])
+        self.assertTrue(snapshot["timer_trusted"])
+        self.assertFalse(snapshot["rtc_write_pending"])
+        self.assertIsNone(snapshot["rtc_write_revision"])
+        self.assertEqual(snapshot["local"]["hour"], 12)
+
+        rebooted = TimeService()
+        self.assertFalse(rebooted.snapshot(0)["timer_trusted"])
+
+    def test_regular_browser_correction_still_requires_rtc_persistence(self):
+        service = TimeService()
+        service.set_utc_datetime(
+            2026, 10, 7, 12, 0, 0, CLOCK_SOURCE_BROWSER, 0
+        )
+        snapshot = service.snapshot(0)
+        self.assertTrue(snapshot["rtc_write_pending"])
+        self.assertFalse(snapshot["volatile_browser_time"])
+        self.assertFalse(snapshot["timer_trusted"])
 
     def test_matching_periodic_rtc_refresh_does_not_fence_scheduler(self):
         service = TimeService()

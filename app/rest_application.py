@@ -81,6 +81,8 @@ _SESSION_UPDATE_FIELDS = frozenset((
 _SETTINGS_FIELDS = frozenset(("heater", "sensors", "time"))
 _SETUP_FIELDS = frozenset(("heater", "sensors", "time", "network", "checks"))
 _CAPTURE_FIELDS = frozenset(("label",))
+_TIME_SYNC_FIELDS = frozenset(("unix_epoch_seconds",))
+_SECONDS_1970_TO_2000 = 946684800
 _TIMER_FIELDS = frozenset((
     "id",
     "name",
@@ -567,6 +569,7 @@ class RestApplication:
             (controller, "public_snapshot"),
             (temperature_manager, "snapshot"),
             (time_service, "snapshot"),
+            (time_service, "set_volatile_browser_time"),
             (scheduler, "public_snapshot"),
             (scheduler, "next_occurrence"),
             (scheduler_gateway, "snapshot"),
@@ -935,6 +938,8 @@ class RestApplication:
             "rtc_health": snapshot.get("rtc_health"),
             "rtc_write_pending": snapshot.get("rtc_write_pending"),
             "rtc_commit_pending": snapshot.get("rtc_commit_revision") is not None,
+            "volatile_browser_time": snapshot.get("volatile_browser_time"),
+            "timer_trusted": snapshot.get("timer_trusted"),
             "source": snapshot.get("source"),
             "timezone": snapshot.get("timezone"),
             "timezone_rule": snapshot.get("timezone_rule"),
@@ -1377,6 +1382,8 @@ class RestApplication:
                 "valid": clock["valid"],
                 "health": clock["health"],
                 "rtc_health": clock["rtc_health"],
+                "volatile_browser_time": clock["volatile_browser_time"],
+                "timer_trusted": clock["timer_trusted"],
                 "source": clock["source"],
                 "local": clock["local"],
             },
@@ -1585,6 +1592,47 @@ class RestApplication:
                     "capture_export": self.__diagnostics_hub.capture_page(
                         offset, limit
                     )
+                },
+            )
+
+        if path == API_PREFIX + "/time/browser-sync":
+            if method != "PUT":
+                raise _RestProblem(
+                    405,
+                    "method_not_allowed",
+                    "Method not allowed",
+                    {"Allow": "PUT"},
+                )
+            self._authorize_mutation(request)
+            body = self._json_object(request, _TIME_SYNC_FIELDS)
+            unix_seconds = body["unix_epoch_seconds"]
+            if type(unix_seconds) is not int:
+                raise _RestProblem(
+                    422,
+                    "validation_failed",
+                    "Request validation failed",
+                )
+            project_utc_seconds = unix_seconds - _SECONDS_1970_TO_2000
+            self._assert_not_reentered()
+            try:
+                self.__time_service.set_volatile_browser_time(
+                    project_utc_seconds, now_ms
+                )
+            except ValueError:
+                raise _RestProblem(
+                    422,
+                    "validation_failed",
+                    "Request validation failed",
+                ) from None
+            self.__mutations += 1
+            return self._success(
+                200,
+                request_id,
+                {
+                    "synchronized": True,
+                    "time": self._clock_public(
+                        self.__time_service.snapshot(now_ms)
+                    ),
                 },
             )
 

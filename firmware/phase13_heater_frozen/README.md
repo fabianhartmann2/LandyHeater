@@ -12,10 +12,10 @@ The selected interface is the owner-approved direct level shifter; the absent
 hardware gate remains `False`. I2C and radio approvals remain closed.
 
 The ledger binds the exact current source bytes. `BUILD_INFO.md` records the
-pinned inputs, two byte-identical canonical-path builds, artifact hashes,
-layout and the target gate. All offline gates, the authorized app-only flash,
-full readback and the single bounded active heater cycle passed on 2026-10-07.
-No artifact in this directory authorizes a later board flash. The retained
-app-only image is 2,109,520 bytes with SHA-256
-`f02d59e7d8c501c387e837cbbbc38ec9725387e8ac9db18c1395df084298ca3d`
-for offset `0x10000` without a full erase.
+pinned inputs, two byte-identical canonical-path builds, artifact hashes and
+layout. The retained candidate adds reboot-volatile browser time while keeping
+the RTC path. Its offline gates passed, but it has not been authorized,
+flashed or tested on the board. No artifact in this directory authorizes a
+board flash. The app-only image is 2,112,512 bytes with SHA-256
+`741ad9f13d106035d8ffe45ed0d84e92815e3d54396cf1f80400f7d349c27d18`
+for a possible future write at offset `0x10000` without a full erase.
