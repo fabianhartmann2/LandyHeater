@@ -23,8 +23,10 @@ Für die Heizungs-UART sind RX-only, direkte begrenzte INIT-/STATUS-Diagnose
 und nun auch die echte `ConfiguredHeaterRuntime` auf dem DFR0975-U bestanden.
 Der Lauf lud Produktionskonfiguration Generation 2 nur lesend, sendete exakt
 ein INIT und ein STATUS, erreichte `ready`/`off` bei 12,1 V und schloss normal.
-Speicher und geschlossene Produkt-TX-Freigaben blieben unverändert. Der
-geschützte externe TX-Gate-Aufbau bleibt vor normalem Produkt-TX erforderlich.
+Speicher und geschlossene Produkt-TX-Aktivierungsflags blieben unverändert.
+Der Eigentümer hat anschließend ausdrücklich entschieden, den bewährten,
+permanent verbundenen Pegelwandler ohne zusätzliche physische TX-Abschaltung
+zu verwenden; das dokumentierte Reset-/Software-Risiko ist akzeptiert.
 
 Die folgende Darstellung enthält zusätzlich die historische Entwicklung bis
 zu diesem Stand.
@@ -857,8 +859,9 @@ auf `rx_faulted=False` geprüft.
 `open_tx_locked_protocol_service()` sowie die getrennte Produktfactory
 `open_tx_enabled_protocol_service()`. Letztere besitzt kein öffentliches
 Freigabeargument und verweigert bereits vor Hardwarezugriff, solange UART-Pins,
-physisches TX-Gate und Protokoll-TX nicht unabhängig bestätigt sind. Alle drei
-Flags bleiben im aktiven Profil `False`. Importieren öffnet keine Hardware;
+ausgewählte Schnittstellentopologie und Protokoll-TX nicht unabhängig bestätigt
+sind. Die direkte Topologie ist akzeptiert; Pin- und TX-Aktivierung bleiben
+`False`. Importieren öffnet keine Hardware;
 erst `ConfiguredHeaterRuntime.start()` würde die Produktfactory aufrufen.
 `main.py` tut dies weiterhin nicht. Scheitert eine Prüfung nach dem Öffnen,
 wird der Transport begrenzt und retryfähig geschlossen.
@@ -1072,10 +1075,12 @@ Bestätigt beziehungsweise vorgesehen sind:
 - neuer, zweifach bytegleich erzeugter MicroPython-1.28-Build
   `DFR0975U_N16R8` auf Basis `ESP32_GENERIC_S3`/`SPIRAM_OCT`; statisch
   verifiziert, vollständig geflasht und mit bestandenem USB-only-Speichergate
-- S3-Routen: UART2 TX14/RX13, active-high TX-Gate GPIO12 mit späterem externem
-  Pull-down, I2C1 SDA10/SCL11 und 1-Wire GPIO4; 1-Wire sowie der DS3231M-
+- S3-Routen: UART2 TX14/RX13 über den bewährten permanent verbundenen
+  Pegelwandler, unbenutztes D12/GPIO12, I2C1 SDA10/SCL11 und 1-Wire GPIO4;
+  1-Wire sowie der DS3231M-
   Buszugriff wurden getrennt elektrisch geprüft; im aktuellen Quellkandidaten
-  ist nur 1-Wire freigegeben, Protokoll-TX, UART, I2C und WLAN bleiben `False`
+  sind 1-Wire und die Direct-TX-Topologieentscheidung erfasst, während
+  Protokoll-TX, UART-Pinaktivierung, I2C und WLAN `False` bleiben
 - geeigneter 5-V-↔-3,3-V-Pegelwandler für die Autoterm-UART
 - drei bestätigte DS18B20-Sensoren mit dauerhaft gespeicherter Zuordnung
 - DS3231M-RTC mit bestandenem Buszugriff, aber ausgefallenem Batteriepuffer
@@ -1114,12 +1119,11 @@ Protokolltransport. Dessen Low-Level-Factory besitzt keinen direkten
 jedoch keine unveränderliche Python- oder physische Sicherheitsgrenze: Eine
 bewusst geänderte beziehungsweise ersetzte Low-Level-Konfiguration mit
 `UART_PROTOCOL_TX_ENABLED = True` kann diesen Transport für einen späteren
-Meilenstein autorisieren. Die neue laufzeitseitige Safe-Factory akzeptiert
-diesen Zustand dagegen ausdrücklich nicht und räumt einen unerwartet
-TX-fähigen Transport wieder auf. Auf dem DFR0975-U erfordert ein späteres TX
-zusätzlich das freigegebene active-high Hardwaregate an GPIO12 mit physischem
-Pull-down und geeigneter Tri-State-/Pegelstufe. Im aktuellen Projekt bleiben
-sowohl Protokoll-TX als auch Gate- und UART-Pinfreigabe `False`. `main.py`
+Meilenstein autorisieren. Die Produktfactory verlangt zusätzlich die explizit
+ausgewählte und genehmigte Schnittstellentopologie. Der Eigentümer hat für den
+DFR0975-U den vorhandenen direkten Pegelwandler samt dokumentiertem Restrisiko
+akzeptiert; D12 bleibt unbenutzt und `UART_TX_GATE_APPROVED=False`. Im
+aktuellen Projekt bleiben Protokoll-TX und UART-Pinaktivierung `False`. `main.py`
 importiert weder Protokoll noch `machine` und öffnet keine Hardware.
 
 Der historische passive Capture- und Loopbackpfad bleibt ausdrücklich

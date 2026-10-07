@@ -88,3 +88,13 @@ TX gate with physical pull-down and local bypass capacitor must be assembled
 and pass its own disconnected electrical, reset-state and gated-loopback
 tests. `UART_PINS_APPROVED`, `UART_TX_GATE_APPROVED` and
 `UART_PROTOCOL_TX_ENABLED` remain `False`.
+
+## Subsequent architecture decision
+
+Later on 2026-10-07 the owner explicitly chose to omit the physical TX gate
+and retain the proven direct level-shifter route, accepting its documented
+reset/software residual risk. That later decision supersedes only the
+remaining-gate requirement above; it does not change this capture's measured
+result or the fact that all product activation flags were closed during this
+test. See
+`captures/2026-10-07-dfr0975u-direct-tx-architecture-decision.md`.

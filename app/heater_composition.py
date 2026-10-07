@@ -3,7 +3,7 @@
 Construction performs no hardware access. ``start()`` alone opens the guarded
 protocol service and creates ``HeaterController`` with requested OFF state.
 Each ``step()`` polls RX before advancing the sole control authority.  The
-default product factory remains unavailable while board TX gates are closed.
+default product factory remains unavailable while board TX locks are closed.
 """
 
 import time as _time

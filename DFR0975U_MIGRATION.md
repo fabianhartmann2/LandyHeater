@@ -90,7 +90,7 @@ that original board.
 | --- | --- |
 | Physical SKU, V1.0 revision, 1U-N16R8 module, antenna, flash and ROM PSRAM identity | complete, read-only evidence retained |
 | Confidential factory recovery image | complete: 16 MiB read plus independent device digest; owner-only outside Git |
-| Active DFR0975-U profile and S3 GPIO allow/deny rules | complete; only the electrically accepted GPIO4 1-Wire route is `True` in the source candidate; all other approvals remain `False` |
+| Active DFR0975-U profile and S3 GPIO allow/deny rules | complete; the electrically accepted GPIO4 1-Wire route and explicit direct-level-shifter risk decision are `True`; UART pin/protocol activation, gate, I2C and Wi-Fi approvals remain `False` |
 | Legacy DFR0654 preservation | validation branch retained; DFR0654-only RX/capture/loopback tools deliberately reject the active S3 profile until a later S3 UART gate |
 | Phase-7/8 platform guards | bound to the exact custom MicroPython machine identity and S3 profile |
 | MicroPython 1.28 S3/Octal-PSRAM build | complete; two clean canonical builds matched for 15/15 outputs |
@@ -103,7 +103,7 @@ that original board.
 | Phase-8 HTTP target gate | complete: one product listener on port 80, one real HTTP 200 JSON status response, all ten GC-heap boundaries, unchanged product storage and ordered cleanup |
 | Phase-13 DS18B20 gate | electrical, continuous source-runtime and frozen-runtime gates complete: GPIO4, external approximately 5-kOhm pull-up, three valid ROMs, role mapping, reproducible image, authorized app-only flash, full readback, three frozen product cycles, nine readings, read-only A/B storage and cleanup passed; live browser/API target gate pending |
 | Phase-13 DS3231M gate | partial: I2C1 at `0x68`, status read, staged UTC write and readback passed; battery retention failed with OSF returning after USB removal |
-| Phase-13 heater UART | RX-only plus direct bench INIT/STATUS passed through the existing level shifter; the real `ConfiguredHeaterRuntime` subsequently loaded production configuration generation 2 read-only, exchanged exactly one INIT and one STATUS, reached `ready`/`off` at 12.1 V and closed normally; storage was unchanged, radios inactive and all three product flags remained closed; white=D10/TX, green=D11/RX; protected hardware gate remains required |
+| Phase-13 heater UART | RX-only plus direct bench INIT/STATUS passed through the existing level shifter; the real `ConfiguredHeaterRuntime` subsequently loaded production configuration generation 2 read-only, exchanged exactly one INIT and one STATUS, reached `ready`/`off` at 12.1 V and closed normally; storage was unchanged and radios inactive; the owner then explicitly accepted the permanently connected level-shifter topology and its residual reset/software risk, while product pin/protocol flags remain closed pending a dedicated active-control candidate |
 
 The profile migration does not generalize the old DFR0654 factory by merely
 changing constants. A separate DFR0975-U RX-only factory now validates the
@@ -117,24 +117,25 @@ separate electrical gate.
 ## Fail-closed V1.0 pin plan
 
 The V1.0 schematic and the received board identity support the following
-planned profile. These assignments document the intended route; they are not
-electrically approved merely because they appear in source. Every peripheral
-approval and protocol-transmit flag remains `False` until its separate
-USB-only hardware gate succeeds.
+planned profile. These assignments document the intended route. Product
+activation and protocol-transmit flags remain staged until their separate
+target gates succeed; the direct heater-interface risk decision is recorded
+independently from protocol activation.
 
 | Function | ESP32-S3 GPIO | Board label | Initial state |
 | --- | ---: | --- | --- |
-| Heater UART2 TX | 14 | D10 | disconnected and disabled |
-| Heater UART2 RX | 13 | D11 | disconnected |
-| Heater TX buffer enable | 12 | D12 | unapproved; external pull-down required |
+| Heater UART2 TX | 14 | D10 | direct level-shifter route electrically proven; product pin flag remains closed |
+| Heater UART2 RX | 13 | D11 | direct level-shifter route electrically proven; product pin flag remains closed |
+| Historical optional TX enable | 12 | D12 | physically disconnected and not used by selected topology |
 | DS3231 I2C1 SDA | 10 | A4 | electrical bus access passed; product approval remains closed pending a valid backup cell |
 | DS3231 I2C1 SCL | 11 | A5 | electrical bus access passed; product approval remains closed pending a valid backup cell |
 | DS18B20 1-Wire bus | 4 | A0 | electrical, continuous USB product-runtime and frozen-image gates passed; deployed image opens only this flag and requires explicit runtime start; browser/API gate pending |
 
-The eventual heater TX interface must be a protected, tri-state-capable level
-stage. GPIO12 is an active-high enable and requires a physical pull-down so
-reset, boot and absent firmware keep the heater-facing output high impedance.
-Software protocol TX remains a separate lock.
+The selected heater TX interface is the existing permanently connected passive
+level shifter. The owner explicitly accepted the absence of an independent
+reset/boot disconnect after successful live INIT/STATUS and configured-runtime
+gates. Software protocol TX remains a separate lock, and direct mode retains
+its own explicit approval plus bounded physical-drain confirmation.
 
 GPIO1/2 are deliberately not used for the RTC on V1.0 because they already
 carry the onboard AXP313A power-management I2C bus. GPIO0/3/45/46 are

@@ -64,6 +64,10 @@ class TestDFR0975UBoardConfig(unittest.TestCase):
             (12, 1),
         )
         self.assertEqual(
+            board_config.UART_TX_INTERFACE, "direct_level_shifter"
+        )
+        self.assertIs(board_config.UART_DIRECT_TX_APPROVED, True)
+        self.assertEqual(
             (
                 board_config.I2C_ID,
                 board_config.I2C_SDA_PIN,
@@ -99,18 +103,35 @@ class TestDFR0975UBoardConfig(unittest.TestCase):
             (9600, 8, None, 1),
         )
 
-    def test_tx_enable_requires_approved_active_high_hardware_gate(self):
+    def test_direct_tx_enable_requires_explicit_risk_approval(self):
         patches = (
             mock.patch.object(board_config, "UART_PINS_APPROVED", True),
             mock.patch.object(board_config, "UART_PROTOCOL_TX_ENABLED", True),
         )
         with patches[0], patches[1]:
-            with self.assertRaisesRegex(RuntimeError, "hardware gate"):
-                board_config.require_uart_configuration()
+            self.assertIsNone(board_config.require_uart_configuration())
+            with mock.patch.object(
+                board_config, "UART_DIRECT_TX_APPROVED", False
+            ):
+                with self.assertRaisesRegex(RuntimeError, "risk approval"):
+                    board_config.require_uart_configuration()
+
             with mock.patch.object(
                 board_config, "UART_TX_GATE_APPROVED", True
             ):
-                self.assertIsNone(board_config.require_uart_configuration())
+                with self.assertRaisesRegex(RuntimeError, "must not claim"):
+                    board_config.require_uart_configuration()
+
+        with mock.patch.object(
+            board_config, "UART_PINS_APPROVED", True
+        ), mock.patch.object(
+            board_config, "UART_TX_INTERFACE", "active_high_gate"
+        ):
+            with self.assertRaisesRegex(RuntimeError, "approved hardware gate"):
+                with mock.patch.object(
+                    board_config, "UART_PROTOCOL_TX_ENABLED", True
+                ):
+                    board_config.require_uart_configuration()
 
         with mock.patch.object(
             board_config, "UART_PINS_APPROVED", True
@@ -145,7 +166,9 @@ class TestDFR0975UBoardConfig(unittest.TestCase):
             ("UART_BAUDRATE", 115200),
             ("UART_PINS_APPROVED", 1),
             ("UART_PROTOCOL_TX_ENABLED", 0),
+            ("UART_DIRECT_TX_APPROVED", 0),
             ("UART_TX_GATE_APPROVED", 0),
+            ("UART_TX_INTERFACE", "unknown"),
             ("UART_INVERT", 1),
         ):
             with self.subTest(name=name, value=value), mock.patch.object(
@@ -253,22 +276,28 @@ class TestDFR0975UBoardConfig(unittest.TestCase):
 
         approvals = (
             mock.patch.object(board_config, "UART_PINS_APPROVED", True),
-            mock.patch.object(board_config, "UART_TX_GATE_APPROVED", True),
             mock.patch.object(board_config, "ONEWIRE_PIN_APPROVED", True),
             mock.patch.object(board_config, "I2C_PINS_APPROVED", True),
             mock.patch.object(board_config, "WIFI_RADIO_APPROVED", True),
         )
-        with approvals[0], approvals[1], approvals[2], approvals[3], approvals[4]:
+        with approvals[0], approvals[1], approvals[2], approvals[3]:
             self.assertIsNone(board_config.require_hardware_configuration())
 
-        without_gate = (
+        without_direct_approval = (
             mock.patch.object(board_config, "UART_PINS_APPROVED", True),
+            mock.patch.object(board_config, "UART_DIRECT_TX_APPROVED", False),
             mock.patch.object(board_config, "ONEWIRE_PIN_APPROVED", True),
             mock.patch.object(board_config, "I2C_PINS_APPROVED", True),
             mock.patch.object(board_config, "WIFI_RADIO_APPROVED", True),
         )
-        with without_gate[0], without_gate[1], without_gate[2], without_gate[3]:
-            with self.assertRaisesRegex(RuntimeError, "approved UART TX gate"):
+        with (
+            without_direct_approval[0],
+            without_direct_approval[1],
+            without_direct_approval[2],
+            without_direct_approval[3],
+            without_direct_approval[4],
+        ):
+            with self.assertRaisesRegex(RuntimeError, "risk approval"):
                 board_config.require_hardware_configuration()
 
     def test_wifi_profile_remains_strict_after_s3_migration(self):

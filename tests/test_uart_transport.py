@@ -541,6 +541,8 @@ class FakeBoardConfig:
     UART_DRIVER_TIMEOUT_MS = 0
     UART_DRIVER_TIMEOUT_CHAR_MS = 0
     UART_INVERT = 0
+    UART_TX_DRAIN_TIMEOUT_MS = 500
+    UART_TX_DRAIN_POLL_MS = 1
 
     @staticmethod
     def require_uart_configuration():
@@ -566,9 +568,16 @@ class FakePin:
 
 
 class GatedBoardConfig(FakeBoardConfig):
+    UART_TX_INTERFACE = "active_high_gate"
     UART_TX_GATE_PIN = 12
     UART_TX_GATE_ACTIVE_LEVEL = 1
     UART_TX_GATE_APPROVED = True
+    UART_TX_DRAIN_TIMEOUT_MS = 5
+    UART_TX_DRAIN_POLL_MS = 1
+
+
+class DirectBoardConfig(FakeBoardConfig):
+    UART_TX_INTERFACE = "direct_level_shifter"
     UART_TX_DRAIN_TIMEOUT_MS = 5
     UART_TX_DRAIN_POLL_MS = 1
 
@@ -678,6 +687,50 @@ class TestUARTFactory(unittest.TestCase):
         self.assertEqual(transport.max_read_bytes, 512)
         self.assertEqual(transport.max_empty_ready_reads, 3)
         self.assertTrue(transport.tx_enabled)
+
+    def test_direct_factory_waits_for_physical_drain_without_pin_gate(self):
+        clock = FakeClock()
+        uart = FakeUART()
+        uart.txdone_result = False
+
+        def sleep_ms(milliseconds):
+            clock.advance(milliseconds)
+            uart.txdone_result = True
+
+        transport = open_from_board_config(
+            DirectBoardConfig,
+            lambda *args, **kwargs: uart,
+            pin_class=FakePin,
+            ticks_ms=clock.ticks_ms,
+            ticks_diff=clock.ticks_diff,
+            sleep_ms=sleep_ms,
+        )
+        raw = build_init_request()
+        self.assertEqual(transport.send_frame(raw), len(raw))
+        self.assertEqual(uart.writes, [raw])
+        self.assertEqual(uart.txdone_calls, 2)
+        self.assertEqual(FakePin.events, [])
+        transport.deinit()
+        self.assertTrue(uart.deinitialized)
+
+    def test_direct_factory_drain_timeout_never_retries(self):
+        clock = FakeClock()
+        uart = FakeUART()
+        uart.txdone_result = False
+        transport = open_from_board_config(
+            DirectBoardConfig,
+            lambda *args, **kwargs: uart,
+            ticks_ms=clock.ticks_ms,
+            ticks_diff=clock.ticks_diff,
+            sleep_ms=clock.advance,
+        )
+        raw = build_status_request()
+        with self.assertRaisesRegex(
+            UARTTransportWriteError, "transmission state is unknown"
+        ):
+            transport.send_frame(raw)
+        self.assertEqual(uart.writes, [raw])
+        self.assertEqual(transport.write_errors, 1)
 
     def test_gated_factory_holds_output_disabled_until_one_drained_write(self):
         clock = FakeClock()

@@ -261,6 +261,77 @@ class _GatedUART:
             )
 
 
+class _DrainedDirectUART:
+    """Direct UART facade that still proves each complete physical drain."""
+
+    def __init__(
+        self,
+        uart,
+        drain_timeout_ms,
+        drain_poll_ms,
+        ticks_ms=None,
+        ticks_diff=None,
+        sleep_ms=None,
+    ):
+        if not callable(getattr(uart, "txdone", None)):
+            raise UARTTransportTxDrainTimeoutError(
+                "direct TX requires UART.txdone()"
+            )
+        if type(drain_timeout_ms) is not int or drain_timeout_ms <= 0:
+            raise ValueError("drain_timeout_ms must be a positive integer")
+        if (
+            type(drain_poll_ms) is not int
+            or drain_poll_ms <= 0
+            or drain_poll_ms >= drain_timeout_ms
+        ):
+            raise ValueError(
+                "drain_poll_ms must be positive and shorter than timeout"
+            )
+        self._uart = uart
+        self._drain_timeout_ms = drain_timeout_ms
+        self._drain_poll_ms = drain_poll_ms
+        self._ticks_ms = ticks_ms or _platform_ticks_ms
+        self._ticks_diff = ticks_diff or _platform_ticks_diff
+        self._sleep_ms = sleep_ms or _platform_sleep_ms
+        self._closed = False
+
+    def any(self):
+        return self._uart.any()
+
+    def read(self, count):
+        return self._uart.read(count)
+
+    def write(self, data):
+        if self._closed:
+            raise UARTTransportTxDrainTimeoutError("direct UART is closed")
+        raw = bytes(data)
+        result = self._uart.write(raw)
+        if type(result) is int and result == len(raw):
+            started_ms = self._ticks_ms()
+            while True:
+                done = self._uart.txdone()
+                if type(done) is not bool:
+                    raise UARTTransportTxDrainTimeoutError(
+                        "UART.txdone() must return boolean"
+                    )
+                if done:
+                    break
+                if self._ticks_diff(
+                    self._ticks_ms(), started_ms
+                ) >= self._drain_timeout_ms:
+                    raise UARTTransportTxDrainTimeoutError(
+                        "direct UART TX drain timed out"
+                    )
+                self._sleep_ms(self._drain_poll_ms)
+        return result
+
+    def deinit(self):
+        if self._closed:
+            return
+        self._uart.deinit()
+        self._closed = True
+
+
 class _BoundedActivityQueue:
     """Fixed-size O(1) queue used only inside the transport poll path."""
 
@@ -838,10 +909,17 @@ def open_from_board_config(
     if not isinstance(tx_enabled, bool):
         raise ValueError("UART_PROTOCOL_TX_ENABLED must be boolean")
 
-    gated_profile = (
-        tx_enabled
-        and getattr(config_module, "UART_TX_GATE_PIN", None) is not None
-    )
+    tx_interface = getattr(config_module, "UART_TX_INTERFACE", None)
+    if tx_interface is None:
+        tx_interface = (
+            "active_high_gate"
+            if getattr(config_module, "UART_TX_GATE_PIN", None) is not None
+            else "direct_level_shifter"
+        )
+    if tx_interface not in ("direct_level_shifter", "active_high_gate"):
+        raise ValueError("unsupported UART_TX_INTERFACE")
+    gated_profile = tx_enabled and tx_interface == "active_high_gate"
+    direct_profile = tx_enabled and tx_interface == "direct_level_shifter"
     gate = None
     uart = None
     transport_uart = None
@@ -864,6 +942,15 @@ def open_from_board_config(
             transport_uart = _GatedUART(
                 uart=uart,
                 gate=gate,
+                drain_timeout_ms=config_module.UART_TX_DRAIN_TIMEOUT_MS,
+                drain_poll_ms=config_module.UART_TX_DRAIN_POLL_MS,
+                ticks_ms=ticks_ms,
+                ticks_diff=ticks_diff,
+                sleep_ms=sleep_ms,
+            )
+        elif direct_profile:
+            transport_uart = _DrainedDirectUART(
+                uart=uart,
                 drain_timeout_ms=config_module.UART_TX_DRAIN_TIMEOUT_MS,
                 drain_poll_ms=config_module.UART_TX_DRAIN_POLL_MS,
                 ticks_ms=ticks_ms,

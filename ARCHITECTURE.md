@@ -4,9 +4,9 @@
 **Status:** Phases 8–11 target-accepted on the DFR0975-U; Phase-13 DS18B20
 electrical and product-lifecycle gates passed, and the configured heater
 runtime synchronized through one bounded INIT/STATUS exchange to confirmed
-OFF; DS3231M battery retention remains blocked, protected product heater TX
-hardware is not yet assembled, DFR0654 is historical evidence and automatic
-product startup remains disabled
+OFF; DS3231M battery retention remains blocked, the owner accepted the proven
+permanently connected heater level-shifter path with documented residual risk,
+DFR0654 is historical evidence and automatic product startup remains disabled
 
 **Runtime:** MicroPython on ESP32
 
@@ -462,9 +462,12 @@ before advancing `HeaterController`; at most one controller operation can be
 requested per step. A configuration change latches Requested OFF and keeps
 supervision alive. Normal `deinit()` refuses to close an active UART until a
 CRC-valid STATUS has confirmed the heater OFF (or no step has yet occurred).
-The product UART factory has no injection or unlock argument and requires the
-pin, physical TX-gate and protocol-TX board flags all to be exactly `True`.
-They remain `False`, so the current source cannot start product UART hardware.
+The product UART factory has no injection or unlock argument and requires pin
+approval, protocol TX and approval of the selected interface topology. The
+current topology is the owner-approved permanently connected level shifter;
+pin and protocol activation remain `False`, so the current source cannot start
+product UART hardware. Direct writes still require a complete driver write and
+bounded `UART.txdone()` confirmation.
 
 ## 15. Sensor-health timing
 

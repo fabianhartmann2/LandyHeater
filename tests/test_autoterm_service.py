@@ -643,7 +643,7 @@ class TestSafeProtocolComposition(unittest.TestCase):
         with mock.patch.object(
             board_config, "UART_PINS_APPROVED", True
         ), mock.patch.object(
-            board_config, "UART_TX_GATE_APPROVED", True
+            board_config, "UART_DIRECT_TX_APPROVED", True
         ), mock.patch.object(
             board_config, "UART_PROTOCOL_TX_ENABLED", True
         ), mock.patch.object(
@@ -667,7 +667,7 @@ class TestSafeProtocolComposition(unittest.TestCase):
         with mock.patch.object(
             board_config, "UART_PINS_APPROVED", True
         ), mock.patch.object(
-            board_config, "UART_TX_GATE_APPROVED", True
+            board_config, "UART_DIRECT_TX_APPROVED", True
         ), mock.patch.object(
             board_config, "UART_PROTOCOL_TX_ENABLED", True
         ), mock.patch.object(

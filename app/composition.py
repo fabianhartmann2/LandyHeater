@@ -56,23 +56,22 @@ def open_tx_locked_protocol_service():
 
 
 def open_tx_enabled_protocol_service():
-    """Open the production protocol service only after every TX gate passes.
+    """Open the production protocol service only after every TX lock passes.
 
     This factory deliberately has no arguments or runtime override.  The board
-    profile must independently approve the UART pins, the physical TX gate and
-    protocol transmission before hardware is opened.
+    profile must independently approve the UART pins, selected physical
+    interface topology and protocol transmission before hardware is opened.
     """
 
     import board_config
 
     if (
         board_config.UART_PINS_APPROVED is not True
-        or board_config.UART_TX_GATE_APPROVED is not True
         or board_config.UART_PROTOCOL_TX_ENABLED is not True
     ):
         raise RuntimeError(
-            "TX-enabled composition requires approved UART pins, hardware "
-            "gate and protocol TX"
+            "TX-enabled composition requires approved UART pins and "
+            "protocol TX"
         )
     board_config.require_uart_configuration()
 

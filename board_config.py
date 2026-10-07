@@ -2,7 +2,8 @@
 
 The active profile is the physically confirmed DFRobot DFR0975-U V1.0 with
 an ESP32-S3-WROOM-1U-N16R8 module. Pin assignments record intended routes,
-but every hardware approval and protocol-transmit flag is delivered closed.
+the proven 1-Wire route and direct-UART topology decision are recorded, and
+all remaining hardware-activation and protocol-transmit flags stay closed.
 
 The historical DFR0654 identity remains an explicit validation profile. This
 module uses no runtime profile imports, so a target cannot silently load pin
@@ -30,8 +31,12 @@ UART_BITS = 8
 UART_PARITY = None
 UART_STOP_BITS = 1
 UART_PROTOCOL_TX_ENABLED = False
-# Future TX must pass a tri-state/level interface whose active-high enable has
-# an external pull-down. Software approval remains closed in this profile.
+# The proven passive level shifter is retained as a permanently connected
+# prototype interface. This explicit topology/risk approval is independent of
+# the still-closed product protocol-TX flag. The old optional GPIO12 gate
+# route remains recorded but is not part of the selected interface.
+UART_TX_INTERFACE = "direct_level_shifter"
+UART_DIRECT_TX_APPROVED = True
 UART_TX_GATE_PIN = 12
 UART_TX_GATE_ACTIVE_LEVEL = 1
 UART_TX_GATE_APPROVED = False
@@ -270,6 +275,12 @@ def require_uart_configuration():
     _require_product_pin(profile, "UART_RX_PIN", UART_RX_PIN, False)
 
     if profile == _PROFILE_DFR0975U:
+        if UART_TX_INTERFACE not in (
+            "direct_level_shifter",
+            "active_high_gate",
+        ):
+            raise RuntimeError("unsupported DFR0975-U UART TX interface")
+        _require_boolean("UART_DIRECT_TX_APPROVED", UART_DIRECT_TX_APPROVED)
         _require_product_pin(profile, "UART_TX_GATE_PIN", UART_TX_GATE_PIN)
         _require_boolean("UART_TX_GATE_APPROVED", UART_TX_GATE_APPROVED)
         if (
@@ -281,12 +292,24 @@ def require_uart_configuration():
             raise RuntimeError("DFR0975-U UART TX gate must be active-high")
         if UART_TX_GATE_PIN in (UART_TX_PIN, UART_RX_PIN):
             raise RuntimeError("UART TX gate must use a dedicated GPIO")
-        if (
+        if UART_TX_INTERFACE == "direct_level_shifter":
+            if UART_TX_GATE_APPROVED is not False:
+                raise RuntimeError(
+                    "direct UART TX must not claim hardware-gate approval"
+                )
+            if (
+                UART_PROTOCOL_TX_ENABLED is True
+                and UART_DIRECT_TX_APPROVED is not True
+            ):
+                raise RuntimeError(
+                    "direct protocol TX requires explicit risk approval"
+                )
+        elif (
             UART_PROTOCOL_TX_ENABLED is True
             and UART_TX_GATE_APPROVED is not True
         ):
             raise RuntimeError(
-                "protocol TX requires an electrically approved hardware gate"
+                "gated protocol TX requires an approved hardware gate"
             )
         for name, value in (
             ("UART_TX_DRAIN_TIMEOUT_MS", UART_TX_DRAIN_TIMEOUT_MS),
@@ -428,13 +451,21 @@ def require_hardware_configuration():
             "Hardware pins are not configured: {}".format(", ".join(missing))
         )
     require_uart_configuration()
-    if (
-        _active_profile() == _PROFILE_DFR0975U
-        and UART_TX_GATE_APPROVED is not True
-    ):
-        raise RuntimeError(
-            "complete DFR0975-U hardware requires an approved UART TX gate"
-        )
+    if _active_profile() == _PROFILE_DFR0975U:
+        if (
+            UART_TX_INTERFACE == "direct_level_shifter"
+            and UART_DIRECT_TX_APPROVED is not True
+        ):
+            raise RuntimeError(
+                "complete DFR0975-U hardware requires direct-TX risk approval"
+            )
+        if (
+            UART_TX_INTERFACE == "active_high_gate"
+            and UART_TX_GATE_APPROVED is not True
+        ):
+            raise RuntimeError(
+                "complete DFR0975-U hardware requires an approved UART TX gate"
+            )
     require_onewire_configuration()
     require_i2c_configuration()
     require_wifi_configuration()
