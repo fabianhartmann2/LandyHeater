@@ -104,6 +104,14 @@ und App-Kern mit begrenzten Wiederholungen strikt nacheinander; auch Module und
 initiale API-Lesezugriffe werden geordnet ausgeführt. Setup und Diagnose
 bleiben bedarfsgesteuert. Die Servergrenzen werden nicht gelockert.
 
+Der vollständig serialisierte Kandidat wurde anschließend hashgebunden ohne
+Full Erase geflasht und vollständig bytegleich zurückgelesen. Nach manueller
+Öffnung der Oberfläche erreichte sie **Verbunden**, alle Tabs reagierten und
+der Setup-Assistent öffnete sich. Da das Board nicht im Fahrzeug und kein
+Sensor angeschlossen war, wurde der definierte Negativfall geprüft: Die
+ausdrückliche Auswahl **Sensor-Setup überspringen** wechselte korrekt zum
+Autoterm-Schritt. Der reale Drei-Sensor-Livezuweisungstest bleibt offen.
+
 Ein neues Stationsprofil startet bewusst als **geschützt / neues Passwort**.
 Ein leeres Passwort wird nicht mehr stillschweigend als offenes WLAN
 interpretiert; **offenes WLAN** muss ausdrücklich gewählt werden. Die

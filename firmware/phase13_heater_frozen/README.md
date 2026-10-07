@@ -27,8 +27,9 @@ preserves all existing assignments; it cannot silently clear or modify them.
 artifact checks and inherited target evidence. The new app-only image is
 2,131,568 bytes with SHA-256
 `c344bb3ca6f4f7540b1925e8d65a7a8cdc93328c230a8a640fe9c7c6b153aae9`
-at `0x10000` without full erase. It has not been flashed or target-accepted.
-The preceding product-autostart image remains the last target-accepted image.
+at `0x10000` without full erase. It was flashed app-only, read back
+byte-identical and accepted for serialized UI startup and the explicit sensor-
+setup skip path. Physical live-sensor assignment remains open.
 The private device credential is not stored in Git. No file in this directory
 authorizes a future board flash.
 
@@ -37,3 +38,5 @@ without raising the bounded server's client or backlog limits. The HTML starts
 only a 942-byte bootstrap. It loads the combined stylesheet, translations and
 application core strictly in order with bounded retries. Core modules and the
 initial API reads are also sequential; Setup and Diagnostics remain on demand.
+The target UI reached connected state, all tabs worked and the Setup Assistant
+opened. With no sensors attached, its explicit skip choice advanced correctly.

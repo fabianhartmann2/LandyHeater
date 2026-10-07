@@ -77,3 +77,25 @@ The replacement application is 2,131,568 bytes with SHA-256
 `c344bb3ca6f4f7540b1925e8d65a7a8cdc93328c230a8a640fe9c7c6b153aae9`.
 Two clean canonical builds were byte-identical. This record does not authorize
 its flash; a new exact hash-bound authorization is required.
+
+## Fully serialized bootstrap target result
+
+The owner authorized that exact digest for an app-only write at `0x10000`
+without full erase. Esptool again identified ESP32-S3 revision 0.1, embedded
+8-MiB PSRAM and MAC `34:85:18:92:23:c0`. It erased only application sectors
+`0x10000–0x218fff`, verified the write and stayed in the bootloader. An
+independent read of all 2,131,568 bytes was byte-identical and reproduced the
+authorized digest.
+
+After physical reset the phone joined the protected `Landy Heater` AP with the
+unchanged credential. The phone did not reopen its captive-portal window on
+this remembered network, so the owner opened `http://192.168.4.1/` manually.
+The UI reached **Verbunden** and all navigation tabs worked. **Setup-Assistent
+starten** opened the assistant. No sensors were physically attached because
+the board was outside the vehicle; the explicit **Sensor-Setup überspringen**
+choice advanced to the Autoterm step as designed. No setup completion was
+requested. Heater 12 V remained off throughout.
+
+This accepts the fully serialized startup and explicit skip path on target.
+Live temperature updates and physical three-sensor assignment in the Setup
+Assistant remain open until the board is back in the vehicle.

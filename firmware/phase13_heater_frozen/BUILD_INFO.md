@@ -2,9 +2,10 @@
 
 Build date: 2026-10-07. Status: **exact 50-file source closure, host lifecycle
 and resilience tests, two byte-identical canonical-path builds and offline
-artifact gates passed. This live Setup-sensor candidate has not been flashed;
-the preceding product-autostart application remains the last target-accepted
-image.**
+artifact gates passed. The exact application was flashed app-only, read back
+byte-identical and accepted on target for serialized UI startup and the
+explicit sensor-setup skip path. Physical live-sensor assignment remains
+open.**
 
 This candidate extends the accepted product-autostart image with live
 DS18B20 readings in the sensor-assignment step and an explicit, fail-closed
@@ -103,11 +104,15 @@ This record is evidence only and does not authorize a board flash.
 
 ## Target status and inherited evidence
 
-The fully serialized-bootstrap candidate above is **not target-tested and
-not authorized for flash by this record**. Its target gate still requires a
-new hash-bound app-only authorization, full readback, protected-AP UI
-verification, live updates for all three physical sensors and verification of
-the explicit skip path. Heater 12 V must remain off.
+The fully serialized-bootstrap candidate above was separately authorized by
+its exact hash, written app-only at `0x10000` and independently read back
+byte-identical. After reset the phone joined the protected AP with the
+unchanged credential. The remembered network did not automatically reopen the
+captive portal, so the root URL was opened manually. The UI reached connected
+state, all tabs worked, the Setup Assistant opened and, with no sensors
+physically attached, the explicit skip choice advanced to the Autoterm step.
+Heater 12 V remained off. Live updates and physical assignment of all three
+sensors remain open until the board returns to the vehicle.
 
 The preceding serialized-core image with SHA-256
 `5f84832e5595368452b25e00a71d7be4e8e7903d1b0a9cf7e6a42f1da9d3878a`
