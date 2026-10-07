@@ -599,6 +599,7 @@ class TestSafeProtocolComposition(unittest.TestCase):
                 "app/composition.py", run_name="safe_composition_import_test"
             )
         self.assertIn("open_tx_locked_protocol_service", namespace)
+        self.assertIn("open_tx_enabled_protocol_service", namespace)
 
     def test_factory_has_no_public_injection_or_unlock_arguments(self):
         signature = inspect.signature(
@@ -609,6 +610,76 @@ class TestSafeProtocolComposition(unittest.TestCase):
             composition_module.open_tx_locked_protocol_service(
                 tx_enabled=True
             )
+
+        signature = inspect.signature(
+            composition_module.open_tx_enabled_protocol_service
+        )
+        self.assertEqual(tuple(signature.parameters), ())
+        with self.assertRaises(TypeError):
+            composition_module.open_tx_enabled_protocol_service(
+                tx_enabled=True
+            )
+
+    def test_product_factory_refuses_closed_board_gates_before_hardware(self):
+        with mock.patch.object(
+            board_config, "UART_PINS_APPROVED", False
+        ), mock.patch.object(
+            board_config, "UART_TX_GATE_APPROVED", False
+        ), mock.patch.object(
+            board_config, "UART_PROTOCOL_TX_ENABLED", False
+        ), mock.patch.object(
+            board_config, "require_uart_configuration"
+        ) as require_config, mock.patch(
+            "protocol.uart_transport.open_from_board_config"
+        ) as open_transport:
+            with self.assertRaisesRegex(RuntimeError, "requires approved"):
+                composition_module.open_tx_enabled_protocol_service()
+        require_config.assert_not_called()
+        open_transport.assert_not_called()
+
+    def test_product_factory_returns_authorized_service_only_after_all_gates(self):
+        transport = RecordingTransport()
+        transport.tx_enabled = True
+        with mock.patch.object(
+            board_config, "UART_PINS_APPROVED", True
+        ), mock.patch.object(
+            board_config, "UART_TX_GATE_APPROVED", True
+        ), mock.patch.object(
+            board_config, "UART_PROTOCOL_TX_ENABLED", True
+        ), mock.patch.object(
+            board_config, "require_uart_configuration"
+        ) as require_config, mock.patch(
+            "protocol.uart_transport.open_from_board_config",
+            return_value=transport,
+        ) as open_transport:
+            service = composition_module.open_tx_enabled_protocol_service()
+
+        require_config.assert_called_once_with()
+        open_transport.assert_called_once_with()
+        self.assertTrue(service.request_initialization())
+        self.assertEqual(transport.sent, [build_init_request()])
+        service.deinit()
+        self.assertEqual(transport.deinit_calls, 1)
+
+    def test_product_factory_rejects_lying_locked_transport_and_cleans_it(self):
+        transport = RecordingTransport()
+        transport.tx_enabled = False
+        with mock.patch.object(
+            board_config, "UART_PINS_APPROVED", True
+        ), mock.patch.object(
+            board_config, "UART_TX_GATE_APPROVED", True
+        ), mock.patch.object(
+            board_config, "UART_PROTOCOL_TX_ENABLED", True
+        ), mock.patch.object(
+            board_config, "require_uart_configuration"
+        ), mock.patch(
+            "protocol.uart_transport.open_from_board_config",
+            return_value=transport,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "TX-locked"):
+                composition_module.open_tx_enabled_protocol_service()
+        self.assertEqual(transport.sent, [])
+        self.assertEqual(transport.deinit_calls, 1)
 
     def test_true_board_flag_aborts_before_transport_factory(self):
         with mock.patch.object(

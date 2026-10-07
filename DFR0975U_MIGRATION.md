@@ -103,7 +103,7 @@ that original board.
 | Phase-8 HTTP target gate | complete: one product listener on port 80, one real HTTP 200 JSON status response, all ten GC-heap boundaries, unchanged product storage and ordered cleanup |
 | Phase-13 DS18B20 gate | electrical, continuous source-runtime and frozen-runtime gates complete: GPIO4, external approximately 5-kOhm pull-up, three valid ROMs, role mapping, reproducible image, authorized app-only flash, full readback, three frozen product cycles, nine readings, read-only A/B storage and cleanup passed; live browser/API target gate pending |
 | Phase-13 DS3231M gate | partial: I2C1 at `0x68`, status read, staged UTC write and readback passed; battery retention failed with OSF returning after USB removal |
-| Phase-13 heater UART | RX-only gates plus separately approved direct bench INIT and STATUS exchanges passed through the existing level shifter; live STATUS reported `off` and `12.2 V`; white=D10/TX, green=D11/RX; product flags remain closed and protected hardware gate remains required |
+| Phase-13 heater UART | RX-only plus direct bench INIT/STATUS passed through the existing level shifter; the real `ConfiguredHeaterRuntime` subsequently loaded production configuration generation 2 read-only, exchanged exactly one INIT and one STATUS, reached `ready`/`off` at 12.1 V and closed normally; storage was unchanged, radios inactive and all three product flags remained closed; white=D10/TX, green=D11/RX; protected hardware gate remains required |
 
 The profile migration does not generalize the old DFR0654 factory by merely
 changing constants. A separate DFR0975-U RX-only factory now validates the

@@ -19,6 +19,13 @@ I2C-Lesen und -Schreiben bestanden, der Batteriepuffer mit der rund fünf Jahre
 gelagerten Zelle jedoch nicht. Details stehen in
 `captures/2026-09-05-dfr0975u-phase13-sensors-rtc.md`.
 
+Für die Heizungs-UART sind RX-only, direkte begrenzte INIT-/STATUS-Diagnose
+und nun auch die echte `ConfiguredHeaterRuntime` auf dem DFR0975-U bestanden.
+Der Lauf lud Produktionskonfiguration Generation 2 nur lesend, sendete exakt
+ein INIT und ein STATUS, erreichte `ready`/`off` bei 12,1 V und schloss normal.
+Speicher und geschlossene Produkt-TX-Freigaben blieben unverändert. Der
+geschützte externe TX-Gate-Aufbau bleibt vor normalem Produkt-TX erforderlich.
+
 Die folgende Darstellung enthält zusätzlich die historische Entwicklung bis
 zu diesem Stand.
 Die Komponenten von **Phase 8 – REST API** sind implementiert und unter
@@ -165,7 +172,7 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 0 | Finale Spezifikation | Baseline abgeschlossen; offene Reverse-Engineering-Punkte sind ausdrücklich dokumentiert |
 | 1 | Autoterm Protocol Library | Softwareumfang abgeschlossen |
 | 2 | UART Transport / Protocol Capture / Live Diagnostics | Transport-/Capture-Kern softwareseitig abgeschlossen; Browser-Live/Export bleibt Phase 11 und reale Heater-End-to-End-Abnahme Phase 13 |
-| 3 | HeaterController / Requested-/Actual-State-Machine | Hardwarefreier Controller-Kern abgeschlossen; laufende Session-Updates sind in Phase 9 sicher ergänzt, produktiver Laufzeitloop und externe Temperatur bleiben offen |
+| 3 | HeaterController / Requested-/Actual-State-Machine | Hardwarefreier Controller-Kern und kalter Produkt-Lifecycle abgeschlossen; laufende Session-Updates sind in Phase 9 sicher ergänzt, reale Laufzeitsynchronisation und externe Temperaturübertragung bleiben offen |
 | 4 | DS18B20 / Sensor Management / Failure Handling | Softwarekern und expliziter Produkt-Lifecycle abgeschlossen; reale Phase-13-Gates für GPIO4, externen 5-kΩ-Pull-up, drei ROMs, Rollenidentifikation, drei kontinuierliche Produktzyklen sowie die echte REST-/Web-UI-Anzeige aller drei Temperaturen auf dem Handy mit unverändertem Produktionsspeicher und vollständigem Cleanup bestanden |
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen; reales I2C-/DS3231M-Lese-/Schreibgate bestanden, aber Batteriepuffer mit der alten Zelle durch erneut gesetztes OSF widerlegt; vertrauenswürdige Offline-RTC und Produktintegration bleiben offen |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; produktive Laufzeitaktivierung bleibt später |
@@ -241,6 +248,14 @@ Unit-Tests als hardwareseitig freigegeben.
 - kalte `ConfiguredSensorRuntime`-Composition: erst `start()` öffnet den Bus,
   jeder `step()` führt höchstens eine Adapteraktion aus und Konfigurations-
   generationswechsel sowie Treiberfehler schließen den GPIO fail-closed
+- kalte `ConfiguredHeaterRuntime`-Composition: erst `start()` darf den streng
+  freigegebenen Produkt-Protokollpfad öffnen; jeder `step()` verarbeitet RX vor
+  höchstens einer Controlleroperation, Konfigurationswechsel setzen Requested
+  OFF und normales Cleanup verlangt einen CRC-bestätigten OFF-Zustand
+- zweistufiger, quellgemounteter Heater-Runtime-Test: Armieren bei 12 V aus
+  sendet nichts; der getrennt bestätigte Lauf erlaubt auf UART-Ebene genau ein
+  INIT und ein STATUS, verlangt bestätigtes OFF und weist unveränderten
+  Produktionsspeicher sowie weiterhin geschlossene Produkt-TX-Flags nach
 - lazy MicroPython-1.28-Hülle für `machine.Pin`, `onewire` und `ds18x20`,
   ohne Hardwarezugriff beim Import oder beim Konstruktor des Adapterkerns
 - explizite Open-Drain-Freigabe mit High-Latch sowie retryfähiges
@@ -838,14 +853,15 @@ abgelöste Diagnosekopie. Ein verriegelter RX-Pfad wird ausschließlich durch
 den expliziten Aufruf `reset_inbound()` zurückgesetzt und anschließend erneut
 auf `rx_faulted=False` geprüft.
 
-`app/composition.py` enthält für den aktuellen Meilenstein ausschließlich die
-parameterlose Factory `open_tx_locked_protocol_service()`. Sie verweigert den
-Start, sobald `UART_PROTOCOL_TX_ENABLED` nicht exakt `False` ist, und prüft
-zusätzlich den erzeugten Transport. Importieren öffnet keine Hardware; erst
-ein ausdrücklicher Factory-Aufruf würde UART2 öffnen. `main.py` führt diesen
-Aufruf nicht aus. Scheitert die Prüfung nach dem Öffnen, wird der Transport in
-einem begrenzten, retryfähigen Cleanup wieder geschlossen; ein bleibender
-Cleanup-Fehler wird sichtbar gemeldet.
+`app/composition.py` enthält die parameterlose, TX-gesperrte Factory
+`open_tx_locked_protocol_service()` sowie die getrennte Produktfactory
+`open_tx_enabled_protocol_service()`. Letztere besitzt kein öffentliches
+Freigabeargument und verweigert bereits vor Hardwarezugriff, solange UART-Pins,
+physisches TX-Gate und Protokoll-TX nicht unabhängig bestätigt sind. Alle drei
+Flags bleiben im aktiven Profil `False`. Importieren öffnet keine Hardware;
+erst `ConfiguredHeaterRuntime.start()` würde die Produktfactory aufrufen.
+`main.py` tut dies weiterhin nicht. Scheitert eine Prüfung nach dem Öffnen,
+wird der Transport begrenzt und retryfähig geschlossen.
 
 ## Verifizierter Boardstatus
 
@@ -905,6 +921,7 @@ landy-heater/
 │   ├── application_state.py
 │   ├── configuration_api_gateway.py
 │   ├── configuration_bootstrap.py
+│   ├── heater_composition.py
 │   ├── heater_controller.py
 │   ├── manual_control_gateway.py
 │   ├── network_composition.py
@@ -1183,10 +1200,12 @@ Gate GPIO12/D12 bleiben physisch vollständig frei.
 Ist nur die 5-V-Seite zugänglich, braucht es stattdessen einen exakt
 identifizierten und elektrisch geprüften, fest gerichteten 5→3,3-V-RX-Pfad.
 Ein nur als „4-Kanal 5V/3.3V“ beschriftetes Modul ist dafür nicht freigegeben.
-INIT und STATUS vom ESP32 sind ebenfalls noch nicht freigegeben; sie wären erst
-ein späterer, separat autorisierter Bring-up-Meilenstein. START und SHUTDOWN
-bleiben darüber hinaus gesperrt. Das passive Auslesen im bestehenden Node-RED
-hat keine solche ESP32-Übertragung ausgelöst.
+INIT und STATUS vom ESP32 wurden inzwischen ausschließlich in separat
+autorisierten, quellgemounteten und streng begrenzten Phase-13-Gates gesendet.
+Der neueste Lauf bewies auch die echte konfigurierte Runtime bis zum
+bestätigten Zustand `ready`/`off`; die Produktfreigaben bleiben dennoch
+geschlossen. START und SHUTDOWN bleiben gesperrt. Das passive Auslesen im
+bestehenden Node-RED hatte keine solche ESP32-Übertragung ausgelöst.
 
 Der Parser enthält nun unveränderte echte STATUS- und INIT-RX-Testvektoren aus
 dem Node-RED-Knoten `Input Diagnostics`. Für diese beiden Antworttypen ist der

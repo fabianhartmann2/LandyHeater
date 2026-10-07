@@ -36,6 +36,37 @@ These bench probes do not open the product path. The product profile cannot
 transmit while the three flags remain closed, and the direct probes are inert
 unless source-mounted and invoked with their exact confirmations.
 
+The cold source-level product integration now exists as
+`ConfiguredHeaterRuntime`. It owns the protocol/controller lifecycle, polls RX
+before every controller step, begins Requested OFF and refuses normal cleanup
+after I/O until a valid STATUS confirms OFF. Its parameterless product factory
+still requires all three closed flags above, so this implementation neither
+changes the deployed image nor authorizes the direct bench wiring for normal
+operation.
+
+A source-mounted target gate on 2026-10-07 confirmed the production factory's
+closed state on the real DFR0975-U: flags were `False/False/False`, the factory
+rejected before opening UART, D10 and D11 remained input-high, D12 remained
+input-low, and no frame was transmitted. The next live milestone is therefore
+a separately approved, source-mounted `ConfiguredHeaterRuntime` synchronization
+run using the already proven bench interface; it is not automatic boot.
+
+That bounded gate is implemented in
+`tools/phase13_heater_runtime_probe.py`. Arming requires heater 12 V off,
+loads the existing production A/B configuration read-only, opens the proven
+bench UART and starts the normal configured runtime without calling `step()`;
+therefore it sends nothing. A separate exact confirmation permits one INIT
+followed by one STATUS only. Both the protocol facade and the UART whitelist
+reject START, SHUTDOWN, temperature and repeated synchronization commands.
+Success requires a valid synchronized OFF state, unchanged storage, inactive
+radios and all three product TX flags still closed.
+
+The gate passed on the real board on 2026-10-07. The runtime reached
+`ready`/`off`, reported 12.1 V, and exchanged exactly one INIT request/response
+and one STATUS request/response. Configuration generation 2 and every A/B file
+signature remained unchanged. Evidence is recorded in
+`captures/2026-10-07-dfr0975u-configured-heater-runtime-gate.md`.
+
 ## Confirmed controller-side conductors
 
 | Conductor | Meaning | DFR0975-U route now |
@@ -120,12 +151,16 @@ board profile.
    and one STATUS request, accepted both CRC-valid responses, rejected no
    frames, and released UART and GPIOs. It has no retry or dangerous-command
    surface.
-3. Assemble the documented TX gate with 10-kOhm OE pull-down and local 100-nF
+3. **Complete:** the normal configured heater runtime loaded production
+   configuration generation 2 read-only, synchronized through exactly one
+   INIT and one STATUS exchange, reached `ready`/`off` at 12.1 V and closed
+   normally. Product flags remained closed and radios inactive.
+4. Assemble the documented TX gate with 10-kOhm OE pull-down and local 100-nF
    bypass capacitor.
-4. With the heater disconnected, verify continuity, no shorts, correct 3.3-V
+5. With the heater disconnected, verify continuity, no shorts, correct 3.3-V
    and regulated 5-V rails, OE low at reset and heater-facing output high-Z.
-5. USB-only target test: verify `UART.txdone()` exists, D12 remains low through
+6. USB-only target test: verify `UART.txdone()` exists, D12 remains low through
    reset/boot and one isolated logic-side loopback can be gated cleanly.
-6. Only after the protected gate passes, consider opening the three product
+7. Only after the protected gate passes, consider opening the three product
    flags in a separately reviewed source candidate. START, SHUTDOWN and
    external-temperature commands remain blocked until their own later gates.

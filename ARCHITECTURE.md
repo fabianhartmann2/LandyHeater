@@ -2,10 +2,11 @@
 
 **Version:** 1.1  
 **Status:** Phases 8–11 target-accepted on the DFR0975-U; Phase-13 DS18B20
-electrical gate passed and its explicit product lifecycle is implemented,
-with the continuous USB runtime gate and frozen-image runtime accepted after
-verified app-only flash; DS3231M battery retention remains blocked, DFR0654 is
-historical evidence and automatic product startup remains disabled
+electrical and product-lifecycle gates passed, and the configured heater
+runtime synchronized through one bounded INIT/STATUS exchange to confirmed
+OFF; DS3231M battery retention remains blocked, protected product heater TX
+hardware is not yet assembled, DFR0654 is historical evidence and automatic
+product startup remains disabled
 
 **Runtime:** MicroPython on ESP32
 
@@ -347,7 +348,7 @@ Recommended boot order:
 6. Start sensor manager
 7. Start UART transport
 8. Start Autoterm protocol service
-9. Start HeaterController in UNSYNCHRONIZED state
+9. Start `ConfiguredHeaterRuntime` / HeaterController in UNSYNCHRONIZED state
 10. Start AP / network manager
 11. Start API/web service
 12. Start scheduler after valid clock is available
@@ -451,6 +452,19 @@ exists. The real DFR0975-U USB gate completed three product sampling cycles
 and nine valid role readings with unchanged A/B storage, inactive radios and
 confirmed GPIO4 cleanup. A newly frozen image and live browser/API target gate
 remain separate acceptance steps.
+
+`ConfiguredHeaterRuntime` is the cold lifecycle owner for the product protocol
+service and `HeaterController`. Construction is hardware-free and binds the
+owner to one trusted configuration generation. `start()` alone asks the
+parameterless product factory to open UART, then verifies Requested OFF before
+the runtime becomes active. Every cooperative `step()` polls and validates RX
+before advancing `HeaterController`; at most one controller operation can be
+requested per step. A configuration change latches Requested OFF and keeps
+supervision alive. Normal `deinit()` refuses to close an active UART until a
+CRC-valid STATUS has confirmed the heater OFF (or no step has yet occurred).
+The product UART factory has no injection or unlock argument and requires the
+pin, physical TX-gate and protocol-TX board flags all to be exactly `True`.
+They remain `False`, so the current source cannot start product UART hardware.
 
 ## 15. Sensor-health timing
 
