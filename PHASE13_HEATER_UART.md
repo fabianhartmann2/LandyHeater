@@ -142,7 +142,12 @@ board profile.
    the heater at least five minutes to start and settle plus roughly two
    minutes stable operation. It has no external-temperature or raw-send path,
    caps START/SHUTDOWN at two attempts and requires an accessible 12-V cutoff.
-6. Build a separately reviewed candidate that opens only the required pin and
-   protocol flags, then perform reproducibility, artifact and hash approval.
-7. After authorized flash, synchronize to confirmed OFF before one supervised
-   START/SHUTDOWN cycle. No repeated exploratory command runs are allowed.
+6. **Complete offline:** the separate 48-file frozen candidate changes only
+   `UART_PINS_APPROVED` and `UART_PROTOCOL_TX_ENABLED` from false to true,
+   passed focused safety tests, produced two byte-identical 15-output builds
+   and passed image/layout gates. Its app-only image is 2,109,520 bytes with
+   SHA-256 `f02d59e7d8c501c387e837cbbbc38ec9725387e8ac9db18c1395df084298ca3d`.
+   It has not been flashed; a fresh exact hash authorization is still required.
+7. After authorized app-only flash at `0x10000` without full erase,
+   synchronize to confirmed OFF before one supervised START/SHUTDOWN cycle.
+   No repeated exploratory command runs are allowed.
