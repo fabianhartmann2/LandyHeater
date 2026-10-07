@@ -33,38 +33,51 @@ below is assembled and electrically checked.
 
 ## Required active-high TX gate
 
-The existing unknown bidirectional converter is not accepted for active TX
-because its four exposed low-side wires provide no independent output-enable.
-The TX side needs a known fixed-direction, three-state level translator whose
-heater-facing output is high impedance while disabled.
+The photographed converter is the common four-channel MOSFET topology with
+`HV`, `LV`, four paired `HVx`/`LVx` channels, one MOSFET per channel and
+`103` (10-kOhm) pull-ups on both sides. This is a BSS138-style passive,
+bidirectional I2C level shifter; the exact transistor marking is not legible,
+so BSS138 is a topology identification rather than a component traceability
+claim. It has no `OE`/`EN` input and therefore cannot provide the required TX
+lock by itself. The topology and intended I2C use correspond to NXP AN10441's
+pass-MOSFET level-shifting circuit.
 
-The selected electrical function is the
+The converter previously worked with the Raspberry/Node-RED controller at
+9600 baud, and the short powered-idle checks were electrically quiet. It may
+therefore remain for the bounded bench bring-up, but real edge quality and a
+CRC-valid response are still required before it is accepted for UART. The
+additional gate is inserted on the 3.3-V side between D10 and the exposed
+white TX conductor. When disabled, the gate output is high impedance and the
+converter's existing pull-ups hold both sides at UART idle-high; critically,
+no low start bit from D10 can reach the heater.
+
+The selected gate function is the
 [SN74LV1T126-Q1](https://www.ti.com/product/SN74LV1T126-Q1), or the catalog
-SN74LV1T126 for a bench prototype. It provides 3.3-V-to-5-V translation when
-powered from regulated 5 V, and its output is high impedance while active-high
-`OE` is low. The Q1 variant is AEC-Q100 qualified; system-level automotive
-power/transient qualification remains separate.
+SN74LV1T126 for a bench prototype. Here it is powered from 3.3 V and used as
+an active-high-enabled three-state buffer; the existing MOSFET board continues
+to perform the 3.3-V/5-V translation. The Q1 variant is AEC-Q100 qualified;
+system-level automotive power/transient qualification remains separate.
 
 Required connections:
 
 | Gate pin/function | Connection |
 | --- | --- |
-| `VCC` | regulated logic 5 V, never raw vehicle 12 V |
+| `VCC` | brown / ESP 3.3 V |
 | `GND` | common signal ground / yellow |
 | `A` | D10/GPIO14 |
 | `OE` | D12/GPIO12 plus external 10-kOhm pull-down to GND |
-| `Y` | heater RX input: the heater-side line that formerly received controller TX |
+| `Y` | exposed white TX conductor into the existing converter's LV channel |
 
 A 100-nF ceramic bypass capacitor must sit directly between gate `VCC` and
-`GND`. A small series resistor at `Y` may be selected during the schematic
-review, but must not be guessed during wiring. The current converter's RX
-channel may be retained only after its green output is reconfirmed as a safe
-3.3-V signal. Its TX channel is bypassed by the new known gate.
+`GND`. The current converter's green RX channel remains connected through the
+existing 10-kOhm series resistor to D11. The white wire must be cut or left
+detached at the ESP end and routed only through gate `Y`; it must never also
+have a direct D10 connection. No change to the converter's heater-side `HV`
+or channel wiring is required for this prototype arrangement.
 
-Because this requires access to the heater-side TX line and regulated 5 V, the
-SN74LV1T126 must not simply be inserted between D10 and the exposed white
-low-side wire without identifying the converter topology. The shrink-wrapped
-assembly must be opened or replaced with a documented interface assembly.
+The SN74LV1T126 is normally supplied as a small SMD part. The exact purchased
+part or breakout and its pinout must be reviewed before wiring; package pin
+numbers are deliberately not inferred here.
 
 ## Software gate
 

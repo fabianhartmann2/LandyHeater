@@ -79,6 +79,16 @@ longer present, silence on both candidates is expected. The owner-confirmed
 controller-side labels therefore remain the governing mapping: green is the
 controller RX path and white is the controller TX path.
 
+A subsequent owner photograph exposed the converter before rewrapping. It
+shows `HV`/`LV`, four paired channels, four discrete pass MOSFETs and `103`
+pull-ups, with no `OE`/`EN` connection. This identifies the circuit as the
+common BSS138-style passive bidirectional I2C level-shifter topology, although
+the exact transistor marking is not readable. The board can retain its proven
+level-shifting role for a bounded 9600-baud bench gate, but cannot itself
+isolate D10. The accepted next design inserts a separate active-high
+three-state buffer between D10 and the existing white LV-side TX conductor;
+the converter pull-ups then hold UART idle-high while the buffer is disabled.
+
 The receive mapping is now recorded, but it cannot be functionally confirmed
 until the heater is queried through an independently gated TX path. Green may
 reach D11/GPIO13 only through the 10-kOhm series resistor. D10/GPIO14 and
