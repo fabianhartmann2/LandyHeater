@@ -36,4 +36,16 @@ assert.strictEqual(value.quickError({mode:"roof_tent_temperature",power:"",targe
 assert.strictEqual(value.quickError({mode:"roof_tent_temperature",power:"",target:"20",runtime:"121",maximum:"120"}),"runtimeRange");
 assert.strictEqual(value.quickError({mode:"roof_tent_temperature",power:"",target:"20",runtime:"60",maximum:"0"}),"maximumRange");
 
+const live=[
+  {rom_id:"2801",health:"ok"},
+  {rom_id:"2802",health:"ok"},
+  {rom_id:"2803",health:"ok"},
+];
+assert.strictEqual(value.sensorError([],true,[],false),null);
+assert.strictEqual(value.sensorError(["2801","2802","2803"],false,live,true),null);
+assert.strictEqual(value.sensorError(["2801","","2803"],false,live,true),"sensorAssignmentsRequired");
+assert.strictEqual(value.sensorError(["2801","2801","2803"],false,live,true),"duplicateSensor");
+assert.strictEqual(value.sensorError(["2801","2802","2803"],false,live,false),"sensorLiveUnavailable");
+assert.strictEqual(value.sensorError(["2801","2802","2803"],false,[...live.slice(0,2),{rom_id:"2803",health:"stale"}],true),"sensorNotReady");
+
 console.log("PHASE10_SETUP_VALIDATION_TEST_PASS_V1");

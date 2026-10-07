@@ -59,6 +59,7 @@ MAX_TIMER_PAGE_SIZE = 8
 MAX_HTTP_TARGET_BYTES = 192
 MAX_WARNINGS = 16
 MAX_REQUEST_ID = 0x7FFFFFFF
+MAX_SETUP_SENSORS = 16
 
 _JSON_CONTENT_TYPES = (
     "application/json",
@@ -512,6 +513,7 @@ class RestApplication:
         "__scheduler",
         "__scheduler_gateway",
         "__network_manager",
+        "__sensor_runtime",
         "__security",
         "__rate_limiter",
         "__diagnostics_hub",
@@ -548,6 +550,7 @@ class RestApplication:
         mem_free=None,
         rate_limiter=None,
         diagnostics_hub=None,
+        sensor_runtime=None,
     ):
         requirements = (
             (configuration_gateway, "settings_snapshot"),
@@ -593,6 +596,12 @@ class RestApplication:
             getattr(network_manager, "snapshot", None)
         ):
             raise ValueError("network_manager must provide snapshot()")
+        if sensor_runtime is not None and not callable(
+            getattr(sensor_runtime, "setup_sensor_snapshot", None)
+        ):
+            raise ValueError(
+                "sensor_runtime must provide setup_sensor_snapshot()"
+            )
         if ticks_ms is None:
             ticks_ms = _platform_ticks_ms
         if ticks_diff is None:
@@ -633,6 +642,7 @@ class RestApplication:
         self.__scheduler = scheduler
         self.__scheduler_gateway = scheduler_gateway
         self.__network_manager = network_manager
+        self.__sensor_runtime = sensor_runtime
         self.__security = security_policy
         self.__rate_limiter = rate_limiter
         self.__diagnostics_hub = diagnostics_hub
@@ -1346,7 +1356,10 @@ class RestApplication:
         )
         temperature = self.__temperature_manager.snapshot(now_ms)
         discovered = temperature.get("discovered_rom_ids")
-        if type(discovered) not in (list, tuple) or len(discovered) > 3:
+        if (
+            type(discovered) not in (list, tuple)
+            or len(discovered) > MAX_SETUP_SENSORS
+        ):
             raise ValueError("setup sensor discovery state is malformed")
         discovered = list(discovered)
         for rom_id in discovered:
@@ -1357,20 +1370,79 @@ class RestApplication:
             raise ValueError("setup sensor assignments are malformed")
         temperatures = self._temperature_public(temperature)
         sensor_rows = []
-        for rom_id in discovered:
-            role = None
-            reading = None
-            for candidate_role in ("roof_tent", "cabin", "outside"):
-                if assignments.get(candidate_role) == rom_id:
-                    role = candidate_role
-                    reading = temperatures[candidate_role]
-                    break
-            sensor_rows.append({
-                "rom_id": rom_id,
-                "role": role,
-                "value_c": None if reading is None else reading["value_c"],
-                "health": "unassigned" if reading is None else reading["health"],
-            })
+        active_probe_performed = False
+        if self.__sensor_runtime is not None:
+            live = self.__sensor_runtime.setup_sensor_snapshot()
+            _exact_dict("setup sensor runtime", live, ("active", "devices"))
+            if type(live["active"]) is not bool:
+                raise ValueError("setup sensor runtime state is malformed")
+            devices = live["devices"]
+            if (
+                type(devices) not in (list, tuple)
+                or len(devices) > MAX_SETUP_SENSORS
+            ):
+                raise ValueError("setup sensor runtime devices are malformed")
+            sensor_rows = []
+            discovered = []
+            seen = set()
+            for device in devices:
+                _exact_dict(
+                    "setup sensor runtime device",
+                    device,
+                    ("rom_id", "value_c", "health", "age_ms"),
+                )
+                rom_id = device["rom_id"]
+                value_c = device["value_c"]
+                health = device["health"]
+                age_ms = device["age_ms"]
+                if (
+                    type(rom_id) is not str
+                    or not rom_id
+                    or len(rom_id) > 64
+                    or rom_id in seen
+                    or health not in ("ok", "stale", "failed", "missing")
+                    or (age_ms is not None and (
+                        type(age_ms) is not int or age_ms < 0
+                    ))
+                    or (value_c is not None and (
+                        type(value_c) not in (int, float)
+                        or value_c != value_c
+                        or value_c < -55
+                        or value_c > 125
+                    ))
+                ):
+                    raise ValueError("setup sensor runtime device is malformed")
+                seen.add(rom_id)
+                discovered.append(rom_id)
+                role = None
+                for candidate_role in ("roof_tent", "cabin", "outside"):
+                    if assignments.get(candidate_role) == rom_id:
+                        role = candidate_role
+                        break
+                sensor_rows.append({
+                    "rom_id": rom_id,
+                    "role": role,
+                    "value_c": value_c,
+                    "health": health,
+                    "age_ms": age_ms,
+                })
+            active_probe_performed = live["active"]
+        else:
+            for rom_id in discovered:
+                role = None
+                reading = None
+                for candidate_role in ("roof_tent", "cabin", "outside"):
+                    if assignments.get(candidate_role) == rom_id:
+                        role = candidate_role
+                        reading = temperatures[candidate_role]
+                        break
+                sensor_rows.append({
+                    "rom_id": rom_id,
+                    "role": role,
+                    "value_c": None if reading is None else reading["value_c"],
+                    "health": "missing" if reading is None else reading["health"],
+                    "age_ms": None if reading is None else reading["age_ms"],
+                })
 
         clock = self._clock_public(self.__time_service.snapshot(now_ms))
         controller = self._controller_public()
@@ -1388,9 +1460,13 @@ class RestApplication:
                 "local": clock["local"],
             },
             "sensors": {
-                "state": "observed" if discovered else "not_run",
+                "state": (
+                    "observed"
+                    if discovered
+                    else "scanning" if active_probe_performed else "not_run"
+                ),
                 "discovered": sensor_rows,
-                "active_probe_performed": False,
+                "active_probe_performed": active_probe_performed,
             },
             "autoterm": {
                 "state": (
@@ -1405,6 +1481,66 @@ class RestApplication:
             },
         }
         return setup
+
+    def _validate_setup_sensor_submission(self, setup, now_ms):
+        """Bind reviewed setup assignments to the current live sensor truth."""
+
+        if type(setup) is not dict:
+            return None
+        checks = setup.get("checks")
+        sensors = setup.get("sensors")
+        if type(checks) is not dict or type(sensors) is not dict:
+            return None
+        state = checks.get("sensors")
+        current = self._setup_snapshot(now_ms)
+        if state == "deferred":
+            if sensors != current["sensors"]:
+                raise _RestProblem(
+                    422,
+                    "deferred_sensor_change",
+                    "Skipped sensor setup must preserve existing assignments",
+                )
+            return None
+        if state != "reviewed":
+            return None
+        assignments = sensors.get("assignments")
+        if (
+            type(assignments) is not dict
+            or frozenset(assignments)
+            != frozenset(("roof_tent", "cabin", "outside"))
+        ):
+            raise _RestProblem(
+                422,
+                "sensor_assignments_incomplete",
+                "All three sensor roles must be assigned",
+            )
+        selected = []
+        for role in ("roof_tent", "cabin", "outside"):
+            rom_id = assignments[role]
+            if type(rom_id) is not str or not rom_id or rom_id in selected:
+                raise _RestProblem(
+                    422,
+                    "sensor_assignments_incomplete",
+                    "All three sensor roles must be uniquely assigned",
+                )
+            selected.append(rom_id)
+        live = current["checks"]["sensors"]
+        if live["active_probe_performed"] is not True:
+            raise _RestProblem(
+                422,
+                "sensor_probe_unavailable",
+                "Live sensor data is unavailable",
+            )
+        rows = {row["rom_id"]: row for row in live["discovered"]}
+        for rom_id in selected:
+            row = rows.get(rom_id)
+            if row is None or row["health"] != "ok":
+                raise _RestProblem(
+                    422,
+                    "sensor_not_ready",
+                    "Every assigned sensor must be present and healthy",
+                )
+        return None
 
     @staticmethod
     def _confirmed_timer(result, timer_id):
@@ -1855,6 +1991,7 @@ class RestApplication:
                 self._authorize_mutation(request)
                 generation = self._required_generation(request)
                 setup = self._json_object(request, _SETUP_FIELDS)
+                self._validate_setup_sensor_submission(setup, now_ms)
                 self._assert_not_reentered()
                 result = self.__configuration_gateway.complete_setup(
                     setup, generation

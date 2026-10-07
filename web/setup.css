@@ -38,6 +38,25 @@
   border-radius: 14px;
 }
 .setup-network .button { width: 46px; padding: 0; }
+.setup-sensor-live { display: grid; gap: .55rem; }
+.setup-sensor-live-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .25rem .75rem;
+  padding: .75rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.setup-sensor-live-row code { overflow-wrap: anywhere; font-size: .78rem; }
+.setup-sensor-live-row strong { font-size: 1.15rem; }
+.setup-sensor-live-row span,
+.setup-sensor-live-row small { color: var(--muted); }
+.setup-sensor-live-row small { grid-column: 1 / -1; }
+.setup-sensor-live-row.ok { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.setup-sensor-live-row.stale { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.setup-sensor-live-row.failed,
+.setup-sensor-live-row.missing { border-color: color-mix(in srgb, var(--danger) 50%, var(--line)); }
 .notice {
   padding: .8rem;
   border: 1px solid var(--line);

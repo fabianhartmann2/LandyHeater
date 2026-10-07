@@ -466,6 +466,18 @@ class FakeTemperatureManager:
         }
 
 
+class FakeSetupSensorRuntime:
+    def __init__(self, devices=(), active=True):
+        self.devices = tuple(copy.deepcopy(devices))
+        self.active = active
+
+    def setup_sensor_snapshot(self):
+        return {
+            "active": self.active,
+            "devices": tuple(copy.deepcopy(self.devices)),
+        }
+
+
 class FakeTimeService:
     def __init__(self):
         self.browser_utc_seconds = None
@@ -601,7 +613,7 @@ class Clock:
 
 
 class Fixture:
-    def __init__(self, ingress="ap", rate_limiter=None):
+    def __init__(self, ingress="ap", rate_limiter=None, sensor_runtime=None):
         self.config_manager = FakeConfigManager()
         self.runtime = FakeRuntime()
         self.controller = FakeController()
@@ -637,6 +649,7 @@ class Fixture:
             mem_free=lambda: 54321,
             rate_limiter=rate_limiter,
             diagnostics_hub=self.diagnostics,
+            sensor_runtime=sensor_runtime,
         )
 
     def mutation_headers(self, generation=None):
@@ -898,6 +911,44 @@ class TestRestReadRoutes(unittest.TestCase):
         self.assertNotIn("password", repr(response.body).replace(
             "password_configured", ""
         ))
+
+    def test_setup_read_reports_bounded_live_data_for_unassigned_roms(self):
+        runtime = FakeSetupSensorRuntime((
+            {
+                "rom_id": "2801",
+                "value_c": 12.5,
+                "health": "ok",
+                "age_ms": 250,
+            },
+            {
+                "rom_id": "2802",
+                "value_c": None,
+                "health": "failed",
+                "age_ms": None,
+            },
+        ))
+        fixture = Fixture(sensor_runtime=runtime)
+        response = fixture.app.handle(make_request(target="/api/v1/setup"))
+        self.assertEqual(response.status, 200)
+        sensors = response.body["checks"]["sensors"]
+        self.assertTrue(sensors["active_probe_performed"])
+        self.assertEqual(sensors["state"], "observed")
+        self.assertEqual(sensors["discovered"], [
+            {
+                "rom_id": "2801",
+                "role": None,
+                "value_c": 12.5,
+                "health": "ok",
+                "age_ms": 250,
+            },
+            {
+                "rom_id": "2802",
+                "role": None,
+                "value_c": None,
+                "health": "failed",
+                "age_ms": None,
+            },
+        ])
 
     def test_timer_item_decodes_utf8_id_and_rejects_encoded_slash(self):
         self.fixture.configuration.timers.append(timer("küche", "Küche"))
@@ -1368,6 +1419,98 @@ class TestRestConfigurationMutations(unittest.TestCase):
             "PUT", "/api/v1/setup", body, {}
         ))
         self.assertEqual(rejected.status, 403)
+
+    def test_skipped_sensor_setup_preserves_assignments(self):
+        configuration = self.fixture.configuration.configuration
+        setup = {
+            "heater": copy.deepcopy(configuration["heater"]),
+            "sensors": {"active_role": "roof_tent"},
+            "time": copy.deepcopy(configuration["time"]),
+            "network": {
+                "access_point": {
+                    "password_action": "replace",
+                    "password": "PrivateSetup92",
+                },
+                "known_networks": [],
+            },
+            "checks": {"sensors": "deferred", "autoterm": "deferred"},
+        }
+        response = self.fixture.app.handle(json_request(
+            "PUT",
+            "/api/v1/setup",
+            json.dumps(setup).encode("utf-8"),
+            self.fixture.mutation_headers(7),
+        ))
+        self.assertEqual(response.status, 422)
+        self.assertEqual(error_code(response), "deferred_sensor_change")
+        self.assertEqual(self.fixture.configuration.calls, [])
+
+    def test_reviewed_sensor_setup_requires_three_live_healthy_roms(self):
+        devices = tuple({
+            "rom_id": rom_id,
+            "value_c": value,
+            "health": health,
+            "age_ms": 100,
+        } for rom_id, value, health in (
+            ("2801", 10.0, "ok"),
+            ("2802", 20.0, "ok"),
+            ("2803", 30.0, "ok"),
+        ))
+        fixture = Fixture(sensor_runtime=FakeSetupSensorRuntime(devices))
+        sensor_document = {
+            "assignments": {
+                "roof_tent": "2801",
+                "cabin": "2802",
+                "outside": "2803",
+            },
+            "stale_after_ms": 30000,
+            "failed_after_ms": 300000,
+        }
+        fixture.configuration.configuration["sensors"] = copy.deepcopy(
+            sensor_document
+        )
+        configuration = fixture.configuration.configuration
+        setup = {
+            "heater": copy.deepcopy(configuration["heater"]),
+            "sensors": copy.deepcopy(sensor_document),
+            "time": copy.deepcopy(configuration["time"]),
+            "network": {
+                "access_point": {
+                    "password_action": "replace",
+                    "password": "PrivateSetup92",
+                },
+                "known_networks": [],
+            },
+            "checks": {"sensors": "reviewed", "autoterm": "deferred"},
+        }
+        response = fixture.app.handle(json_request(
+            "PUT",
+            "/api/v1/setup",
+            json.dumps(setup).encode("utf-8"),
+            fixture.mutation_headers(7),
+        ))
+        self.assertEqual(response.status, 200)
+        self.assertEqual(
+            fixture.configuration.calls[0][0], "complete_setup"
+        )
+
+        unhealthy = list(devices)
+        unhealthy[2] = {**unhealthy[2], "health": "stale"}
+        rejected = Fixture(
+            sensor_runtime=FakeSetupSensorRuntime(unhealthy)
+        )
+        rejected.configuration.configuration["sensors"] = copy.deepcopy(
+            sensor_document
+        )
+        response = rejected.app.handle(json_request(
+            "PUT",
+            "/api/v1/setup",
+            json.dumps(setup).encode("utf-8"),
+            rejected.mutation_headers(7),
+        ))
+        self.assertEqual(response.status, 422)
+        self.assertEqual(error_code(response), "sensor_not_ready")
+        self.assertEqual(rejected.configuration.calls, [])
 
     def test_settings_patch_delegates_complete_groups_and_returns_public_readback(self):
         body = b'{"time":{"timezone":"UTC"}}'

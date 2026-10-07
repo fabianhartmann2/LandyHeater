@@ -22,6 +22,8 @@ class FakeConfigManager:
 class FakeTemperatureManager:
     def __init__(self, assignments=None):
         self.assignments = dict(ASSIGNMENTS if assignments is None else assignments)
+        self.stale_after_ms = 30000
+        self.failed_after_ms = 300000
 
 
 class FakeConfiguredRuntime:
@@ -34,9 +36,10 @@ class FakeConfiguredRuntime:
 
 
 class FakeAdapter:
-    def __init__(self, steps=None, cleanup_failures=0):
+    def __init__(self, steps=None, cleanup_failures=0, devices=()):
         self.step_plan = list(steps or (1, 0))
         self.cleanup_failures = cleanup_failures
+        self.devices = tuple(devices)
         self.step_times = []
         self.deinit_calls = 0
         self.closed = False
@@ -49,7 +52,11 @@ class FakeAdapter:
         return value
 
     def status(self):
-        return {"closed": self.closed, "steps": len(self.step_times)}
+        return {
+            "closed": self.closed,
+            "steps": len(self.step_times),
+            "devices": self.devices,
+        }
 
     def deinit(self):
         self.deinit_calls += 1
@@ -152,11 +159,22 @@ class TestConfiguredSensorRuntime(unittest.TestCase):
         )
         self.assertIs(adapters[0].manager, runtime.temperature_manager)
 
-    def test_all_three_unique_assignments_are_required_before_hardware(self):
+    def test_unassigned_roles_are_allowed_but_shape_and_uniqueness_are_strict(self):
+        partial = {
+            "roof_tent": None,
+            "cabin": ASSIGNMENTS["cabin"],
+            "outside": None,
+        }
+        runtime, _, _, _, calls = self.build(
+            manager=FakeTemperatureManager(partial)
+        )
+        self.assertTrue(runtime.start())
+        self.assertEqual(len(calls), 1)
+
         variants = (
-            {"roof_tent": None, "cabin": "b", "outside": "c"},
             {"roof_tent": "a", "cabin": "a", "outside": "c"},
             {"roof_tent": "a", "cabin": "b"},
+            {"roof_tent": "", "cabin": "b", "outside": "c"},
         )
         for assignments in variants:
             with self.subTest(assignments=assignments):
@@ -172,6 +190,57 @@ class TestConfiguredSensorRuntime(unittest.TestCase):
                         adapter_factory=lambda manager: calls.append(manager),
                     )
                 self.assertEqual(calls, [])
+
+    def test_setup_snapshot_reports_live_unassigned_devices_with_health(self):
+        devices = (
+            {
+                "rom_id": "2801",
+                "value_c": 21.5,
+                "last_sample_ms": 990,
+                "last_error": None,
+                "trusted": True,
+                "invalid_readings": 0,
+            },
+            {
+                "rom_id": "2802",
+                "value_c": 8.0,
+                "last_sample_ms": 900,
+                "last_error": "onewire_read_failed",
+                "trusted": False,
+                "invalid_readings": 1,
+            },
+        )
+        manager = FakeTemperatureManager({role: None for role in ASSIGNMENTS})
+        runtime, _, _, _, _ = self.build(
+            adapter=FakeAdapter(devices=devices),
+            manager=manager,
+            clock=lambda: 1000,
+        )
+        self.assertEqual(
+            runtime.setup_sensor_snapshot(),
+            {"active": False, "devices": ()},
+        )
+        runtime.start()
+        self.assertEqual(
+            runtime.setup_sensor_snapshot(),
+            {
+                "active": True,
+                "devices": (
+                    {
+                        "rom_id": "2801",
+                        "value_c": 21.5,
+                        "health": "ok",
+                        "age_ms": 10,
+                    },
+                    {
+                        "rom_id": "2802",
+                        "value_c": 8.0,
+                        "health": "stale",
+                        "age_ms": 100,
+                    },
+                ),
+            },
+        )
 
     def test_generation_change_during_start_cleans_adapter_and_faults(self):
         config = FakeConfigManager()

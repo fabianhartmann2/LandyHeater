@@ -114,7 +114,13 @@ Zieltest einen ungewollten leeren Browser-Request-Body. Die korrigierte Fassung
 wurde erneut zweimal bytegleich gebaut, hashgebunden app-only geschrieben,
 vollständig zurückgelesen und bestand anschließend das fortgesetzte Löschen,
 den Speicher-Reload sowie den vollständigen Cleanup. Details stehen in
-`PHASE10_SETUP_ASSISTANT.md`.
+`PHASE10_SETUP_ASSISTANT.md`. Die spätere Phase-13-Ergänzung für die
+Sensorzuordnung ist nun ebenfalls implementiert: Der Assistent aktualisiert
+ROM-ID, Temperatur, Health und Messwertalter aus dem laufenden Sensorzyklus
+alle 1,5 Sekunden. Er verlangt entweder drei unterschiedliche, aktuell gesunde
+Sensoren oder ein ausdrückliches Überspringen, das vorhandene Zuordnungen
+unverändert lässt. Der neue reproduzierbare Kandidat ist offline geprüft, aber
+noch nicht geflasht oder zielseitig abgenommen.
 **Phase 10.1 – Portal- und Heimnetz-Erreichbarkeit hat zwei reale Zielbefunde
 geliefert und liegt als portal-korrigierter Kandidat vor:** Der erste
 Wildcard-HTTP-Ansatz scheiterte an einer im ESP32-MicroPython-Port fehlenden
@@ -200,10 +206,10 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; der Produkt-Autostart integriert den geschützten Recovery-AP und dessen Zielabnahme ist bestanden; Heimnetz/mDNS bleibt im integrierten Autostart noch offen |
 | **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
 | **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; die integrierte Autostart-Auslieferung des Setup-Assistenten über Captive Portal ist ebenfalls zielseitig bestätigt** |
-| **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Der dabei gefundene leere DELETE-Body wurde korrigiert; erneuter A/B-Build, Artefaktprüfung, autorisierter App-only-Flash, vollständige Rücklesung, Speicher-Reload und Cleanup bestanden. Als Phase-13-Ergänzung offen: live aktualisierte Temperatur und Health pro physischer ROM-ID im Sensor-Zuordnungsschritt, auch vor der Rollenzuweisung.** |
+| **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Die Phase-13-Ergänzung zeigt ROM-ID, Temperatur, Health und Messwertalter live vor der Rollenzuweisung und erlaubt ein ausdrückliches, zuordnungserhaltendes Überspringen. Der neue Kandidat ist zweifach bytegleich gebaut und offline geprüft; Flash, Rücklesung und Zielabnahme dieses Kandidaten stehen noch aus.** |
 | **11** | **Events / Diagnostics / Capture Export** | **Software- und Zielabnahme bestanden: 200er Ereignisring, begrenztes Live-Protokoll, benannte RAM-Captures, kleine Cursor-/Exportseiten, JSON/NDJSON-Export und lazy geladene zweisekündige Diagnose-UI; reproduzierbarer A/B-Build, Offline-Artefaktgate, autorisierter App-only-Flash, vollständige Rücklesung sowie realer Handyablauf mit Capture/Export und vollständigem Cleanup bestätigt. Hardwarezugriffe bleiben entkoppelt; elektrische Abnahme folgt in Phase 13.** |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
-| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; Produkt-Autostart wurde exakt geflasht, vollständig rückgelesen und mit geschütztem AP, automatischem Captive Portal und Setup-Assistent zielseitig abgenommen; live per ROM aktualisierte Setup-Sensorzuweisung und Ersatz-RTC bleiben offen |
+| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; Produkt-Autostart wurde exakt geflasht, vollständig rückgelesen und mit geschütztem AP, automatischem Captive Portal und Setup-Assistent zielseitig abgenommen; live per ROM aktualisierte Setup-Sensorzuweisung samt ausdrücklichem Überspringen ist implementiert und offline geprüft, aber noch nicht auf dem Ziel getestet; Ersatz-RTC bleibt offen |
 
 Vorgezogene Arbeiten aus Phase 11 oder 12 ändern die funktionale
 Phasenzuordnung nicht. Eine Phase gilt außerdem nicht allein wegen vorhandener
@@ -1309,8 +1315,11 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
    `PHASE10_SETUP_ASSISTANT.md` dokumentiert. Netzwerkzugangsdaten sind
    write-only, Passwort-/Open-Auswahl ist ausdrücklich, ungültige Eingaben
    blockieren den jeweiligen Schritt, und die allgemeine Settings-API bleibt
-   für Netzwerkdaten geschlossen. Aktive Sensor-/UART-Prüfungen bleiben
-   sichtbar zurückgestellt.
+   für Netzwerkdaten geschlossen. Der Phase-13-Sensorzyklus liefert dem
+   Zuordnungsschritt nun live ROM-ID, Temperatur, Health und Messwertalter;
+   drei gesunde Zuordnungen oder das ausdrückliche, zuordnungserhaltende
+   Überspringen sind erforderlich. UART-Prüfungen bleiben sichtbar
+   zurückgestellt.
 10. Frozen-Closure, reproduzierbarer DFR0975-U-A/B-Build, statische
     Artefaktprüfung, autorisierter app-only Flash ohne Full Erase und komplette
     Rücklesung des korrigierten Images sind bestanden. Der reale Credential-

@@ -139,6 +139,7 @@ def build_rest_runtime(
     mem_free=None,
     protocol_transport=None,
     protocol_parser=None,
+    sensor_runtime=None,
 ):
     """Build one inert REST runtime from already-constructed application ports.
 
@@ -244,6 +245,7 @@ def build_rest_runtime(
         mem_free=mem_free,
         rate_limiter=rate_limiter,
         diagnostics_hub=diagnostics_hub,
+        sensor_runtime=sensor_runtime,
     )
 
     if getattr(config_manager, "generation", None) != generation:

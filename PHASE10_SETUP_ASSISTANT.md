@@ -22,7 +22,8 @@ Die Oberfläche bildet den festgelegten Ablauf mit neun Schritten ab:
 3. bis zu acht bekannte WLANs mit ausdrücklicher Passwort-/Sicherheitsauswahl
 4. individuelles Passwort des festen AP `Landy Heater` mit ausdrücklicher
    Auswahl **beibehalten** oder **ersetzen**
-5. vorhandene DS18B20-ROM-IDs und Rollenzuordnung
+5. live aktualisierte DS18B20-ROM-IDs, Temperatur, Health und Messwertalter
+   mit Rollenzuordnung oder ausdrücklichem Überspringen
 6. bereits beobachteter Autoterm-Kommunikationszustand
 7. Quick-Start-Standardwerte und maximale Laufzeit
 8. Zusammenfassung ohne Geheimnisse
@@ -78,6 +79,16 @@ Grenzen wie im Server:
   1–9;
 - eindeutige Sensorrollen und ausdrückliche Bestätigung der Zusammenfassung.
 
+Im Sensorschritt werden die Daten des bereits laufenden Produkt-Sensorzyklus
+alle 1,5 Sekunden aktualisiert. Ein regulärer Abschluss verlangt drei
+unterschiedliche, aktuell vorhandene und fehlerfreie Sensoren. Alternativ kann
+der Schritt ausdrücklich übersprungen werden. Dabei bleiben vorhandene
+Zuordnungen unverändert; der Browser und der privilegierte Server lehnen einen
+gleichzeitigen versteckten Zuordnungswechsel ab. Ohne vollständige Zuordnung
+bleibt temperaturgeregelter Heizbetrieb durch die bestehenden Safety-Gates
+gesperrt, Leistungsbetrieb und eine spätere erneute Einrichtung bleiben
+möglich.
+
 Ein neues Stationsprofil startet bewusst als **geschützt / neues Passwort**.
 Ein leeres Passwort wird nicht mehr stillschweigend als offenes WLAN
 interpretiert; **offenes WLAN** muss ausdrücklich gewählt werden. Die
@@ -91,24 +102,24 @@ eindeutige ROM-IDs, höchstens acht eindeutige WLAN-Profile und gültige
 Quick-Start-Grenzen. Ein persistierter Wechsel sperrt den alten Scheduler und
 meldet `restart_required`.
 
-## Hardwaregrenze in diesem Stand
+## Hardwaregrenze und heutiger Produktstand
 
-Das DFR0975-U ist weiterhin ohne RTC, 1-Wire-Sensoren, Level-Interface oder
-Heizung angeschlossen. Deshalb führt Phase 10 in diesem Stand bewusst keinen
-aktiven 1-Wire-Scan und keinen UART-Test aus. `GET /api/v1/setup` zeigt nur
-bereits im Laufzeitmodell vorhandene ROM-IDs, Temperaturen, RTC- und
-Kommunikationswerte und kennzeichnet `active_probe_performed: false`.
+Der ursprüngliche Phase-10-Gate lief noch ohne angeschlossene Hardware. Im
+heutigen Phase-13-Produktstand läuft der freigegebene 1-Wire-Zyklus bereits vor
+dem Setup Assistant. `GET /api/v1/setup` zeigt deshalb dessen begrenzte
+Live-Sicht mit bis zu 16 ROM-IDs, Temperatur, Health und Messwertalter; der
+Setup-Endpunkt löst selbst weiterhin keinen zusätzlichen Hardwarezugriff aus.
+UART- oder Heizungsaktionen werden durch den Sensorschritt nicht ausgelöst.
 
-Der Assistent speichert dafür ausschließlich die Zustände `reviewed` oder
-`deferred`; er akzeptiert keine Behauptung `passed`. Im aktuellen Aufbau wird
-in der Zusammenfassung jeweils **zurückgestellt** angezeigt. Das bedeutet:
+Der Assistent speichert weiterhin ausschließlich die Zustände `reviewed` oder
+`deferred`; er akzeptiert keine Behauptung `passed`. Das bedeutet:
 
 - kein Hardwaretest wird fälschlich als bestanden dokumentiert;
-- Phase 10 öffnet weder I2C/RTC, 1-Wire noch UART;
-- die elektrische Prüfung, aktive Discovery und reale Autoterm-Abnahme bleiben
-  explizite Phase-13-Gates;
-- Sensorrollen können gespeichert oder später erneut bearbeitet werden, sobald
-  freigegebene ROM-IDs im Laufzeitmodell vorliegen.
+- Phase 10 öffnet weder I2C/RTC noch UART und startet keine eigene 1-Wire-
+  Transaktion;
+- nur die bereits laufende Phase-13-Sensorsicht wird gelesen;
+- Sensorrollen können gespeichert, ausdrücklich unverändert übersprungen oder
+  später erneut bearbeitet werden.
 
 Diese bewusste Zurückstellung verhindert den Konfigurationsabschluss nicht:
 `setup_complete` bezeichnet die abgeschlossene Benutzerkonfiguration, nicht
@@ -124,6 +135,9 @@ Die gezielten Tests decken ab:
 - Ablehnung falscher Hardware-Statusbehauptungen;
 - AP-only-Mutationsschutz, CSRF und Generation/ETag;
 - passiven Setup-Read ohne Hardwareprobe;
+- live per ROM aktualisierte Setup-Sensordaten, Begrenzung und Fehlerzustände;
+- vollständige, eindeutige und aktuell gesunde Sensorzuordnung;
+- ausdrückliches Überspringen bei unveränderten vorhandenen Zuordnungen;
 - die beiden neuen eingebetteten UI-Ressourcen und deren deterministische
   Generierung;
 - JavaScript-Syntax der Setup-, App- und Übersetzungsdateien;

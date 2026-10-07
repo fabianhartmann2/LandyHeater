@@ -536,6 +536,35 @@ class ConfigurationAPIGateway:
                     expected_generation
                 )
                 previous = _clone_json(candidate)
+                sensor_check = checks["sensors"]
+                if sensor_check == "deferred":
+                    if setup["sensors"] != previous["sensors"]:
+                        raise ValueError(
+                            "deferred sensor setup must preserve assignments"
+                        )
+                else:
+                    sensor_document = setup["sensors"]
+                    if type(sensor_document) is not dict:
+                        raise ValueError("setup sensors are malformed")
+                    assignments = sensor_document.get("assignments")
+                    if (
+                        type(assignments) is not dict
+                        or frozenset(assignments)
+                        != frozenset(("roof_tent", "cabin", "outside"))
+                    ):
+                        raise ValueError("setup sensor assignments are incomplete")
+                    used = set()
+                    for role in ("roof_tent", "cabin", "outside"):
+                        rom_id = assignments[role]
+                        if (
+                            type(rom_id) is not str
+                            or not rom_id
+                            or rom_id in used
+                        ):
+                            raise ValueError(
+                                "setup sensor assignments are incomplete"
+                            )
+                        used.add(rom_id)
                 for group in ("heater", "sensors", "time"):
                     candidate[group] = _clone_json(setup[group])
                 candidate["network"] = _stage_setup_network(

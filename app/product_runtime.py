@@ -523,7 +523,10 @@ def build_product_runtime():
         manager, ticks_diff=time.ticks_diff, ticks_add=time.ticks_add
     )
     sensor = build_configured_sensor_runtime(
-        manager, configured, ticks_ms=time.ticks_ms
+        manager,
+        configured,
+        ticks_ms=time.ticks_ms,
+        ticks_diff=time.ticks_diff,
     )
     heater = build_configured_heater_runtime(
         manager,
@@ -576,6 +579,7 @@ def build_product_runtime():
             mem_free=gc.mem_free,
             protocol_transport=protocol,
             protocol_parser=protocol.validate_inbound_frame,
+            sensor_runtime=sensor,
         )
 
     def discovery_factory(rest_runtime, ap_address):

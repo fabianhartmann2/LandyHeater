@@ -188,6 +188,30 @@ class TestConfigurationAPIGateway(unittest.TestCase):
         self.assertEqual(store.commit_calls, [])
         self.assertTrue(scheduler.armed)
 
+    def test_setup_sensor_skip_preserves_and_review_requires_complete_mapping(self):
+        configuration = default_configuration()
+        gateway, _, store, _, scheduler, _, _ = build_gateway(configuration)
+
+        skipped = setup_document(configuration)
+        skipped["sensors"]["assignments"]["roof_tent"] = "2801"
+        with self.assertRaises(ConfigurationAPIValidationError):
+            gateway.complete_setup(skipped, 2)
+
+        reviewed = setup_document(configuration)
+        reviewed["checks"]["sensors"] = "reviewed"
+        with self.assertRaises(ConfigurationAPIValidationError):
+            gateway.complete_setup(reviewed, 2)
+
+        reviewed["sensors"]["assignments"] = {
+            "roof_tent": "2801",
+            "cabin": "2802",
+            "outside": "2803",
+        }
+        result = gateway.complete_setup(reviewed, 2)
+        self.assertTrue(result["configuration"]["system"]["setup_complete"])
+        self.assertEqual(len(store.commit_calls), 1)
+        self.assertFalse(scheduler.armed)
+
     def test_public_settings_redact_all_wifi_passwords(self):
         configuration = default_configuration()
         configuration["network"]["access_point"]["password"] = "AP-secret-123"

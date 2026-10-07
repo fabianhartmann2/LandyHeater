@@ -1,13 +1,14 @@
-# Phase 13 product-autostart frozen firmware build record
+# Phase 13 live Setup-sensor frozen firmware build record
 
 Build date: 2026-10-07. Status: **exact 50-file source closure, host lifecycle
 and resilience tests, two byte-identical canonical-path builds and offline
-artifact gates passed. The exact product-autostart application was authorized,
-written app-only, completely read back byte-identical and accepted through the
-real protected AP/captive-portal/Setup-Assistant path with heater 12 V off.**
+artifact gates passed. This live Setup-sensor candidate has not been flashed;
+the preceding product-autostart application remains the last target-accepted
+image.**
 
-This candidate extends the accepted heater and browser-time image with a
-private frozen `main.py` and `app/product_runtime.py`. At every normal reset it
+This candidate extends the accepted product-autostart image with live
+DS18B20 readings in the sensor-assignment step and an explicit, fail-closed
+option to skip that step. At every normal reset it
 loads the trusted production stores, starts sensors and the heater protocol in
 requested-OFF state, brings up the recovery AP and Web UI, and only then arms
 the Scheduler. A station listener is attached dynamically after DHCP/mDNS,
@@ -45,8 +46,8 @@ loaded. The repository-root `main.py` remains passive and is excluded.
 | --- | --- |
 | `manifest.py` | `a27ccfd4a4ea059a6979a4f2535872601ba22295bb1cc01560d22a25ef47ed01` |
 | `FROZEN_MODULES.txt` | `ab30f9421528d97ed68fc4d9aed78d659b18b1f3a292e826acd1f6a6722321c2` |
-| `CURRENT_FROZEN_SOURCES.sha256` | `9e8b2bd70a8c2a9ffa54aa12ac094f13387780f2883499d796860f6f689926b3` |
-| `artifacts/SHA256SUMS` | `efa11800656d74f440256a074b19d4b6a5dce0be3f48922beae625d3d773fa8f` |
+| `CURRENT_FROZEN_SOURCES.sha256` | `4da4fe5b48721a78696a39ad998ec24f6c3d1c4b288a9674f7dd62aa8d776393` |
+| `artifacts/SHA256SUMS` | `7a40c0c0a24cbb291e665f31f9dcec211d475b59f52661e7a180402c4f4d3f7d` |
 
 The closure excludes credentials, persistent data, acceptance tools and tests.
 The VFS copy of `main.py` cannot override the private frozen entry point because
@@ -61,6 +62,14 @@ table, application, combined image, UF2, final and combined configurations,
 four flash-argument files, flasher JSON, frozen C, ELF and map. The dependency
 lock matched the retained DFR0975-U lock byte-for-byte.
 
+The focused sensor, REST, configuration, Web and frozen-artifact matrix passed
+108/108 tests, and the browser Setup validation runner passed. The complete
+repository suite ran 1,289 tests: 1,287 passed and only the two deliberately
+immutable historical Phase-11 and early Phase-13 source ledgers reported the
+expected mismatch against today's evolved working sources. The current
+50-file closure and retained artifact ledgers both passed exactly. `git diff
+--check` passed.
+
 ## Image, layout and retained artifacts
 
 Esptool identifies the application and bootloader as valid ESP32-S3 images
@@ -74,18 +83,18 @@ is no OTA partition.
 | --- | ---: |
 | Bootloader | 19,232 B; unchanged |
 | Partition table | 3,072 B; unchanged |
-| Factory application | 2,121,600 B used of 3,145,728 B |
-| Growth from accepted browser-time image | 9,088 B |
-| Application margin | 1,024,128 B (about 33%) |
-| Combined image | 2,187,136 B; exact end `0x215f80` |
+| Factory application | 2,130,032 B used of 3,145,728 B |
+| Growth from accepted product-autostart image | 8,432 B |
+| Application margin | 1,015,696 B (about 32%) |
+| Combined image | 2,195,568 B; exact end `0x218070` |
 
 The retained deployment subset is bound by `artifacts/SHA256SUMS`. The only
 image proposed for the next operation is:
 
 ```text
 offset: 0x10000
-size:   2121600 bytes
-sha256: 66c0799515b45334b2f852d66a4c347614a65b2109883c9f89f253df00a68a5f
+size:   2130032 bytes
+sha256: f28059c847a725fda41bfce19d353318bf7d64d7bd2bf0e4f8b16ce601fed6a6
 erase:  no full-chip erase
 ```
 
@@ -93,10 +102,18 @@ This record is evidence only and does not authorize a board flash.
 
 ## Target status and inherited evidence
 
-The product-autostart image was authorized and written only at `0x10000`; no
+The live Setup-sensor candidate above is **not target-tested and not
+authorized for flash by this record**. Its target gate still requires a new
+hash-bound app-only authorization, full readback, protected-AP UI verification,
+live updates for all three physical sensors and verification of the explicit
+skip path. Heater 12 V must remain off.
+
+The preceding product-autostart image with SHA-256
+`66c0799515b45334b2f852d66a4c347614a65b2109883c9f89f253df00a68a5f`
+was authorized and written only at `0x10000`; no
 full erase occurred. The independent complete 2,121,600-byte readback was
-byte-identical and matched the application digest above. Heater 12 V remained
-off for the target gate.
+byte-identical and matched that preceding digest. Heater 12 V remained off for
+the target gate.
 
 The first normal reset correctly failed closed because production storage had
 no AP password, Setup was incomplete and no home-network profile existed. The

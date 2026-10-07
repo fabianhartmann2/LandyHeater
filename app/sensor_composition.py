@@ -10,6 +10,7 @@ import time as _time
 
 
 _SENSOR_ROLES = ("roof_tent", "cabin", "outside")
+_MAX_SETUP_SENSORS = 16
 
 
 class SensorRuntimeError(RuntimeError):
@@ -20,7 +21,12 @@ def _plain_ticks_ms():
     return 0
 
 
+def _plain_ticks_diff(newer, older):
+    return newer - older
+
+
 _platform_ticks_ms = getattr(_time, "ticks_ms", _plain_ticks_ms)
+_platform_ticks_diff = getattr(_time, "ticks_diff", _plain_ticks_diff)
 
 
 def _require_generation(value):
@@ -38,8 +44,10 @@ def _validate_assignments(temperature_manager):
     used = set()
     for role in _SENSOR_ROLES:
         rom_id = assignments[role]
+        if rom_id is None:
+            continue
         if type(rom_id) is not str or not rom_id or len(rom_id) > 64:
-            raise ValueError("all three sensor roles must be assigned")
+            raise ValueError("sensor assignment is malformed")
         if rom_id in used:
             raise ValueError("sensor assignments must be unique")
         used.add(rom_id)
@@ -64,6 +72,7 @@ class ConfiguredSensorRuntime:
         "_configuration_generation",
         "_adapter_factory",
         "_ticks_ms",
+        "_ticks_diff",
         "_adapter",
         "_started",
         "_closed",
@@ -84,6 +93,7 @@ class ConfiguredSensorRuntime:
         configuration_generation,
         adapter_factory,
         ticks_ms,
+        ticks_diff,
     ):
         self._config_manager = config_manager
         self._configured_runtime = configured_runtime
@@ -91,6 +101,7 @@ class ConfiguredSensorRuntime:
         self._configuration_generation = configuration_generation
         self._adapter_factory = adapter_factory
         self._ticks_ms = ticks_ms
+        self._ticks_diff = ticks_diff
         self._adapter = None
         self._started = False
         self._closed = False
@@ -256,6 +267,84 @@ class ConfiguredSensorRuntime:
         self._actions += result
         return bool(result)
 
+    def setup_sensor_snapshot(self):
+        """Return bounded live per-ROM data for the local Setup Assistant."""
+
+        now_ms = self._ticks_ms()
+        if type(now_ms) is not int:
+            raise SensorRuntimeError("sensor clock is malformed")
+        if self._adapter is None:
+            return {"active": False, "devices": ()}
+        status = self._adapter.status()
+        if type(status) is not dict:
+            raise SensorRuntimeError("sensor adapter status is malformed")
+        devices = status.get("devices")
+        if (
+            type(devices) not in (list, tuple)
+            or len(devices) > _MAX_SETUP_SENSORS
+        ):
+            raise SensorRuntimeError("sensor device status is malformed")
+        stale_after_ms = getattr(
+            self._temperature_manager, "stale_after_ms", None
+        )
+        failed_after_ms = getattr(
+            self._temperature_manager, "failed_after_ms", None
+        )
+        if (
+            type(stale_after_ms) is not int
+            or type(failed_after_ms) is not int
+            or stale_after_ms <= 0
+            or failed_after_ms <= stale_after_ms
+        ):
+            raise SensorRuntimeError("sensor health thresholds are malformed")
+
+        rows = []
+        seen = set()
+        for device in devices:
+            if type(device) is not dict:
+                raise SensorRuntimeError("sensor device status is malformed")
+            rom_id = device.get("rom_id")
+            value_c = device.get("value_c")
+            sample_ms = device.get("last_sample_ms")
+            trusted = device.get("trusted")
+            last_error = device.get("last_error")
+            if (
+                type(rom_id) is not str
+                or not rom_id
+                or len(rom_id) > 64
+                or rom_id in seen
+                or type(trusted) is not bool
+                or (last_error is not None and type(last_error) is not str)
+            ):
+                raise SensorRuntimeError("sensor device status is malformed")
+            seen.add(rom_id)
+            if value_c is not None and type(value_c) not in (int, float):
+                raise SensorRuntimeError("sensor value is malformed")
+            if sample_ms is None:
+                age_ms = None
+                health = "failed" if last_error is not None else "missing"
+                value_c = None
+            else:
+                if type(sample_ms) is not int:
+                    raise SensorRuntimeError("sensor timestamp is malformed")
+                age_ms = self._ticks_diff(now_ms, sample_ms)
+                if type(age_ms) is not int or age_ms < 0:
+                    raise SensorRuntimeError("sensor age is malformed")
+                if age_ms >= failed_after_ms:
+                    health = "failed"
+                elif not trusted or age_ms >= stale_after_ms:
+                    health = "stale"
+                else:
+                    health = "ok"
+            rows.append({
+                "rom_id": rom_id,
+                "value_c": value_c,
+                "health": health,
+                "age_ms": age_ms,
+            })
+        rows.sort(key=lambda row: row["rom_id"])
+        return {"active": self._started, "devices": tuple(rows)}
+
     def deinit(self):
         if self._closed and self._cleanup_complete:
             return None
@@ -290,6 +379,7 @@ def build_configured_sensor_runtime(
     configured_runtime,
     adapter_factory=None,
     ticks_ms=None,
+    ticks_diff=None,
 ):
     """Build an inert sensor owner bound to one configuration generation."""
 
@@ -314,8 +404,10 @@ def build_configured_sensor_runtime(
         raise ValueError("adapter_factory must be callable")
     if ticks_ms is None:
         ticks_ms = _platform_ticks_ms
-    if not callable(ticks_ms):
-        raise ValueError("ticks_ms must be callable")
+    if ticks_diff is None:
+        ticks_diff = _platform_ticks_diff
+    if not callable(ticks_ms) or not callable(ticks_diff):
+        raise ValueError("sensor tick helpers must be callable")
     return ConfiguredSensorRuntime(
         config_manager,
         configured_runtime,
@@ -323,4 +415,5 @@ def build_configured_sensor_runtime(
         generation,
         adapter_factory,
         ticks_ms,
+        ticks_diff,
     )
