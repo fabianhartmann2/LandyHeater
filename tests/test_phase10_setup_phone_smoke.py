@@ -1,5 +1,6 @@
 import unittest
 
+from app.web_assets import VERSIONED_ASSET_PREFIX, versioned_asset_path
 from app.rest_application import RestResponse
 from services.http_protocol import parse_request
 from services.rest_security import INGRESS_ACCESS_POINT, RestSecurityPolicy
@@ -113,8 +114,19 @@ class TestPhase10SetupPhoneSmoke(unittest.TestCase):
         self.assertEqual(len(smoke._API_TARGETS), 5)
         self.assertEqual(len(smoke._READ_TARGETS), 14)
         self.assertEqual(len(set(smoke._READ_TARGETS)), 14)
-        self.assertIn("/assets/boot.js", smoke._STATIC_TARGETS)
-        self.assertIn("/assets/setup.js", smoke._STATIC_TARGETS)
+        self.assertIn(
+            versioned_asset_path("/assets/boot.js"), smoke._STATIC_TARGETS
+        )
+        self.assertIn(
+            versioned_asset_path("/assets/setup.js"), smoke._STATIC_TARGETS
+        )
+        self.assertTrue(
+            all(
+                target == "/" or target.startswith(VERSIONED_ASSET_PREFIX)
+                for target in smoke._STATIC_TARGETS
+            )
+        )
+        self.assertNotIn("/assets/setup.js", smoke._STATIC_TARGETS)
         self.assertIn("/api/v1/setup", smoke._API_TARGETS)
 
     def test_gateway_allows_one_setup_commit_with_replaced_credentials(self):

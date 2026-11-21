@@ -42,12 +42,24 @@ class Clock:
 
 
 class Response:
-    def __init__(self, status=200, body=None, headers=None, content_type=None):
+    def __init__(
+        self,
+        status=200,
+        body=None,
+        headers=None,
+        content_type=None,
+        cache_control=None,
+        content_encoding=None,
+    ):
         self.status = status
         self.body = {"ok": True} if body is None else body
         self.headers = {} if headers is None else headers
         if content_type is not None:
             self.content_type = content_type
+        if cache_control is not None:
+            self.cache_control = cache_control
+        if content_encoding is not None:
+            self.content_encoding = content_encoding
 
 
 class FakeApplication:
@@ -561,7 +573,7 @@ class TestCooperativeSocketBudgets(unittest.TestCase):
 
     def test_receive_and_partial_send_sizes_never_exceed_fixed_budgets(self):
         application = FakeApplication(
-            Response(body={"payload": "x" * 700})
+            Response(body={"payload": "x" * (SEND_BUDGET_BYTES * 3)})
         )
         client = FakeClientSocket(
             [get_request()],
@@ -575,11 +587,53 @@ class TestCooperativeSocketBudgets(unittest.TestCase):
         self.assertTrue(bytes(client.written).startswith(b"HTTP/1.1 200 OK\r\n"))
         self.assertIn(b"Connection: close\r\n", client.written)
 
+    def test_static_cache_policy_is_preserved_by_socket_encoder(self):
+        application = FakeApplication(
+            Response(
+                body=b"asset",
+                content_type="application/javascript; charset=utf-8",
+                headers={"ETag": '"asset-sha256"'},
+                cache_control="no-cache",
+            )
+        )
+        client = FakeClientSocket([get_request("/assets/app.js")])
+        fixture = ServerFixture([client], application=application).start()
+        fixture.pump(lambda: client.closed)
+        self.assertIn(b"Cache-Control: no-cache\r\n", client.written)
+        self.assertNotIn(b"Cache-Control: no-store\r\n", client.written)
+        self.assertIn(b'ETag: "asset-sha256"\r\n', client.written)
+
+    def test_static_gzip_metadata_is_preserved_by_socket_encoder(self):
+        application = FakeApplication(
+            Response(
+                body=b"\x1f\x8bcompressed-asset",
+                content_type="application/javascript; charset=utf-8",
+                cache_control="public, max-age=31536000, immutable",
+                content_encoding="gzip",
+            )
+        )
+        client = FakeClientSocket([get_request("/assets/app.js")])
+        fixture = ServerFixture([client], application=application).start()
+        fixture.pump(lambda: client.closed)
+        self.assertIn(b"Content-Encoding: gzip\r\n", client.written)
+        self.assertIn(
+            b"Cache-Control: public, max-age=31536000, immutable\r\n",
+            client.written,
+        )
+        self.assertTrue(client.written.endswith(b"\x1f\x8bcompressed-asset"))
+
+    def test_send_budget_is_the_reviewed_1024_byte_bound(self):
+        self.assertEqual(SEND_BUDGET_BYTES, 1024)
+        fixture = ServerFixture().start()
+        self.assertEqual(
+            fixture.server.snapshot()["send_budget_bytes"], 1024
+        )
+
     def test_queued_and_progressing_writer_keeps_the_next_turn(self):
         clock = Clock(0)
         operations = []
         application = FakeApplication(
-            Response(body={"payload": "x" * 700})
+            Response(body={"payload": "x" * (SEND_BUDGET_BYTES * 3)})
         )
         client = FakeClientSocket(
             [get_request()], name="target", operation_log=operations
@@ -637,7 +691,7 @@ class TestCooperativeSocketBudgets(unittest.TestCase):
         fixture = ServerFixture(
             listener=listener,
             application=FakeApplication(
-                Response(body={"payload": "x" * 700})
+                Response(body={"payload": "x" * (SEND_BUDGET_BYTES * 3)})
             ),
         ).start()
 

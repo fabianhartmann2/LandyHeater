@@ -307,6 +307,7 @@ def build_web_http_server(
     ticks_add=None,
     request_ingress=None,
     captive_ap_address=None,
+    captive_portal_enabled=True,
 ):
     """Build one inert, explicitly bound UI/API listener.
 
@@ -322,9 +323,15 @@ def build_web_http_server(
 
     if request_ingress not in (None, "ap", "sta"):
         raise ValueError("request_ingress must be ap, sta or None")
+    if type(captive_portal_enabled) is not bool:
+        raise ValueError("captive_portal_enabled must be boolean")
     if captive_ap_address is None:
         captive_ap_address = bind_address
-    application = Phase9WebApplication(rest_runtime, captive_ap_address)
+    application = Phase9WebApplication(
+        rest_runtime,
+        captive_ap_address,
+        captive_portal_enabled=captive_portal_enabled,
+    )
     return MicroPythonHTTPServer(
         application,
         bind_address,

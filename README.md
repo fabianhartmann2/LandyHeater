@@ -131,6 +131,63 @@ hashgebunden app-only geflasht, vollständig bytegleich zurückgelesen und auf
 dem Ziel für verbundenen UI-Start, funktionierende Tabs, manuelles Öffnen des
 Setup-Assistenten und ausdrückliches Überspringen des nicht angeschlossenen
 Sensor-Setups abgenommen. Die reale Drei-Sensor-Livezuweisung bleibt offen.
+Am 2026-11-21 wurde die aktuell installierte Anwendung vollständig über USB
+zurückgelesen und als bytegleich zum Repository-Artefakt
+`4bf2176c96842e2438c339c6d8f2f2c6e3a3c452b5878eabdf47fe2a74df5314`
+bestätigt. Die rund 20 Sekunden Heimnetz-Ladezeit entstanden vor allem aus
+dem kooperativen 256-Byte-Sendebudget, seriellen Startinhalten und fehlender
+Browser-Wiederverwendung. Der neue, zweimal bytegleich gebaute Kandidat nutzt
+512 Byte zum Senden, ETag/304-Revalidierung und lädt beim normalen Start nur
+Home plus Status. Der reproduzierbar gebaute Kandidat hat den SHA-256
+`02197a7d74e6006573bd769ed1a4d34b823a470f7ce4435c02159caa204fe84b`.
+Dieser Hash wurde danach ausdrücklich freigegeben, app-only geschrieben und
+vollständig bytegleich zurückgelesen. Automatisiert sank der serielle kalte
+Home-Pfad auf etwa 10,4 Sekunden und ein revalidierter Reload auf etwa 3,6
+Sekunden. Der reale Handytest bestätigte danach UI, Reload und lazy geladene
+Ansichten; numerische Handyzeiten wurden nicht gemeldet.
+Da 10,4 Sekunden weiterhin zu langsam waren, wurde ein zweiter Latenzstand
+erstellt. Er komprimiert alle Webdateien deterministisch vor, verwendet
+update-sichere Bundle-Hash-URLs mit Langzeitcache, lädt CSS und Übersetzungen
+sowie Home und Status jeweils paarweise und sendet höchstens 1.024 Byte je
+kooperativem Schritt. Der normale statische Home-Pfad sinkt auf 23.114
+vollständige Wire-Bytes und 26 Sendeaktionen. Zwei saubere Builds sind für
+alle 15 Vergleichsartefakte bytegleich. Die 2.171.728-Byte-Anwendung mit
+SHA-256
+`a25e32266e93d921db3b8cc5dd311ffb955b976ccc55af7221859f0344c29d76`
+wurde ausdrücklich freigegeben, ohne Full-Erase app-only geschrieben und über
+die vollständige Rücklesung bytegleich bestätigt. Produkt-Autostart, MAC/IP,
+Requested OFF und der fehlerfreie Steuerpfad wurden danach auf dem Ziel
+bestätigt. Drei gestufte kalte Home-Abrufe benötigten 4,157, 4,228 und 4,519
+Sekunden, Median 4,228 Sekunden; drei normale Wiederaufrufe mit revalidiertem
+Index benötigten 0,848, 0,866 und 1,319 Sekunden, Median 0,866 Sekunden. Ein
+frisches Headless-Chrome-Profil renderte die verbundene Home-Ansicht. Die
+3.633-Byte-Gzip-Indexantwort, unveränderliche Versionsassets, körperloses
+`304` und Altversions-`404` bestanden ihre Zielgates. Nach den Last- und
+Browserprüfungen waren 7.946.400 Byte GC-Heap frei. Die Sensorwarnungen sind
+bei nicht angeschlossener 12-V-/Sensor-Hardware erwartbar.
+Darauf aufbauend ist nun der Netzwerkdienst-Stand installiert. In den
+Einstellungen lassen sich Captive-Portal-Unterstützung und
+die Bonjour-Ankündigung der Weboberfläche getrennt ein- und ausschalten; beide
+sind für vorhandene Konfigurationen standardmäßig aktiv, nur über den
+Geräte-AP änderbar und werden nach Neustart wirksam. Bei deaktiviertem Portal
+werden weder der UDP/53-Dienst noch Probe-Weiterleitungen gestartet. Bonjour
+publiziert im Heimnetz ausschließlich `Landy Heater._http._tcp` auf Port 80
+mit `path=/`, solange Stations-mDNS bereit ist. Die bestehende Schema-v2-
+Konfiguration Generation 7 wird ohne Startblockade und ohne automatischen
+Flash-Schreibvorgang auf die neuen Standardwerte abgebildet. Zwei saubere
+Builds waren 15/15 bytegleich; die 2.181.024-Byte-Anwendung hat SHA-256
+`67393e2b052d88139e9a8533b8f8b2cc73cd4c8a0ef14fa41168473d7478313d`.
+Genau dieser Hash wurde für einen App-only-Flash ohne Erase freigegeben, nur
+an `0x10000` geschrieben und anschließend über die vollständige unabhängige
+Rücklesung bytegleich bestätigt. Nach dem normalen Start blieb Requested OFF,
+der Steuerpfad fehlerfrei und die Station unter `192.168.36.114` online. Die
+direkte Migration meldet Schema 3 mit beiden Schaltern aktiv, während
+gespeicherte und laufende Generation unverändert 7 bleiben. Bonjour wurde im
+Heimnetz als `Landy Heater._http._tcp` gefunden und zu `heater.local:80` mit
+`path=/` sowie `192.168.36.114` aufgelöst. Offen ist nur noch die sichtbare
+automatische Portalöffnung bei einem frischen Handy-Beitritt. Vorabstand,
+Deployment und Zielnachweise sind in
+`captures/2026-11-21-dfr0975u-network-services-preflash.md` festgehalten.
 **Phase 10.1 – Portal- und Heimnetz-Erreichbarkeit hat zwei reale Zielbefunde
 geliefert und liegt als portal-korrigierter Kandidat vor:** Der erste
 Wildcard-HTTP-Ansatz scheiterte an einer im ESP32-MicroPython-Port fehlenden
@@ -216,10 +273,10 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; der Produkt-Autostart integriert den geschützten Recovery-AP und dessen Zielabnahme ist bestanden; Heimnetz/mDNS bleibt im integrierten Autostart noch offen |
 | **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
 | **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; die integrierte Autostart-Auslieferung des Setup-Assistenten über Captive Portal ist ebenfalls zielseitig bestätigt** |
-| **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Die Phase-13-Ergänzung zeigt ROM-ID, Temperatur, Health und Messwertalter live vor der Rollenzuweisung und erlaubt ein ausdrückliches, zuordnungserhaltendes Überspringen. Nach zwei verworfenen Zielkandidaten lädt die aktuelle Fassung alle Startressourcen und anfänglichen API-Lesezugriffe seriell; Flash, vollständige Rücklesung, verbundener UI-Start, Tabs, Setup-Öffnung und der Skip-Pfad ohne angeschlossene Sensoren sind bestanden. Die reale Drei-Sensor-Livezuweisung bleibt offen.** |
+| **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Die Phase-13-Ergänzung zeigt ROM-ID, Temperatur, Health und Messwertalter live vor der Rollenzuweisung und erlaubt ein ausdrückliches, zuordnungserhaltendes Überspringen. Die installierte Fassung bestand Flash, vollständige Rücklesung, verbundenen UI-Start, Tabs, Setup-Öffnung und den Skip-Pfad ohne angeschlossene Sensoren. Der gzip-/Bundle-Cache-Latenzstand erlaubt nur zweiwegige Startüberlappung innerhalb des Zwei-Client-Limits und bestand sein Zielgate mit 4,228 Sekunden Median kalt sowie 0,866 Sekunden Median beim Wiederaufruf. Die reale Drei-Sensor-Livezuweisung bleibt offen.** |
 | **11** | **Events / Diagnostics / Capture Export** | **Software- und Zielabnahme bestanden: 200er Ereignisring, begrenztes Live-Protokoll, benannte RAM-Captures, kleine Cursor-/Exportseiten, JSON/NDJSON-Export und lazy geladene zweisekündige Diagnose-UI; reproduzierbarer A/B-Build, Offline-Artefaktgate, autorisierter App-only-Flash, vollständige Rücklesung sowie realer Handyablauf mit Capture/Export und vollständigem Cleanup bestätigt. Hardwarezugriffe bleiben entkoppelt; elektrische Abnahme folgt in Phase 13.** |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
-| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; Produkt-Autostart wurde exakt geflasht, vollständig rückgelesen und mit geschütztem AP, automatischem Captive Portal und Setup-Assistent zielseitig abgenommen; live per ROM aktualisierte Setup-Sensorzuweisung samt ausdrücklichem Überspringen ist implementiert. Nach zwei verworfenen UI-Kandidaten sind der vollständig serialisierte Bootstrap, verbundene UI, Tabs, Setup-Öffnung und der Skip-Pfad zielseitig bestanden; reale Drei-Sensor-Livezuweisung und Ersatz-RTC bleiben offen |
+| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; Produkt-Autostart wurde exakt geflasht, vollständig rückgelesen und mit geschütztem AP, automatischem Captive Portal und Setup-Assistent zielseitig abgenommen. Ein realer Power-1-End-to-End-Lauf sowie je ein mindestens siebenminütiger Dachzelt- und Kabinen-Temperaturlauf mit Livewerten, `TEMP_MONITORING`, UI-Stopp und bestätigtem OFF sind bestanden. Der Cancel-Fix ist Bestandteil der am 2026-11-21 bytegleich verifizierten Board-Firmware; sein ausdrücklicher nicht heizender Zieltest bleibt offen. Der ETag-/Lazy-Load-/512-Byte-Latenzstand wurde exakt freigegeben, app-only geschrieben, vollständig bytegleich rückgelesen und bestand automatisierte HTTP-/304-/GC-Heap-/OFF-Gates sowie den realen Handytest. Der zweite gzip-/Bundle-Cache-/1.024-Byte-Stand wurde ebenfalls exakt freigegeben, app-only geschrieben und vollständig bytegleich rückgelesen; Gzip, Versionscache, Altversionsschutz, Requested OFF, Browser-Render und GC-Heap bestanden auf dem Ziel, mit 4,228 Sekunden Median kalt und 0,866 Sekunden Median beim Wiederaufruf trotz schwachem WLAN. Der Netzwerkdienst-Stand mit getrennten Settings-Schaltern für Captive Portal und Bonjour-HTTP-Ankündigung wurde exakt freigegeben, app-only ohne Erase geschrieben und vollständig bytegleich rückgelesen. Normalstart, Schema-v3-Migration ohne Generationsänderung, Requested OFF, fehlerfreier Steuerpfad, Station-Webserver sowie Bonjour-Browse und -Auflösung bestanden auf dem Ziel; offen ist nur noch die beobachtete automatische Portalöffnung bei einem frischen Handy-Beitritt. Offen bleiben außerdem ein längerer interner/DMA-Heap- und Heater-Fairness-Soak, die formale Drei-Sensor-Livezuweisung im Setup, der Sensorfehler-Shutdown, höhere Leistungsstufen/Endurance, automatischer Heater-Start und der Ersatz-RTC-Test. |
 
 Vorgezogene Arbeiten aus Phase 11 oder 12 ändern die funktionale
 Phasenzuordnung nicht. Eine Phase gilt außerdem nicht allein wegen vorhandener
@@ -478,8 +535,9 @@ Die aktuelle konservative Standardpolitik lautet:
 - drei wiederholt auftretende ungültige Frames führen zu Communication ERROR
 - bleibt ein angeforderter Stop 5 min in STARTING hängen, entsteht ein
   sichtbarer Policy-Fault; ein unbestätigter SHUTDOWN wird nicht geraten
-- TEMP_MONITORING mit Stop-Wunsch wird ebenfalls sichtbar verriegelt, bis ein
-  bestätigter shutdown-fähiger Zustand vorliegt
+- TEMP_MONITORING mit Stop-Wunsch verwendet denselben begrenzten, höchstens
+  zweimaligen SHUTDOWN-Mechanismus wie RUNNING; die reale Heater-Bestätigung
+  dieses Pfads bleibt vor Produktfreigabe zwingend
 - unerwartetes OFF oder ein Replay nach abgeschlossenem Shutdown startet keine
   neue automatische Befehlsserie
 
@@ -521,11 +579,15 @@ Zustandsmaschine entscheidet danach, wann ein bestätigter SHUTDOWN zulässig
 ist; der TemperatureManager sendet selbst nie ein Kommando. Eine Erholung
 setzt den Wunsch nicht automatisch wieder auf EIN.
 
-Negative Temperaturen bleiben als reale Sensordaten erhalten. Die
-Übertragung externer Temperaturwerte an die Heizung ist bewusst noch nicht
-angeschlossen, weil die negative Wire-Codierung und das Verhalten in
-`TEMP_MONITORING` nicht bestätigt sind. Es wird weder geklemmt noch ein
-Ersatzwert gesendet.
+Negative Temperaturen sind gültige Sensordaten und gültige Regelwerte. Das
+Autoterm-Feld wird als vorzeichenbehaftetes 8-Bit-Celsiusfeld behandelt und in
+Zweierkomplement übertragen (`−1 °C` als `0xFF`, `−55 °C` als `0xC9`); ein
+Minuswert blockiert daher weder START noch eine laufende Session. Frische oder
+vorübergehend `STALE` Regelsensorwerte werden in STARTING, RUNNING und
+TEMP_MONITORING nach
+jedem frischen STATUS ungefähr einmal pro Sekunde über den kanonischen
+`0x11`-Frame gesendet. STATUS und Steuerkommandos haben Vorrang, und jeder
+Controller-Schritt fordert weiterhin höchstens eine Protokolloperation an.
 
 ## Umfang des DS18B20-Adapters und seiner MicroPython-Hülle
 
@@ -837,7 +899,7 @@ pro Verbindung genau einen vollständigen HTTP/1.1-Request mit `Content-Length`;
 Chunking, Pipelining, Upgrades und Method-Override sind ausgeschlossen. Der
 kooperative Socketadapter hält höchstens zwei Clients und führt je `step()`
 höchstens eine Accept-, Receive- oder Send-Aktion aus; Receive und Send sind
-jeweils auf 256 Bytes begrenzt.
+auf 256 beziehungsweise 1.024 Bytes begrenzt.
 Pro IPv4-Peer gelten zehn Requests je zehn Sekunden, zwei Mutationen je Sekunde
 und nach einem dauerhaften Config-Commit fünf Sekunden Schreib-Cooldown. Stop
 umgeht die Quoten.
@@ -1238,8 +1300,9 @@ Anomalieserie zurück.
 Dieses Paket ist noch **keine einsatzbereite Heizungssteuerung**. Die realen
 STATUS- und INIT-Vektoren bestätigen Startmarker, Längenregel und
 high-byte-first CRC für Kommandos `0x0F` und `0x04`. Ob dieselben Regeln
-ausnahmslos für andere Antworttypen gelten, ist noch offen; ebenso negative
-Temperaturcodierung und große Teile der Statusantwort. Ein CRC-Fehler wird
+ausnahmslos für andere Antworttypen gelten, ist noch offen; ebenso große Teile
+der Statusantwort. Die externe Temperatur verwendet ein signed 8-Bit-Feld;
+die Bestätigung negativer Werte an der realen Heizung steht noch aus. Ein CRC-Fehler wird
 deshalb aktuell erkannt und gemeldet, aber im Parser nicht global automatisch
 verworfen. Der Controller-Kern verlangt für INIT und STATUS eine erneute
 kanonische Prüfung durch seinen Protokoll-Port, die exakt bestätigte Frameform
@@ -1362,9 +1425,26 @@ Zieltemperatur `5–30 °C` fest; die Builder folgen dieser Baseline.
     geschützten AP, automatisches Captive Portal und Setup-Assistent bei
     abgeschalteter Heater-12-V-Versorgung zielseitig abgenommen.
 
-Als nächste Phase-13-Hardwarepunkte bleiben die Zielabnahme der serialisierten
-Live-Sensorzuweisung einschließlich Überspringen und ein RTC-Retest mit neuer
-Batterie.
-Höhere Heizleistungen, Temperaturmodus, externe Temperaturübertragung,
-Endurance-Wiederholungen und automatischer Heater-Start sind durch den
-bestandenen Power-1-Gate nicht freigegeben.
+Die serialisierte Live-Sensoranzeige und das ausdrückliche Überspringen wurden
+bereits separat am Ziel bestätigt; die formale Drei-Sensor-Rollenzuweisung im
+Setup bleibt offen. Der vollständige Power-1-End-to-End-Lauf über das normale
+Web-UI ist inzwischen ebenfalls bestanden: UI-Start, STARTING, RUNNING,
+Restlaufzeit und drei Live-Temperaturen, UI-Stopp, SHUTTING_DOWN und bestätigtes
+OFF. Ein RTC-Retest mit neuer Batterie bleibt offen.
+
+Die ungefähr sekündliche Übertragung des ausgewählten externen DS18B20-Werts,
+die Signed-Byte-Kodierung negativer Werte und der begrenzte SHUTDOWN aus
+`TEMP_MONITORING` sind implementiert und real bestätigt. Das exakt geflashte
+und vollständig rückgelesene Image bestand getrennte mindestens siebenminütige
+Dachzelt- und Kabinenläufe mit Livewert, verbundener UI, kühler Elektronik und
+kontrolliertem OFF. Der Kabinenlauf deckte zugleich einen sicherheitsrelevanten
+UI-Fehler auf: **Abbrechen** im Startdialog löste einen START aus. Der doppelt
+abgesicherte Fix für Start- und Timerdialog ist als reproduzierbarer Kandidat
+gebaut; offen bleiben nur dessen Flashfreigabe und der nicht heizende
+Zielnachweis, dass Abbrechen keine Mutation ausführt. Eine laufende
+Zieltemperaturänderung wird dabei nicht als wirksam abgenommen: Der vorhandene
+Session-PATCH ändert nur den Anwendungszustand, während kein sicher
+bestätigtes Autoterm-Kommando zum Ändern des Heater-Zielwerts im Betrieb
+bekannt ist. Höhere Heizleistungen, Endurance-Wiederholungen und automatischer
+Heater-Start sind durch den bestandenen Power-1-Gate ebenfalls nicht
+freigegeben.

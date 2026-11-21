@@ -13,14 +13,23 @@ AP_IP = "192.168.4.1"
 PEER = ("192.168.4.2", 53000)
 
 
-def query(name="connectivitycheck.gstatic.com", query_type=1):
-    packet = bytearray(b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00")
+def query(name="connectivitycheck.gstatic.com", query_type=1, edns=None):
+    additional_count = 1 if edns is not None else 0
+    packet = bytearray(
+        b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00"
+        + bytes((additional_count,))
+    )
     for label in name.split("."):
         encoded = label.encode("ascii")
         packet.append(len(encoded))
         packet.extend(encoded)
     packet.extend(b"\x00")
     packet.extend(bytes((query_type >> 8, query_type & 255, 0, 1)))
+    if edns is not None:
+        options = bytes(edns)
+        packet.extend(b"\x00\x00\x29\x04\xd0\x00\x00\x00\x00")
+        packet.extend(bytes((len(options) >> 8, len(options) & 255)))
+        packet.extend(options)
     return bytes(packet)
 
 
@@ -86,6 +95,26 @@ class TestCaptiveDNS(unittest.TestCase):
         response = _response_for(query(query_type=28), b"\xc0\xa8\x04\x01")
         self.assertEqual(response[6:8], b"\x00\x00")
         self.assertLessEqual(len(response), MAX_DNS_PACKET_BYTES)
+
+    def test_edns0_query_is_answered_and_opt_record_is_not_reflected(self):
+        # One syntactically valid EDNS option: code 12, two data bytes.
+        packet = query(edns=b"\x00\x0c\x00\x02\xaa\xbb")
+        response = _response_for(packet, b"\xc0\xa8\x04\x01")
+        self.assertEqual(response[6:8], b"\x00\x01")
+        self.assertEqual(response[10:12], b"\x00\x00")
+        self.assertEqual(response[-4:], b"\xc0\xa8\x04\x01")
+        self.assertLess(len(response), len(packet) + 16)
+
+    def test_rejects_non_opt_extra_records_and_malformed_edns_options(self):
+        wrong_type = bytearray(query(edns=b""))
+        question_end = len(query())
+        wrong_type[question_end + 1:question_end + 3] = b"\x00\x01"
+        malformed_option = query(edns=b"\x00\x0c\x00\x05\xaa")
+        answer_record = bytearray(query())
+        answer_record[7] = 1
+        for packet in (bytes(wrong_type), malformed_option, bytes(answer_record)):
+            with self.subTest(packet=packet), self.assertRaises(ValueError):
+                _response_for(packet, b"\xc0\xa8\x04\x01")
 
     def test_malformed_oversize_and_compressed_question_are_ignored(self):
         compressed = query()

@@ -25,14 +25,14 @@ DEFAULT_WINDOW_SECONDS = _phase9.DEFAULT_WINDOW_SECONDS
 
 _STATIC_TARGETS = (
     "/",
-    "/assets/boot.js",
-    "/assets/ui.css",
-    "/assets/i18n.js",
-    "/assets/app.js",
-    "/assets/home.js",
-    "/assets/timers.js",
-    "/assets/settings.js",
-    "/assets/setup.js",
+    _phase9._versioned_static_target("/assets/boot.js"),
+    _phase9._versioned_static_target("/assets/ui.css"),
+    _phase9._versioned_static_target("/assets/i18n.js"),
+    _phase9._versioned_static_target("/assets/app.js"),
+    _phase9._versioned_static_target("/assets/home.js"),
+    _phase9._versioned_static_target("/assets/timers.js"),
+    _phase9._versioned_static_target("/assets/settings.js"),
+    _phase9._versioned_static_target("/assets/setup.js"),
 )
 _API_TARGETS = (
     "/api/v1/security-context",
@@ -156,7 +156,7 @@ class _SetupWebGateway:
         if target in _STATIC_TARGETS:
             from app.web_assets import asset_for_path
 
-            route = "/index.html" if target == "/" else target
+            route = _phase9._canonical_static_target(target)
             expected = asset_for_path(route)
             return (
                 expected is not None

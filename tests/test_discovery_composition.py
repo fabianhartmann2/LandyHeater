@@ -115,6 +115,64 @@ class TestDiscoveryComposition(unittest.TestCase):
         self.assertFalse(runtime.step())
         self.assertIsNone(runtime.snapshot()["station_http"])
 
+    def test_runtime_without_captive_dns_steps_only_http_services(self):
+        ap_http = FakeService((True, False))
+        station_http = FakeService((False, True))
+        runtime = ConfiguredDiscoveryRuntime(
+            ap_http, None, station_http
+        )
+        self.assertTrue(runtime.start())
+        self.assertTrue(runtime.step())
+        self.assertFalse(runtime.step())
+        self.assertFalse(runtime.step())
+        self.assertTrue(runtime.step())
+        snapshot = runtime.snapshot()
+        self.assertIsNone(snapshot["dns"])
+        self.assertEqual(snapshot["next_service"], "ap_http")
+        self.assertEqual(ap_http.calls, ["start", "step", "step"])
+        self.assertEqual(station_http.calls, ["start", "step", "step"])
+
+    def test_disabled_captive_portal_builds_no_dns_owner_or_socket(self):
+        class Security:
+            def validate_read(self, headers, ingress=None, local_ip=None):
+                return "192.168.4.1"
+
+        class Rest:
+            security_policy = Security()
+
+            def handle(self, request, peer_ip, ingress=None, local_ip=None):
+                return None
+
+        dns_calls = []
+        runtime = build_discovery_runtime(
+            Rest(),
+            "192.168.4.1",
+            dns_socket_factory=lambda: dns_calls.append(True),
+            captive_portal_enabled=False,
+        )
+        self.assertEqual(dns_calls, [])
+        self.assertIsNone(runtime.dns_server)
+        self.assertIsNone(runtime.snapshot()["dns"])
+
+    def test_captive_portal_setting_requires_a_real_boolean(self):
+        class Security:
+            def validate_read(self, headers, ingress=None, local_ip=None):
+                return "192.168.4.1"
+
+        class Rest:
+            security_policy = Security()
+
+            def handle(self, request, peer_ip, ingress=None, local_ip=None):
+                return None
+
+        for value in (None, 0, 1, "true"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                build_discovery_runtime(
+                    Rest(),
+                    "192.168.4.1",
+                    captive_portal_enabled=value,
+                )
+
     def test_station_listener_attaches_and_detaches_without_stopping_ap(self):
         ap_http = FakeService()
         dns = FakeService()

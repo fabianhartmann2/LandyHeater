@@ -66,13 +66,19 @@ class TestAutotermFrames(unittest.TestCase):
         self.assertEqual(encode_external_temperature(19.1), 20)
         self.assertEqual(encode_external_temperature(19.9), 20)
         self.assertEqual(encode_external_temperature(20.01), 21)
+        self.assertEqual(encode_external_temperature(-1.2), 0xFF)
+        self.assertEqual(encode_external_temperature(-55), 0xC9)
         self.assertEqual(
             build_external_temperature(19.1),
             bytes.fromhex("AA 03 01 00 11 14 B2 51"),
         )
+        self.assertEqual(
+            build_external_temperature(-1.2),
+            bytes.fromhex("AA 03 01 00 11 FF FD 11"),
+        )
 
-    def test_external_temperature_rejects_unknown_encoding(self):
-        for value in (-1, 256, True, "20", float("nan")):
+    def test_external_temperature_rejects_values_outside_signed_byte(self):
+        for value in (-129, 128, 256, True, "20", float("nan")):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     build_external_temperature(value)

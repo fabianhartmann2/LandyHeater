@@ -11,6 +11,7 @@ discarded and rebuilt with :func:`protocol.autoterm_protocol.parse_frame`.
 
 from .autoterm_protocol import (
     CONTROL_MODE_POWER,
+    build_external_temperature,
     build_init_request,
     build_shutdown_request,
     build_start_for_mode,
@@ -267,3 +268,8 @@ class AutotermProtocolService:
         """Request exactly one canonical controlled SHUTDOWN transmission."""
 
         return self._send_once(build_shutdown_request())
+
+    def request_external_temperature(self, temperature):
+        """Report one validated external temperature sample exactly once."""
+
+        return self._send_once(build_external_temperature(temperature))

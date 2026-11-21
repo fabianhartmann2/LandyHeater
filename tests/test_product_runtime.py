@@ -1,3 +1,5 @@
+import ast
+from pathlib import Path
 import unittest
 
 from app.product_runtime import ProductRuntime, ProductRuntimeError
@@ -161,8 +163,37 @@ class Gateway:
         return {"steps": len(self.calls)}
 
 
+class Bonjour:
+    def __init__(self):
+        self.calls = []
+        self.advertised = False
+        self.raise_on_update = False
+
+    def start(self):
+        self.calls.append("start")
+        return True
+
+    def update(self, ready):
+        self.calls.append(("update", ready))
+        if self.raise_on_update:
+            raise OSError("mDNS service failed")
+        changed = self.advertised != ready
+        self.advertised = ready
+        return changed
+
+    def deinit(self):
+        self.calls.append("deinit")
+        self.advertised = False
+
+    def snapshot(self):
+        return {
+            "faulted": False,
+            "advertised": self.advertised,
+        }
+
+
 class Fixture:
-    def __init__(self, rest_start=True):
+    def __init__(self, rest_start=True, bonjour_enabled=False):
         self.manager = type("Manager", (), {"status": lambda self: {}})()
         self.configured = Configured()
         self.sensor = Owner("sensor")
@@ -172,6 +203,7 @@ class Fixture:
         self.rest = Rest(start_result=rest_start)
         self.discovery = Discovery()
         self.gateway = Gateway()
+        self.bonjour = Bonjour() if bonjour_enabled else None
         self.station_servers = []
         self.radio_releases = 0
         self.now = 0
@@ -201,6 +233,7 @@ class Fixture:
             lambda value, delta: value + delta,
             self.sleep_ms,
             radio_release=release_radio,
+            bonjour_service=self.bonjour,
         )
 
     def ticks_ms(self):
@@ -212,6 +245,34 @@ class Fixture:
 
 
 class TestProductRuntime(unittest.TestCase):
+    def test_production_wires_captive_switch_to_web_discovery_only(self):
+        tree = ast.parse(
+            Path("app/product_runtime.py").read_text(encoding="utf-8")
+        )
+        builder = next(
+            node for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "build_product_runtime"
+        )
+        calls = {}
+        for node in ast.walk(builder):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                calls.setdefault(node.func.id, []).append({
+                    keyword.arg for keyword in node.keywords
+                })
+        self.assertNotIn(
+            "captive_portal_enabled",
+            calls["build_configured_network"][0],
+        )
+        self.assertIn(
+            "captive_portal_enabled",
+            calls["build_discovery_runtime"][0],
+        )
+        self.assertIn(
+            "captive_portal_enabled",
+            calls["build_web_http_server"][0],
+        )
+
     def test_construction_is_inert_and_start_arms_last(self):
         fixture = Fixture()
         self.assertEqual(fixture.sensor.calls, [])
@@ -244,6 +305,56 @@ class TestProductRuntime(unittest.TestCase):
         fixture.runtime.step()
         self.assertIn("detach", fixture.discovery.calls)
         self.assertIsNone(fixture.runtime.snapshot()["station_ip"])
+
+    def test_bonjour_tracks_station_mdns_and_cleans_up(self):
+        fixture = Fixture(bonjour_enabled=True)
+        fixture.runtime.start()
+        self.assertEqual(fixture.bonjour.calls, ["start"])
+        state = fixture.runtime.snapshot()
+        self.assertTrue(state["bonjour_enabled"])
+        self.assertTrue(state["bonjour_available"])
+        self.assertFalse(state["bonjour_http_advertised"])
+
+        fixture.network.station_connected = True
+        fixture.runtime.step()
+        self.assertEqual(fixture.bonjour.calls[-1], ("update", True))
+        self.assertTrue(
+            fixture.runtime.snapshot()["bonjour_http_advertised"]
+        )
+
+        fixture.network.station_connected = False
+        fixture.runtime.step()
+        self.assertEqual(fixture.bonjour.calls[-1], ("update", False))
+        self.assertFalse(
+            fixture.runtime.snapshot()["bonjour_http_advertised"]
+        )
+        fixture.runtime.deinit()
+        self.assertEqual(fixture.bonjour.calls[-1], "deinit")
+
+    def test_bonjour_failure_degrades_after_heater_is_serviced(self):
+        fixture = Fixture(bonjour_enabled=True)
+        fixture.runtime.start()
+        fixture.network.station_connected = True
+        fixture.bonjour.raise_on_update = True
+        heater_steps = fixture.heater.calls.count("step")
+
+        self.assertTrue(fixture.runtime.step())
+        self.assertEqual(
+            fixture.heater.calls.count("step"), heater_steps + 1
+        )
+        state = fixture.runtime.snapshot()
+        self.assertFalse(state["bonjour_available"])
+        self.assertEqual(state["last_error"], "bonjour_http_degraded")
+        self.assertFalse(state["faulted"])
+
+    def test_bonjour_disabled_constructs_and_runs_without_service(self):
+        fixture = Fixture()
+        fixture.runtime.start()
+        fixture.runtime.step()
+        state = fixture.runtime.snapshot()
+        self.assertFalse(state["bonjour_enabled"])
+        self.assertFalse(state["bonjour_available"])
+        self.assertFalse(state["bonjour_http_advertised"])
 
     def test_configuration_change_disarms_and_keeps_web_for_safe_restart(self):
         fixture = Fixture()

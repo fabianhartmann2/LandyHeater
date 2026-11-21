@@ -38,6 +38,7 @@ class ProductRuntime:
         "_discovery_factory",
         "_station_http_factory",
         "_scheduler_gateway_factory",
+        "_bonjour",
         "_ticks_ms",
         "_ticks_diff",
         "_ticks_add",
@@ -51,6 +52,8 @@ class ProductRuntime:
         "_network_available",
         "_discovery_available",
         "_diagnostics_available",
+        "_bonjour_available",
+        "_bonjour_advertised",
         "_started",
         "_closed",
         "_faulted",
@@ -78,6 +81,7 @@ class ProductRuntime:
         ticks_add,
         sleep_ms,
         radio_release=None,
+        bonjour_service=None,
     ):
         for owner, methods in (
             (config_manager, ("status",)),
@@ -108,6 +112,9 @@ class ProductRuntime:
                 raise ValueError("product factory/clock is not callable")
         if radio_release is not None and not callable(radio_release):
             raise ValueError("radio_release must be callable")
+        if bonjour_service is not None:
+            for name in ("start", "update", "deinit", "snapshot"):
+                _callable(bonjour_service, name)
 
         self._config_manager = config_manager
         self._configured = configured_runtime
@@ -119,6 +126,7 @@ class ProductRuntime:
         self._discovery_factory = discovery_factory
         self._station_http_factory = station_http_factory
         self._scheduler_gateway_factory = scheduler_gateway_factory
+        self._bonjour = bonjour_service
         self._ticks_ms = ticks_ms
         self._ticks_diff = ticks_diff
         self._ticks_add = ticks_add
@@ -132,6 +140,8 @@ class ProductRuntime:
         self._network_available = False
         self._discovery_available = False
         self._diagnostics_available = False
+        self._bonjour_available = False
+        self._bonjour_advertised = False
         self._started = False
         self._closed = False
         self._faulted = False
@@ -184,6 +194,7 @@ class ProductRuntime:
             pass
         ok = True
         for owner in (
+            self._bonjour,
             self._discovery,
             self._rest,
             self._network,
@@ -274,6 +285,21 @@ class ProductRuntime:
             if self._discovery.start() is not True:
                 raise ProductRuntimeError("Web discovery did not start")
             self._discovery_available = True
+            if self._bonjour is not None:
+                try:
+                    if self._bonjour.start() is not True:
+                        raise ProductRuntimeError(
+                            "Bonjour service did not start"
+                        )
+                    self._bonjour_available = True
+                except MemoryError:
+                    raise
+                except BaseException:
+                    # Bonjour is a convenience advertisement.  A native mDNS
+                    # failure must not take heater supervision, the recovery
+                    # AP or the direct station Web listener down with it.
+                    self._bonjour_available = False
+                    self._last_error = "bonjour_http_degraded"
             if self._configured.scheduler.arm() is not True:
                 raise ProductRuntimeError("scheduler did not arm")
         except BaseException as error:
@@ -335,6 +361,28 @@ class ProductRuntime:
         self._station_failed_ip = None
         self._station_attaches += 1
         return True
+
+    @staticmethod
+    def _station_mdns_ready(network_snapshot):
+        if network_snapshot is None:
+            return False
+        station = network_snapshot.get("station")
+        mdns = network_snapshot.get("mdns")
+        if type(station) is not dict or type(mdns) is not dict:
+            raise ProductRuntimeError("station discovery truth is malformed")
+        return (
+            station.get("connected") is True
+            and mdns.get("ready") is True
+        )
+
+    def _refresh_bonjour_truth(self):
+        state = self._require_snapshot(self._bonjour, "bonjour")
+        advertised = state.get("advertised")
+        if type(advertised) is not bool:
+            raise ProductRuntimeError("Bonjour snapshot is malformed")
+        self._bonjour_advertised = advertised
+        if state.get("faulted") is True:
+            raise ProductRuntimeError("Bonjour service faulted")
 
     def step(self):
         if not self._started or self._closed:
@@ -405,6 +453,23 @@ class ProductRuntime:
             except BaseException:
                 self._diagnostics_available = False
                 self._last_error = "diagnostics_degraded"
+        # The native service-registration path may briefly wait inside the
+        # pinned ESP-IDF mDNS component.  Run it only after the heater owner
+        # and diagnostics have received their cooperative turn.
+        if self._bonjour_available:
+            try:
+                ready = self._station_mdns_ready(network_snapshot)
+                self._bonjour.update(ready)
+                self._refresh_bonjour_truth()
+            except MemoryError:
+                raise
+            except BaseException:
+                try:
+                    self._refresh_bonjour_truth()
+                except BaseException:
+                    pass
+                self._bonjour_available = False
+                self._last_error = "bonjour_http_degraded"
         self._steps += 1
         return True
 
@@ -425,6 +490,7 @@ class ProductRuntime:
             raise ProductRuntimeError("heater is not confirmed off") from None
         failed = False
         for owner in (
+            self._bonjour,
             self._discovery,
             self._rest,
             self._network,
@@ -474,6 +540,9 @@ class ProductRuntime:
             "network_available": self._network_available,
             "discovery_available": self._discovery_available,
             "diagnostics_available": self._diagnostics_available,
+            "bonjour_enabled": self._bonjour is not None,
+            "bonjour_available": self._bonjour_available,
+            "bonjour_http_advertised": self._bonjour_advertised,
             "station_attaches": self._station_attaches,
             "station_detaches": self._station_detaches,
             "station_attach_failures": self._station_attach_failures,
@@ -518,6 +587,33 @@ def build_product_runtime():
         raise ProductRuntimeError("trusted scheduler ledger is absent")
     if manager.faulted:
         raise ProductRuntimeError("production storage is faulted")
+
+    service_projection = manager.network_services_for_runtime()
+    generation = getattr(manager, "generation", None)
+    if (
+        type(service_projection) is not dict
+        or frozenset(service_projection) != frozenset((
+            "generation", "network_services"
+        ))
+        or service_projection.get("generation") != generation
+        or type(service_projection.get("network_services")) is not dict
+        or frozenset(service_projection["network_services"]) != frozenset((
+            "captive_portal_enabled", "bonjour_http_enabled"
+        ))
+        or type(service_projection["network_services"].get(
+            "captive_portal_enabled"
+        )) is not bool
+        or type(service_projection["network_services"].get(
+            "bonjour_http_enabled"
+        )) is not bool
+    ):
+        raise ProductRuntimeError("network service settings are malformed")
+    network_services = service_projection["network_services"]
+    bonjour_service = None
+    if network_services["bonjour_http_enabled"]:
+        from adapters.micropython_bonjour import MicroPythonBonjourService
+
+        bonjour_service = MicroPythonBonjourService()
 
     configured = build_configured_runtime(
         manager, ticks_diff=time.ticks_diff, ticks_add=time.ticks_add
@@ -589,6 +685,9 @@ def build_product_runtime():
             ticks_ms=time.ticks_ms,
             ticks_diff=time.ticks_diff,
             ticks_add=time.ticks_add,
+            captive_portal_enabled=(
+                network_services["captive_portal_enabled"]
+            ),
         )
 
     def station_http_factory(rest_runtime, station_address, ap_address):
@@ -600,6 +699,9 @@ def build_product_runtime():
             ticks_add=time.ticks_add,
             request_ingress="sta",
             captive_ap_address=ap_address,
+            captive_portal_enabled=(
+                network_services["captive_portal_enabled"]
+            ),
         )
 
     def release_radio():
@@ -622,6 +724,7 @@ def build_product_runtime():
             time.ticks_add,
             time.sleep_ms,
             radio_release=release_radio,
+            bonjour_service=bonjour_service,
         )
     except BaseException:
         try:

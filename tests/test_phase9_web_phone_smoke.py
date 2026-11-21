@@ -1,5 +1,6 @@
 import unittest
 
+from app.web_assets import VERSIONED_ASSET_PREFIX, versioned_asset_path
 from app.rest_application import RestResponse
 from services.http_protocol import parse_request
 from services.rest_security import INGRESS_ACCESS_POINT, RestSecurityPolicy
@@ -86,7 +87,16 @@ class TestPhase9WebPhoneSmoke(unittest.TestCase):
         self.assertEqual(len(smoke._API_TARGETS), 4)
         self.assertEqual(len(smoke._REQUIRED_TARGETS), 12)
         self.assertEqual(len(set(smoke._REQUIRED_TARGETS)), 12)
-        self.assertIn("/assets/boot.js", smoke._STATIC_TARGETS)
+        self.assertIn(
+            versioned_asset_path("/assets/boot.js"), smoke._STATIC_TARGETS
+        )
+        self.assertTrue(
+            all(
+                target == "/" or target.startswith(VERSIONED_ASSET_PREFIX)
+                for target in smoke._STATIC_TARGETS
+            )
+        )
+        self.assertNotIn("/assets/boot.js", smoke._STATIC_TARGETS)
         self.assertIn("/api/v1/status", smoke._API_TARGETS)
         self.assertNotIn("/api/v1/diagnostics", smoke._API_TARGETS)
 
@@ -109,10 +119,15 @@ class TestPhase9WebPhoneSmoke(unittest.TestCase):
         observer = smoke._TransportObserver()
         port = _Port()
         client = observer.claim_client(port)
-        client._observe_request(b"GET /assets/app.js HTTP/1.1\r\nHost: x\r\n\r\n")
+        target = versioned_asset_path("/assets/app.js")
+        client._observe_request(
+            ("GET {} HTTP/1.1\r\nHost: x\r\n\r\n".format(target)).encode(
+                "ascii"
+            )
+        )
         self.assertEqual(client.send(b"HTTP/1.1 200 OK\r\n\r\nbody"), 23)
         self.assertIsNone(client.close())
-        self.assertEqual(observer.completed, {"/assets/app.js": 1})
+        self.assertEqual(observer.completed, {target: 1})
         self.assertEqual(observer.accepted, 1)
         self.assertEqual(observer.closed_count, 1)
         self.assertEqual(observer.open_clients(), 0)

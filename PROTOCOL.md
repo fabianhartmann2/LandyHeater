@@ -763,7 +763,7 @@ AA 03 01 00 11 TT
 
 Where:
 
-`TT` = current external temperature encoded as one byte
+`TT` = current external temperature encoded as one signed two's-complement byte
 
 Example 20 °C:
 
@@ -781,6 +781,8 @@ Therefore:
 
 - 19.1 °C → 20
 - 19.9 °C → 20
+- −1.2 °C → −1 → `FF`
+- −55 °C → `C9`
 
 It is not known whether ceiling rather than normal rounding is required by the heater protocol.
 
@@ -802,7 +804,7 @@ When initialized it:
 
 External temperature is therefore effectively sent approximately once per second while the application is in the supported active temperature modes/states.
 
-The current flow routes temperature reporting for heater states:
+The reference Node-RED flow routes temperature reporting for heater states:
 
 - Starting
 - Running
@@ -811,6 +813,14 @@ The current flow routes temperature reporting for heater states:
 The `Temp Monitoring (6)` branch does not currently route to temperature transmission.
 
 This should be treated as existing behavior, not proof that state 6 must never receive temperature updates.
+
+The ESP32 product controller now also schedules the selected external value in
+state 6 so a temperature-monitoring session continues receiving live sensor
+truth. This deliberate extension is bounded to one report interval, remains
+subordinate to STATUS and control operations, and requires real-heater target
+confirmation before acceptance. Negative DS18B20 values are valid and are sent
+as signed eight-bit two's-complement values; they never block control merely
+because they are below zero.
 
 **Confidence:** VERIFIED Node-RED behavior.
 
@@ -986,7 +996,7 @@ establish:
 
 20. required report interval
 21. allowed full temperature range
-22. negative-temperature encoding
+22. negative-temperature target confirmation on the real heater
 23. whether `ceil()` is required
 24. whether state 6 should receive external-temperature reports
 
@@ -1109,5 +1119,5 @@ Still intentionally unresolved:
 - complete status payload
 - RX CRC behavior
 - undocumented start-payload semantics
-- negative-temperature encoding
+- real-heater confirmation of negative external-temperature reports
 - complete error model

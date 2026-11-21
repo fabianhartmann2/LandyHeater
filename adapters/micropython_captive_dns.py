@@ -67,7 +67,17 @@ def _question_end(packet):
         raise ValueError("dns_query_malformed")
     flags = (packet[2] << 8) | packet[3]
     questions = (packet[4] << 8) | packet[5]
-    if flags & 0x8000 or flags & 0x7800 or questions != 1:
+    answers = (packet[6] << 8) | packet[7]
+    authorities = (packet[8] << 8) | packet[9]
+    additionals = (packet[10] << 8) | packet[11]
+    if (
+        flags & 0x8000
+        or flags & 0x7800
+        or questions != 1
+        or answers != 0
+        or authorities != 0
+        or additionals not in (0, 1)
+    ):
         raise ValueError("dns_query_unsupported")
     offset = 12
     name_bytes = 0
@@ -88,9 +98,50 @@ def _question_end(packet):
         if name_bytes > 253 or labels > 32:
             raise ValueError("dns_query_malformed")
         offset += length
-    if labels == 0 or offset + 4 != len(packet):
+    if labels == 0 or offset + 4 > len(packet):
         raise ValueError("dns_query_malformed")
-    return offset + 4
+    question_end = offset + 4
+    if additionals == 0:
+        if question_end != len(packet):
+            raise ValueError("dns_query_malformed")
+    else:
+        _validate_edns0(packet, question_end)
+    return question_end
+
+
+def _validate_edns0(packet, offset):
+    """Accept one bounded, structurally valid EDNS version-0 OPT record."""
+
+    # OPT uses the root name, followed by TYPE, requestor UDP size, extended
+    # RCODE/version/flags, RDLEN and a sequence of bounded option TLVs.
+    if offset + 11 > len(packet) or packet[offset] != 0:
+        raise ValueError("dns_query_malformed")
+    record_type = (packet[offset + 1] << 8) | packet[offset + 2]
+    udp_size = (packet[offset + 3] << 8) | packet[offset + 4]
+    extended_rcode = packet[offset + 5]
+    version = packet[offset + 6]
+    flags = (packet[offset + 7] << 8) | packet[offset + 8]
+    data_length = (packet[offset + 9] << 8) | packet[offset + 10]
+    data_start = offset + 11
+    data_end = data_start + data_length
+    if (
+        record_type != 41
+        or udp_size < 512
+        or extended_rcode != 0
+        or version != 0
+        or flags & 0x7FFF
+        or data_end != len(packet)
+    ):
+        raise ValueError("dns_query_unsupported")
+    cursor = data_start
+    while cursor < data_end:
+        if cursor + 4 > data_end:
+            raise ValueError("dns_query_malformed")
+        option_length = (packet[cursor + 2] << 8) | packet[cursor + 3]
+        cursor += 4
+        if cursor + option_length > data_end:
+            raise ValueError("dns_query_malformed")
+        cursor += option_length
 
 
 def _response_for(packet, address_bytes):

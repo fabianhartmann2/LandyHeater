@@ -1,22 +1,42 @@
-# Phase 13 live Setup-sensor frozen firmware build record
+# Phase 13 temperature-control frozen firmware build record
 
-Build date: 2026-10-07. Status: **exact 50-file source closure, host lifecycle
-and resilience tests, two byte-identical canonical-path builds and offline
-artifact gates passed. The exact application was flashed app-only, read back
-byte-identical and accepted on target for serialized UI startup and the
-explicit sensor-setup skip path. Physical live-sensor assignment remains
-open.**
+Build date: 2026-11-21. Status: **exact 51-file frozen source closure plus two
+native user-module sources, focused lifecycle/configuration/discovery tests,
+two byte-identical canonical-path builds and offline image gates passed. The
+`67393e2b...` application was exactly authorized, written app-only at
+`0x10000` without a full-chip erase and confirmed byte-for-byte by an
+independent complete application readback. Normal boot, live schema migration,
+station HTTP and Bonjour target gates passed; only fresh-phone automatic
+captive-portal presentation remains to be observed.**
 
-This candidate extends the accepted product-autostart image with live
-DS18B20 readings in the sensor-assignment step and an explicit, fail-closed
-option to skip that step. At every normal reset it
+This candidate retains periodic
+external-temperature reports for roof-tent and cabin control, signed negative
+DS18B20 support and bounded shutdown from `TEMP_MONITORING`, and prevents Start
+and Timer cancel controls from submitting their forms. At every normal reset it
 loads the trusted production stores, starts sensors and the heater protocol in
 requested-OFF state, brings up the recovery AP and Web UI, and only then arms
 the Scheduler. A station listener is attached dynamically after DHCP/mDNS,
 without stopping the AP listener or captive DNS. Runtime WLAN, HTTP-listener
 and diagnostics failures degrade those optional services without ending heater
 supervision. Safety-critical failures enter the existing controlled heater
-shutdown path.
+shutdown path. This revision adds persistent, independent Settings switches
+for captive-portal assistance and Bonjour HTTP publication. Both default to
+enabled, can be changed only over AP ingress and take effect after restart.
+The direct v2-to-v3 configuration migration adds those defaults in memory
+without closing the existing network or timer gates and without writing flash.
+
+When captive assistance is disabled, no UDP/53 owner is created and captive
+probe paths are not redirected. When enabled, query-string probe variants and
+one structurally valid EDNS0 OPT record are accepted. Bonjour publishes only
+the fixed `Landy Heater._http._tcp` service on port 80 with TXT `path=/`, and
+only while station mDNS is ready. Its native owner is degradable: a service
+failure cannot stop the direct HTTP listeners or heater supervision, and the
+heater receives its cooperative step before a native advertisement update.
+
+The candidate retains the deterministic gzip/cache Web path. The cooperative
+send budget is 1,024 bytes; the 256-byte receive budget,
+two-client/two-backlog limits and one-action-per-step contract remain
+unchanged.
 
 The private frozen `board_config.py` differs from the safe repository profile
 in exactly two values: `UART_PINS_APPROVED=True` and
@@ -28,14 +48,16 @@ loaded. The repository-root `main.py` remains passive and is excluded.
 ## Pinned inputs
 
 - repository baseline before product autostart: `fee7faf`;
-- 50 exact project-source files bound by `CURRENT_FROZEN_SOURCES.sha256`;
+- 51 exact frozen project-source files bound by
+  `CURRENT_FROZEN_SOURCES.sha256`;
+- two exact native user-module sources bound by `NATIVE_SOURCES.sha256`;
 - MicroPython v1.28.0 commit
   `e0e9fbb17ed6fd06bb76e266ae554784c9c80804`;
 - ESP-IDF v5.5.1 commit
   `fcae32885b0296b32044cb99ecbdc50d98dddb83`;
 - Python 3.14.6;
-- `mpy-cross` v1.28.0, MPY format 6, executable SHA-256
-  `ceda0dfb2f800a3970f2be6a036aedfc3e9bcdb49579aeb3d5a0cb1a0390c849`;
+- `mpy-cross` v1.28.0, MPY format 6.3, executable SHA-256
+  `d6cecfedb96e7953dbbc766175fdc540a60bac91372317983ba5a906aac7f016`;
 - esptool 4.12.0;
 - board `DFR0975U_N16R8`, 16-MiB flash and fail-closed Octal PSRAM;
 - `SOURCE_DATE_EPOCH=1788100339`, `TZ=UTC`, `LC_ALL=C`,
@@ -45,10 +67,11 @@ loaded. The repository-root `main.py` remains passive and is excluded.
 
 | Candidate input | SHA-256 |
 | --- | --- |
-| `manifest.py` | `a27ccfd4a4ea059a6979a4f2535872601ba22295bb1cc01560d22a25ef47ed01` |
-| `FROZEN_MODULES.txt` | `ab30f9421528d97ed68fc4d9aed78d659b18b1f3a292e826acd1f6a6722321c2` |
-| `CURRENT_FROZEN_SOURCES.sha256` | `001fdf2c497ff4b469c74441a7dac9438ebaf47bf2659a4b5b41944f7f827791` |
-| `artifacts/SHA256SUMS` | `93256209d2000ff5ad475072769eeb122888e7f9875fb91804a41c4911ff2a3a` |
+| `manifest.py` | `44a9d350dfa2ba63f77571772c53c06f4457f2232f735332381dedb2cdcacb5b` |
+| `FROZEN_MODULES.txt` | `45c437fcdde6dbafd5f40812cbc728695b9ae86f1b71e26167d12a1b2ed88771` |
+| `CURRENT_FROZEN_SOURCES.sha256` | `4829f442e06552795cc5c9a7f5a8b4dd70d9ed5e575448e2b48faa7951c09ede` |
+| `NATIVE_SOURCES.sha256` | `da5570143e9612bb354e552d205181f0cc56e8277abe5c6cf43414f0fa5e2d50` |
+| `artifacts/SHA256SUMS` | `bc42c9fffc92f8f4b2351567c06eed10234d62ff46767bfd29c5a5db4363ad7e` |
 
 The closure excludes credentials, persistent data, acceptance tools and tests.
 The VFS copy of `main.py` cannot override the private frozen entry point because
@@ -63,14 +86,16 @@ table, application, combined image, UF2, final and combined configurations,
 four flash-argument files, flasher JSON, frozen C, ELF and map. The dependency
 lock matched the retained DFR0975-U lock byte-for-byte.
 
-The focused sensor, REST, configuration, Web, smoke-runner and frozen-artifact
-matrix passed 122/122 tests, and the browser Setup validation runner passed.
-The complete
-repository suite ran 1,289 tests: 1,287 passed and only the two deliberately
-immutable historical Phase-11 and early Phase-13 source ledgers reported the
-expected mismatch against today's evolved working sources. The current
-50-file closure and retained artifact ledgers both passed exactly. `git diff
---check` passed.
+The feature-focused configuration, REST, captive DNS, discovery, Bonjour,
+product-runtime and Web matrix passed 214 tests. The current 51-file frozen
+closure, two-file native ledger and retained artifact ledger pass exactly.
+All 51 frozen modules compile for `xtensawin`; the changed JavaScript passes
+syntax checking. Both retained ESP32-S3 images have valid checksums and
+validation hashes, and `git diff --check` passes. The complete repository
+suite ran 1,341 tests: 1,339 passed; only the two deliberately immutable
+historical Phase-11 and early Phase-13 source ledgers reported their expected
+mismatch against current sources. Those ledgers remain historical evidence
+rather than being rewritten.
 
 ## Image, layout and retained artifacts
 
@@ -85,26 +110,114 @@ is no OTA partition.
 | --- | ---: |
 | Bootloader | 19,232 B; unchanged |
 | Partition table | 3,072 B; unchanged |
-| Factory application | 2,131,568 B used of 3,145,728 B |
-| Growth from accepted product-autostart image | 9,968 B |
-| Application margin | 1,014,160 B (about 32%) |
-| Combined image | 2,197,104 B; exact end `0x218670` |
+| Factory application | 2,181,024 B used of 3,145,728 B |
+| Growth from prior installed `a25e3226...` image | 9,296 B |
+| Application margin | 964,704 B (about 31%) |
+| Combined image | 2,246,560 B; exact end `0x2247a0` |
 
-The retained deployment subset is bound by `artifacts/SHA256SUMS`. The only
-image proposed for the next operation is:
+The retained deployment subset is bound by `artifacts/SHA256SUMS`. The
+installed application is:
 
 ```text
 offset: 0x10000
-size:   2131568 bytes
-sha256: c344bb3ca6f4f7540b1925e8d65a7a8cdc93328c230a8a640fe9c7c6b153aae9
-erase:  no full-chip erase
+size:   2181024 bytes
+sha256: 67393e2b052d88139e9a8533b8f8b2cc73cd4c8a0ef14fa41168473d7478313d
+flash:  exactly authorized; app-only at 0x10000; no full-chip erase
 ```
 
-This record is evidence only and does not authorize a board flash.
+The combined retained image is 2,246,560 bytes with SHA-256
+`89f9af87e6cc19f6ee59b12ef8c0370a0d1f2d3f83eeb111418d65da4aec6518`.
+The exact authorization was
+`Flash 67393e2b052d88139e9a8533b8f8b2cc73cd4c8a0ef14fa41168473d7478313d ohne Erase freigegeben.`
+Immediately before the write, a complete 2,171,728-byte readback matched the
+installed `a25e3226...` baseline. Esptool 4.12 then wrote only the application
+at `0x10000` and reported its data hash verified; no full-chip erase,
+bootloader write, partition-table write or VFS write was performed. A separate
+complete 2,181,024-byte postflash readback had SHA-256
+`67393e2b052d88139e9a8533b8f8b2cc73cd4c8a0ef14fa41168473d7478313d`
+and compared byte-for-byte equal to the retained application. The retained
+bootloader and partition table remain byte-identical to the accepted Phase-11
+artifacts.
 
-## Target status and inherited evidence
+After a normal boot, `http://192.168.36.114/` was reachable, Requested state
+was OFF, `control_faulted` was false and the station was online. Settings
+reported schema 3 with `captive_portal_enabled` and `bonjour_http_enabled`
+both true; stored and runtime generation remained 7, confirming the direct
+migration without a configuration commit. The UI served bundle version
+`728dc6163ddf88c828ead9be62c56f762d69cbf64685e431da52c416abfddbc1`.
+Bonjour browsing found `Landy Heater._http._tcp`; resolution returned
+`heater.local:80`, TXT `path=/`, and the hostname resolved to
+`192.168.36.114`. Only visible automatic captive-portal presentation on a
+freshly joined phone remains open for this revision.
 
-The fully serialized-bootstrap candidate above was separately authorized by
+## Second-stage latency evidence
+
+The deterministic asset bundle version is
+`e1b9b5f8cad6278ccdc139fbf47f76460e873a36a05b735f88b024746a154dce`.
+Across all 11 static representations, build-time gzip reduces 102,231 raw
+bytes to 31,556 bytes. The normal Home static path is 19,341 body bytes and
+23,114 complete wire bytes including security headers, requiring 26 bounded
+send actions at 1,024 bytes instead of 70 actions for its identity fallback.
+The gzip index `304` is 546 wire bytes and one send action; normally cached
+versioned assets make no reload requests.
+
+On the target, three staged cold Home paths measured 4.157, 4.228 and 4.519
+seconds, with a 4.228-second median. Three normal cached reopens, consisting
+of index revalidation plus fresh status, measured 0.848, 0.866 and 1.319
+seconds, with a 0.866-second median. The measured cold path transferred 21,829
+body bytes. The root gzip representation was 3,633 bytes. The current
+versioned asset returned immutable caching and distinct identity/gzip ETags;
+exact gzip revalidation returned a bodyless `304`, and an old bundle version
+returned `404` with `no-store`.
+
+The separately authorized app-only write covered only the 2,171,728-byte
+application at `0x10000`, without a full-chip erase. Esptool verified the
+write, and a complete independent readback was byte-identical with SHA-256
+`a25e32266e93d921db3b8cc5dd311ffb955b976ccc55af7221859f0344c29d76`.
+After reset, USB emitted `LANDY_HEATER_PRODUCT_AUTOSTART_V1`; the product was
+reachable at `192.168.36.114` with MAC `34:85:18:92:23:c0`. A fresh headless
+Chrome profile rendered the connected Home view. Requested state stayed OFF,
+`control_faulted` was false, the network was online, and REST and
+configuration remained unfaulted. After the repeated load and Chrome gates,
+7,946,400 bytes of GC heap were free at -83 dBm station RSSI. Sensor warnings
+were expected because 12-V/sensor hardware was not connected. Longer
+internal/DMA-heap and heater-controller fairness soaking remains open.
+
+## Installed first-stage baseline and inherited evidence
+
+Before the change, the complete 2,132,848-byte application region on the board
+was read from `0x10000` over USB and compared with the retained repository
+baseline. The readback was byte-identical with SHA-256
+`4bf2176c96842e2438c339c6d8f2f2c6e3a3c452b5878eabdf47fe2a74df5314`.
+The running Web assets were also fetched over the station interface and all
+11 matched the corresponding frozen repository assets byte-for-byte. No erase
+or write occurred during this reconciliation. The latency measurements,
+reconciliation, optimization and pending target gate are recorded in
+`../../captures/2026-11-21-dfr0975u-web-latency-optimization-preflash.md`.
+
+The owner then explicitly authorized the exact new application hash. Esptool
+4.12 wrote only its 2,135,888-byte app region at `0x10000` without a full-chip
+erase. A complete post-write readback was byte-identical with SHA-256
+`02197a7d74e6006573bd769ed1a4d34b823a470f7ce4435c02159caa204fe84b`.
+After reset the product returned online on its first probe with Requested OFF.
+At about -92 dBm, the sequential cold Home components totaled about 10.4
+seconds; a repeat with five empty `304` asset responses totaled about 3.6
+seconds. All ten asset validators produced empty `304` responses, GC heap free
+was 7,889,872 bytes, and REST reported no fault or last error. Phone-observed
+numeric timing was not supplied, but the owner confirmed that the requested
+phone UI, reload and lazy views work. A post-phone read retained Requested OFF,
+network online, no control or REST fault and 7,826,000 free GC heap bytes.
+
+Negative DS18B20 values are preserved as regulation input and encoded after the
+existing ceiling operation as signed eight-bit two's-complement (`-1` as
+`0xFF`, `-55` as `0xC9`). Separate roof-tent and cabin sessions reached
+`TEMP_MONITORING`, heated for at least seven minutes, updated the selected live
+temperature, retained the UI connection and returned through controlled Stop
+to confirmed OFF. The cabin run exposed the cancel-submit defect corrected by
+this candidate. Detailed evidence is in
+`../../captures/2026-10-07-dfr0975u-temperature-ui-e2e.md`.
+
+The preceding fully serialized-bootstrap candidate was separately authorized by
 its exact hash, written app-only at `0x10000` and independently read back
 byte-identical. After reset the phone joined the protected AP with the
 unchanged credential. The remembered network did not automatically reopen the

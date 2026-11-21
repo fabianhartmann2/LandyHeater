@@ -33,7 +33,7 @@ from services.strict_json import StrictJSONError, encode_json_bytes
 MAX_CLIENTS = 2
 LISTEN_BACKLOG = 2
 RECV_BUDGET_BYTES = 256
-SEND_BUDGET_BYTES = 256
+SEND_BUDGET_BYTES = 1024
 MAX_REQUEST_BYTES = (
     MAX_REQUEST_LINE_BYTES + 2 + MAX_HEADER_BLOCK_BYTES + MAX_BODY_BYTES
 )
@@ -883,6 +883,7 @@ class MicroPythonHTTPServer:
                     status,
                     body,
                     response.headers,
+                    getattr(response, "cache_control", "no-store"),
                 )
             else:
                 if type(response.body) is not bytes:
@@ -894,6 +895,8 @@ class MicroPythonHTTPServer:
                     response.body,
                     content_type,
                     response.headers,
+                    getattr(response, "cache_control", "no-store"),
+                    getattr(response, "content_encoding", None),
                 )
         except MemoryError:
             raise MemoryError() from None

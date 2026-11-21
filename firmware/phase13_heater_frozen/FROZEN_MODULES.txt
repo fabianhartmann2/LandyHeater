@@ -4,6 +4,7 @@ adapters/__init__.py
 adapters/config_file_store.py
 adapters/ds18b20_adapter.py
 adapters/ds3231_adapter.py
+adapters/micropython_bonjour.py
 adapters/micropython_captive_dns.py
 adapters/micropython_http_server.py
 app/__init__.py

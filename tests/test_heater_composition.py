@@ -104,12 +104,20 @@ class FakeProtocol:
         self.sent.append("shutdown")
         return True
 
+    def request_external_temperature(self, temperature):
+        self.sent.append(("external_temperature", temperature))
+        return True
+
     def deinit(self):
         self.deinit_calls += 1
         if self.cleanup_failures:
             self.cleanup_failures -= 1
             raise OSError("cleanup")
         self.closed = True
+
+
+class MissingTemperatureProtocol(FakeProtocol):
+    request_external_temperature = None
 
 
 class Clock:
@@ -240,6 +248,13 @@ class TestConfiguredHeaterRuntime(unittest.TestCase):
         self.assertTrue(protocol.closed)
         self.assertTrue(runtime.faulted)
         self.assertEqual(runtime.snapshot()["last_error"], "heater_start_failed")
+
+    def test_start_rejects_protocol_without_external_temperature_surface(self):
+        protocol = MissingTemperatureProtocol()
+        runtime, _, _, _, _, _ = self.build(protocol=protocol)
+        with self.assertRaisesRegex(HeaterRuntimeError, "start failed"):
+            runtime.start()
+        self.assertTrue(protocol.closed)
 
     def test_cleanup_retries_once(self):
         protocol = FakeProtocol(cleanup_failures=1)

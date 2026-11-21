@@ -79,7 +79,12 @@ _SESSION_UPDATE_FIELDS = frozenset((
     "target_temperature",
     "extend_minutes",
 ))
-_SETTINGS_FIELDS = frozenset(("heater", "sensors", "time"))
+_SETTINGS_FIELDS = frozenset((
+    "heater",
+    "sensors",
+    "time",
+    "network_services",
+))
 _SETUP_FIELDS = frozenset(("heater", "sensors", "time", "network", "checks"))
 _CAPTURE_FIELDS = frozenset(("label",))
 _TIME_SYNC_FIELDS = frozenset(("unix_epoch_seconds",))
@@ -1323,6 +1328,7 @@ class RestApplication:
                 "sensors",
                 "time",
                 "network",
+                "network_services",
                 "restart_required",
             ),
         )
@@ -1346,6 +1352,7 @@ class RestApplication:
             "sensors": configuration["sensors"],
             "time": configuration["time"],
             "network": configuration["network"],
+            "network_services": configuration["network_services"],
         }
 
     def _setup_snapshot(self, now_ms):

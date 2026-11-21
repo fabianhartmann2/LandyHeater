@@ -2,6 +2,7 @@ import unittest
 
 from app.rest_application import RestResponse
 from app.web_application import Phase9WebApplication
+from app.web_assets import ASSET_VERSION, VERSIONED_ASSET_PREFIX
 from services.http_protocol import encode_bytes_response, parse_request
 from services.rest_security import INGRESS_ACCESS_POINT, RestSecurityPolicy
 from tools.build_web_assets import OUTPUT, render
@@ -9,6 +10,11 @@ from tools.build_web_assets import OUTPUT, render
 
 HOST = "192.168.4.1"
 PEER = "192.168.4.2"
+VERSIONED_ASSET_PREFIX_BYTES = VERSIONED_ASSET_PREFIX.encode("ascii")
+
+
+def versioned_asset_url(name):
+    return VERSIONED_ASSET_PREFIX_BYTES + name.encode("ascii")
 
 
 def request(method="GET", target="/", host=HOST):
@@ -38,6 +44,23 @@ class TestPhase9WebApplication(unittest.TestCase):
     def setUp(self):
         self.runtime = FakeRestRuntime()
         self.app = Phase9WebApplication(self.runtime)
+
+    def assertOnlyVersionedAssetReferences(self, *payloads):
+        references = 0
+        for payload in payloads:
+            self.assertNotIn(b"__LANDY_ASSET_VERSION__", payload)
+            offset = 0
+            while True:
+                offset = payload.find(b"/assets/", offset)
+                if offset < 0:
+                    break
+                references += 1
+                self.assertTrue(
+                    payload.startswith(VERSIONED_ASSET_PREFIX_BYTES, offset),
+                    payload[offset:offset + 112],
+                )
+                offset += len(b"/assets/")
+        self.assertGreater(references, 0)
 
     def test_root_and_every_allowlisted_asset_are_frozen_and_hardened(self):
         root = self.app.handle(request(), PEER)
@@ -115,6 +138,34 @@ class TestPhase9WebApplication(unittest.TestCase):
                 )
                 self.assertEqual(station.status, 403)
 
+        query_probe = self.app.handle(
+            request(target="/generate_204?nonce=123", host="probe.invalid"),
+            PEER,
+            "ap",
+            HOST,
+        )
+        self.assertEqual(query_probe.status, 302)
+        self.assertEqual(query_probe.headers["Location"], "http://192.168.4.1/")
+
+    def test_disabled_captive_portal_keeps_direct_ui_but_never_redirects(self):
+        app = Phase9WebApplication(
+            self.runtime, captive_portal_enabled=False
+        )
+        direct = app.handle(request(), PEER, "ap", HOST)
+        self.assertEqual(direct.status, 200)
+        probe = app.handle(
+            request(target="/generate_204", host=HOST), PEER, "ap", HOST
+        )
+        self.assertEqual(probe.status, 404)
+        self.assertNotIn("Location", probe.headers)
+
+    def test_captive_portal_setting_requires_a_real_boolean(self):
+        for value in (None, 0, 1, "true"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                Phase9WebApplication(
+                    self.runtime, captive_portal_enabled=value
+                )
+
     def test_station_reads_accept_destination_ip_and_api_context(self):
         class IngressRuntime(FakeRestRuntime):
             def handle(self, value, peer_ip, ingress=None, local_ip=None):
@@ -137,22 +188,124 @@ class TestPhase9WebApplication(unittest.TestCase):
         loader = self.app.handle(request(target="/assets/boot.js"), PEER).body
         app = self.app.handle(request(target="/assets/app.js"), PEER).body
         boot = app.split(b"async function boot()", 1)[1]
-        self.assertIn(b"await L.refresh()", boot)
-        self.assertNotIn(b"await L.security();await L.refresh()", boot)
+        boot_url = versioned_asset_url("boot.js")
+        css_url = versioned_asset_url("ui.css")
+        i18n_url = versioned_asset_url("i18n.js")
+        app_url = versioned_asset_url("app.js")
+        home_status = (
+            b'await Promise.all([L.loadAndBind("home"),L.loadStatus()])'
+        )
+        self.assertEqual(
+            VERSIONED_ASSET_PREFIX,
+            "/assets/v-{}/".format(ASSET_VERSION),
+        )
+        self.assertEqual(len(ASSET_VERSION), 64)
+        self.assertIn(home_status, boot)
+        self.assertLess(
+            boot.index(home_status),
+            boot.index(b"L.modules.home?.render(L.state.status)"),
+        )
+        self.assertNotIn(b"await L.security();await L.loadStatus()", boot)
         self.assertEqual(index.count(b'<link rel="stylesheet"'), 0)
         self.assertEqual(index.count(b"<script defer"), 1)
-        self.assertIn(b'src="/assets/boot.js"', index)
-        self.assertNotIn(b'src="/assets/app.js"', index)
-        self.assertIn(b'await load("link"', loader)
+        self.assertIn(b'src="' + boot_url + b'"', index)
+        self.assertNotIn(b'src="' + app_url + b'"', index)
+        self.assertIn(b'load("link"', loader)
         self.assertIn(b'await load("script"', loader)
-        self.assertLess(loader.index(b"/assets/ui.css"), loader.index(b"/assets/i18n.js"))
-        self.assertLess(loader.index(b"/assets/i18n.js"), loader.index(b"/assets/app.js"))
+        parallel_start = loader.index(b"await Promise.all([")
+        parallel_end = loader.index(b"]);await load(", parallel_start)
+        parallel_loads = loader[parallel_start:parallel_end]
+        self.assertIn(css_url, parallel_loads)
+        self.assertIn(i18n_url, parallel_loads)
+        self.assertNotIn(app_url, parallel_loads)
+        self.assertIn(app_url, loader[parallel_end:])
         self.assertIn(b"attempt<3", loader)
-        self.assertIn(b'for(const name of ["home","timers","settings"])', app)
-        self.assertIn(b'loadModule("diagnostics")', app)
-        self.assertIn(b"await L.loadStatus();await L.loadSettings();await L.loadTimers", app)
+        for name in (
+            "home.js",
+            "timers.js",
+            "settings.js",
+            "setup.js",
+            "diagnostics.js",
+        ):
+            self.assertIn(b'"' + versioned_asset_url(name) + b'"', app)
+        self.assertOnlyVersionedAssetReferences(index, loader, app)
+        self.assertNotIn(b'for(const name of ["home","timers","settings"])', app)
+        self.assertIn(b'if(name==="timers")', app)
+        self.assertIn(b'L.loadAndBind("timers")', app)
+        self.assertIn(b'if(name==="settings")', app)
+        self.assertIn(b'L.loadAndBind("settings")', app)
+        self.assertIn(b'if(name==="diagnostics")', app)
+        self.assertIn(b'L.loadAndBind("diagnostics")', app)
+        self.assertIn(b'L.state.view==="settings"', app)
+        self.assertIn(b'L.state.view==="timers"', app)
+        self.assertIn(b'await L.showView(initial)', boot)
+        self.assertIn(
+            b'L.state.status?.configuration?.setup_complete===false', boot
+        )
+        self.assertNotIn(
+            b'L.state.settings?.system?.setup_complete===false', boot
+        )
         self.assertNotIn(b"Promise.all([L.loadStatus()", app)
         self.assertIn(b'document.readyState==="loading"', app)
+
+    def test_lazy_views_load_only_their_required_state(self):
+        app = self.app.handle(request(target="/assets/app.js"), PEER).body
+        home = self.app.handle(request(target="/assets/home.js"), PEER).body
+        boot = app.split(b"async function boot()", 1)[1]
+        self.assertIn(
+            b'if(name==="timers"){const module=await L.loadAndBind("timers")',
+            app,
+        )
+        self.assertIn(
+            b'if(!L.state.settings)await L.loadSettings();'
+            b'if(!L.state.timers)await L.loadTimers(0)',
+            app,
+        )
+        self.assertIn(
+            b'if(name==="settings"){const module=await L.loadAndBind("settings")',
+            app,
+        )
+        self.assertIn(b'if(!moduleBindings[name])', app)
+        self.assertIn(b'if(viewLoads[name])return viewLoads[name]', app)
+        self.assertIn(b'const requested=++viewRequest', app)
+        self.assertIn(b'if(requested!==viewRequest)return', app)
+        self.assertIn(b'const initialViewRequest=viewRequest', app)
+        self.assertIn(
+            b'if(viewRequest===initialViewRequest)await L.showView(initial)',
+            app,
+        )
+        self.assertLess(
+            boot.index(b'const initialViewRequest=viewRequest'),
+            boot.index(
+                b'await Promise.all([L.loadAndBind("home"),L.loadStatus()])'
+            ),
+        )
+        self.assertIn(b'else module.render(L.state.settings)', app)
+        self.assertIn(b'module.renderStatus(L.state.status)', app)
+        self.assertIn(
+            b'else if(L.state.view==="timers"){await L.loadSettings();'
+            b'await L.loadTimers(',
+            app,
+        )
+        self.assertNotIn(
+            b'else if(L.state.view==="timers"){if(!L.state.settings)',
+            app,
+        )
+        self.assertLess(
+            app.index(b"await L.ensureView(name)"),
+            app.index(b"L.state.view=name"),
+        )
+        self.assertIn(b'let startDialogLoad=null', home)
+        self.assertIn(
+            b'if(startDialogLoad)return startDialogLoad',
+            home,
+        )
+        self.assertIn(
+            b'if(!L.state.settings)await L.loadSettings();'
+            b'prepareStartDialog()',
+            home,
+        )
+        self.assertIn(b'finally{startDialogLoad=null}', home)
 
     def test_browser_time_sync_is_utc_bounded_and_visible(self):
         index = self.app.handle(request(), PEER).body
@@ -168,6 +321,28 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn(b"L.state.status?.time?.valid!==true", app)
         self.assertIn(b"volatile_browser_time", settings)
         self.assertIn(b"timer_trusted", settings)
+
+    def test_network_service_switches_are_bounded_and_restart_explicit(self):
+        index = self.app.handle(request(), PEER).body
+        settings = self.app.handle(
+            request(target="/assets/settings.js"), PEER
+        ).body
+        self.assertIn(b'id="network-services-settings"', index)
+        self.assertIn(b'id="setting-captive-portal" type="checkbox"', index)
+        self.assertIn(b'id="setting-bonjour-http" type="checkbox"', index)
+        self.assertIn(
+            b'network_services={captive_portal_enabled:', settings
+        )
+        self.assertIn(b'bonjour_http_enabled:', settings)
+        self.assertIn(
+            b'L.mutate("/api/v1/settings","PATCH",{network_services})',
+            settings,
+        )
+        self.assertIn(b'savedRestartRequired', settings)
+        self.assertIn(b'captivePortalService', settings)
+        self.assertIn(b'bonjourHttpService', settings)
+        self.assertIn(b'networkServicesHint', settings)
+        self.assertIn(b'L.applyLanguage(L.state.language)', settings)
 
     def test_frontend_has_no_external_dependency_or_inline_executable_code(self):
         index = self.app.handle(request(), PEER).body
@@ -206,7 +381,7 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn(b'L.request("/api/v1/setup")', setup)
         self.assertNotIn(b'src="/assets/setup.js"', index)
         app = self.app.handle(request(target="/assets/app.js"), PEER).body
-        self.assertIn(b'loadModule("setup")', app)
+        self.assertIn(b'loadAndBind("setup")', app)
         self.assertIn(b'L.openSetup(false)', app)
         self.assertNotIn(b"localStorage", setup)
         self.assertNotIn(b"http://", setup)
@@ -221,6 +396,17 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn(b"L.request(path,options)", app)
         self.assertNotIn(b'let body=""', app)
         self.assertNotIn(b"{method,headers,body}", app)
+
+    def test_dialog_cancel_buttons_cannot_submit_heater_or_timer_forms(self):
+        index = self.app.handle(request(), PEER).body
+        home = self.app.handle(request(target="/assets/home.js"), PEER).body
+        timers = self.app.handle(request(target="/assets/timers.js"), PEER).body
+        self.assertEqual(index.count(b'type="button" data-start-cancel'), 2)
+        self.assertEqual(index.count(b'type="button" data-timer-cancel'), 2)
+        self.assertIn(b'[data-start-cancel]', home)
+        self.assertIn(b'event.submitter?.value==="cancel"', home)
+        self.assertIn(b'[data-timer-cancel]', timers)
+        self.assertIn(b'event.submitter?.value==="cancel"', timers)
 
     def test_phase11_diagnostics_surface_is_local_bounded_and_safe(self):
         index = self.app.handle(request(), PEER).body
@@ -239,6 +425,10 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn(b"setTimeout(resolve,1300)", script)
         self.assertIn(b"application/x-ndjson", script)
         self.assertIn(b"async function hydrate()", script)
+        diagnostics_url = versioned_asset_url("diagnostics.html")
+        self.assertIn(b'fetch("' + diagnostics_url + b'")', script)
+        self.assertNotIn(b'{cache:"no-cache"}', script)
+        self.assertOnlyVersionedAssetReferences(script)
         self.assertIn(b'if(name==="diagnostics"&&!state.hydrated)', script)
         self.assertIn(b"setInterval(load,2000)", script)
         self.assertIn(b"textContent", script)

@@ -14,10 +14,13 @@ from services.config_manager import (
     SCHEDULER_LEDGER_SCHEMA_VERSION,
     ConfigManager,
     ConfigurationConflictError,
+    ConfigurationStateError,
     ConfigurationValidationError,
     default_configuration,
+    default_network_services_configuration,
     default_scheduler_ledger,
     migrate_configuration_v1_to_v2,
+    migrate_configuration_v2_to_v3,
     validate_configuration,
     validate_scheduler_ledger,
 )
@@ -233,6 +236,26 @@ class TestConfigurationValidation(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 candidate = default_configuration()
                 mutation(candidate)
+                with self.assertRaises(ConfigurationValidationError):
+                    validate_configuration(candidate)
+
+    def test_network_service_switches_are_exact_booleans(self):
+        self.assertEqual(
+            default_configuration()["network_services"],
+            {
+                "captive_portal_enabled": True,
+                "bonjour_http_enabled": True,
+            },
+        )
+        for mutation in (
+            lambda value: value.pop("bonjour_http_enabled"),
+            lambda value: value.update({"unknown": True}),
+            lambda value: value.__setitem__("captive_portal_enabled", 1),
+            lambda value: value.__setitem__("bonjour_http_enabled", None),
+        ):
+            with self.subTest(mutation=mutation):
+                candidate = default_configuration()
+                mutation(candidate["network_services"])
                 with self.assertRaises(ConfigurationValidationError):
                     validate_configuration(candidate)
 
@@ -481,6 +504,7 @@ class TestConfigManagerLoad(unittest.TestCase):
             self.assertTrue(payload["legacy"])
             result = configured_document()
             result.pop("network")
+            result.pop("network_services")
             result["schema_version"] = 1
             return result
 
@@ -507,6 +531,7 @@ class TestConfigManagerLoad(unittest.TestCase):
     def test_released_v1_migrates_explicitly_without_inventing_a_secret(self):
         old = configured_document(True)
         old.pop("network")
+        old.pop("network_services")
         old["schema_version"] = 1
         store = MemoryStore([
             record("a", 1, old),
@@ -533,9 +558,79 @@ class TestConfigManagerLoad(unittest.TestCase):
         self.assertFalse(manager.status()["migration_pending"])
         self.assertFalse(manager.network_start_allowed)
 
+    def test_released_v2_additive_migration_preserves_start_gates(self):
+        old = configured_document(True)
+        old.pop("network_services")
+        old["schema_version"] = 2
+        store = MemoryStore([
+            record("a", 6, old),
+            record("b", 7, old),
+        ])
+        trusted_ledger = default_scheduler_ledger()
+        manager = ConfigManager(
+            store,
+            MemoryStore([
+                record("a", 1, trusted_ledger),
+                record("b", 2, trusted_ledger),
+            ]),
+        )
+
+        self.assertTrue(manager.load())
+        self.assertTrue(manager.load_scheduler_checkpoint())
+        snapshot = manager.snapshot()["configuration"]
+        self.assertEqual(snapshot["schema_version"], CONFIG_SCHEMA_VERSION)
+        self.assertEqual(
+            snapshot["network_services"],
+            default_network_services_configuration(),
+        )
+        self.assertFalse(manager.status()["migration_pending"])
+        self.assertTrue(manager.network_start_allowed)
+        self.assertTrue(manager.timer_start_allowed)
+        self.assertEqual(store.commit_calls, [])
+
+        services = manager.network_services_for_runtime()
+        self.assertEqual(services["generation"], 7)
+        self.assertEqual(
+            services["network_services"],
+            default_network_services_configuration(),
+        )
+        services["network_services"]["bonjour_http_enabled"] = False
+        self.assertTrue(
+            manager.network_services_for_runtime()["network_services"][
+                "bonjour_http_enabled"
+            ]
+        )
+
+    def test_released_v2_migration_is_exact_and_detached(self):
+        old = configured_document()
+        old.pop("network_services")
+        old["schema_version"] = 2
+        migrated = migrate_configuration_v2_to_v3(old)
+        self.assertEqual(migrated["schema_version"], 3)
+        self.assertEqual(
+            migrated["network_services"],
+            default_network_services_configuration(),
+        )
+        old["network"]["access_point"]["ssid"] = "changed"
+        self.assertEqual(
+            migrated["network"]["access_point"]["ssid"], "Landy Heater"
+        )
+        for mutation in (
+            lambda value: value.pop("time"),
+            lambda value: value.update({"network_services": {}}),
+            lambda value: value.update({"unknown": True}),
+        ):
+            invalid = configured_document()
+            invalid.pop("network_services")
+            invalid["schema_version"] = 2
+            mutation(invalid)
+            with self.assertRaises(ConfigurationValidationError):
+                migrate_configuration_v2_to_v3(invalid)
+
     def test_released_v1_is_fully_validated_before_migration(self):
         base = configured_document()
         base.pop("network")
+        base.pop("network_services")
         base["schema_version"] = 1
         for invalid_system in ({}, [], {"setup_complete": 1}, {
             "setup_complete": None
@@ -553,6 +648,7 @@ class TestConfigManagerLoad(unittest.TestCase):
     def test_oversized_released_v1_requires_explicit_recovery(self):
         old = configured_document()
         old.pop("network")
+        old.pop("network_services")
         old["schema_version"] = 1
         old["timers"] = []
         for index in range(32):
@@ -598,6 +694,10 @@ class TestConfigManagerLoad(unittest.TestCase):
 
     def test_network_gate_is_independent_from_scheduler_ledger(self):
         config = configured_document()
+        config["network_services"] = {
+            "captive_portal_enabled": False,
+            "bonjour_http_enabled": True,
+        }
         manager = ConfigManager(
             MemoryStore([record("a", 1, config), record("b", 2, config)]),
             MemoryStore(),
@@ -611,6 +711,27 @@ class TestConfigManagerLoad(unittest.TestCase):
             runtime["network"]["access_point"]["password"],
             "test-device-secret",
         )
+        services = manager.network_services_for_runtime()
+        self.assertEqual(services["generation"], 2)
+        self.assertEqual(
+            services["network_services"],
+            {
+                "captive_portal_enabled": False,
+                "bonjour_http_enabled": True,
+            },
+        )
+
+    def test_network_service_runtime_projection_requires_network_gate(self):
+        config = default_configuration()
+        manager = ConfigManager(
+            MemoryStore([record("a", 1, config), record("b", 2, config)]),
+            MemoryStore(),
+        )
+
+        self.assertTrue(manager.load())
+        self.assertFalse(manager.network_start_allowed)
+        with self.assertRaises(ConfigurationStateError):
+            manager.network_services_for_runtime()
 
 
 class TestConfigManagerCommitAndFaultDomains(unittest.TestCase):

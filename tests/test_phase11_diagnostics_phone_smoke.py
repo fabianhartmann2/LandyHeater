@@ -1,5 +1,6 @@
 import unittest
 
+from app.web_assets import VERSIONED_ASSET_PREFIX, versioned_asset_path
 from tools import phase11_diagnostics_phone_smoke as smoke
 
 
@@ -24,7 +25,17 @@ class _Observer:
 
 class TestPhase11DiagnosticsPhoneSmoke(unittest.TestCase):
     def test_required_fragment_uses_the_asset_route(self):
-        self.assertIn("/assets/diagnostics.html", smoke._STATIC_TARGETS)
+        self.assertIn(
+            versioned_asset_path("/assets/diagnostics.html"),
+            smoke._STATIC_TARGETS,
+        )
+        self.assertTrue(
+            all(
+                target.startswith(VERSIONED_ASSET_PREFIX)
+                for target in smoke._STATIC_TARGETS
+            )
+        )
+        self.assertNotIn("/assets/diagnostics.html", smoke._STATIC_TARGETS)
         self.assertNotIn("/diagnostics.html", smoke._STATIC_TARGETS)
 
     def test_completion_uses_gateway_truth_for_non_get_mutations(self):

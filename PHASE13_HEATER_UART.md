@@ -160,3 +160,38 @@ board profile.
 7. **Complete:** one supervised START/SHUTDOWN cycle returned to confirmed
    `ready`/`off` with one START and one SHUTDOWN. No repeated exploratory
    command runs were performed or are authorized by this result.
+8. **Complete:** the real heater completed one production Web-UI Power-1 path:
+   level 1 and a 30-minute session were selected in the browser, one UI START
+   reached STARTING and RUNNING, the UI remained connected with a decreasing
+   runtime and three updating temperatures, and one UI Stop reached
+   SHUTTING_DOWN and then confirmed OFF with 12 V retained for the complete
+   cooldown. This user-observed target evidence complements rather than
+   replaces the raw bounded active-cycle probe. Details are recorded in
+   `captures/2026-10-07-dfr0975u-power-ui-e2e.md`.
+9. **Complete:** the selected roof-tent or
+   cabin DS18B20 reading is scheduled through the canonical `0x11` frame after
+   fresh STATUS truth at the named approximately one-second interval in
+   STARTING, RUNNING and TEMP_MONITORING. Negative values remain valid and use
+   the signed one-byte two's-complement representation. A Stop
+   observed in TEMP_MONITORING now uses the existing maximum-two-attempt
+   SHUTDOWN mechanism. The exact application
+   `84eb394f7be14a853283d52db6d80c6d2f6ea14bc6e22704864acdb5d5a45881`
+   was app-only flashed and fully read back. Separate roof-tent and cabin
+   sessions each reached `TEMP_MONITORING`, heated for at least seven minutes,
+   updated their selected live temperature, retained the UI connection and
+   returned through controlled Stop to confirmed OFF. Details are recorded in
+   `captures/2026-10-07-dfr0975u-temperature-ui-e2e.md`.
+10. **Runtime complete; corrected cancel UI target gate open:** the cabin run
+    exposed that pressing Start-dialog **Abbrechen** submitted an unintended
+    START. The same latent submit pattern existed in the Timer dialog. All four
+    close/cancel controls are now explicit non-submit buttons, and both submit
+    handlers reject legacy cancel submits as defense in depth. The corrected
+    2,132,848-byte application is reproducible 15/15 with SHA-256
+    `4bf2176c96842e2438c339c6d8f2f2c6e3a3c452b5878eabdf47fe2a74df5314`.
+    It still requires explicit flash approval and a non-heating target check
+    proving that both Start cancel paths leave the request OFF and both Timer
+    cancel paths leave storage unchanged. The completed heater runs need not be
+    repeated because only frozen browser assets changed. The existing UI
+    session target PATCH remains application-state only and is not accepted as
+    a physical target change until a safe Autoterm command is confirmed.
+    Sensor-failure shutdown remains a separate bounded safety gate.

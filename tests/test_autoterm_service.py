@@ -14,6 +14,7 @@ from protocol.autoterm_protocol import (
     CONTROL_MODE_ROOF_TENT_TEMPERATURE,
     DEVICE_HEATER,
     build_frame,
+    build_external_temperature,
     build_init_request,
     build_shutdown_request,
     build_start_for_mode,
@@ -342,6 +343,11 @@ class TestAutotermProtocolServiceOutbound(unittest.TestCase):
             (self.service.request_initialization, (), build_init_request()),
             (self.service.request_status, (), build_status_request()),
             (self.service.request_shutdown, (), build_shutdown_request()),
+            (
+                self.service.request_external_temperature,
+                (19.1,),
+                build_external_temperature(19.1),
+            ),
             (
                 self.service.request_start,
                 (CONTROL_MODE_POWER, None, 5),

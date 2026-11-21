@@ -50,7 +50,7 @@ from services.configuration_errors import (
 )
 
 
-CONFIG_SCHEMA_VERSION = 2
+CONFIG_SCHEMA_VERSION = 3
 SCHEDULER_LEDGER_SCHEMA_VERSION = 1
 DEFAULT_EVENT_CAPACITY = 16
 MAX_EVENT_CAPACITY = 64
@@ -71,6 +71,16 @@ LOAD_RECOVERY_REQUIRED = "recovery_required"
 LOAD_INVALID = "invalid"
 
 _CONFIG_FIELDS = frozenset((
+    "schema_version",
+    "system",
+    "heater",
+    "sensors",
+    "time",
+    "timers",
+    "network",
+    "network_services",
+))
+_CONFIG_V2_FIELDS = frozenset((
     "schema_version",
     "system",
     "heater",
@@ -105,6 +115,10 @@ _TIME_FIELDS = frozenset((
     "timezone_rule",
     "timezone_rule_version",
     "standard_utc_offset_minutes",
+))
+_NETWORK_SERVICE_FIELDS = frozenset((
+    "captive_portal_enabled",
+    "bonjour_http_enabled",
 ))
 _TIMER_FIELDS = frozenset((
     "id",
@@ -374,6 +388,31 @@ def _normalize_time(value):
     }
 
 
+def default_network_services_configuration():
+    """Return enabled local-discovery defaults for a new installation."""
+
+    return {
+        "captive_portal_enabled": True,
+        "bonjour_http_enabled": True,
+    }
+
+
+def _normalize_network_services(value):
+    value = _require_exact_dict(
+        "network services", value, _NETWORK_SERVICE_FIELDS
+    )
+    captive = value["captive_portal_enabled"]
+    bonjour = value["bonjour_http_enabled"]
+    if type(captive) is not bool:
+        _validation_error("captive_portal_enabled must be boolean")
+    if type(bonjour) is not bool:
+        _validation_error("bonjour_http_enabled must be boolean")
+    return {
+        "captive_portal_enabled": captive,
+        "bonjour_http_enabled": bonjour,
+    }
+
+
 def default_configuration():
     """Return a fresh fail-safe configuration with no timer start authority."""
 
@@ -410,6 +449,7 @@ def default_configuration():
         },
         "timers": [],
         "network": default_network_configuration(),
+        "network_services": default_network_services_configuration(),
     }
 
 
@@ -421,17 +461,27 @@ def default_scheduler_ledger():
     }
 
 
-def _validate_configuration(candidate, require_ap_password=None):
-    """Return canonical schema v2 with an internal migration-only override."""
+def _validate_configuration(
+    candidate,
+    require_ap_password=None,
+    schema_version=CONFIG_SCHEMA_VERSION,
+):
+    """Return one canonical released schema for validation or migration."""
 
     candidate = _clone_json(candidate)
+    if schema_version == 2:
+        fields = _CONFIG_V2_FIELDS
+    elif schema_version == CONFIG_SCHEMA_VERSION:
+        fields = _CONFIG_FIELDS
+    else:
+        _validation_error("unsupported configuration schema version")
     candidate = _require_exact_dict(
-        "configuration", candidate, _CONFIG_FIELDS
+        "configuration", candidate, fields
     )
-    schema_version = _require_integer(
+    candidate_version = _require_integer(
         "schema_version", candidate["schema_version"], 1
     )
-    if schema_version != CONFIG_SCHEMA_VERSION:
+    if candidate_version != schema_version:
         _validation_error("unsupported configuration schema version")
 
     system = _require_exact_dict(
@@ -510,7 +560,7 @@ def _validate_configuration(candidate, require_ap_password=None):
         _validation_error("network password policy must be boolean")
 
     result = {
-        "schema_version": CONFIG_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "system": {"setup_complete": system["setup_complete"]},
         "heater": {
             "maximum_runtime_minutes": maximum_runtime,
@@ -528,13 +578,17 @@ def _validate_configuration(candidate, require_ap_password=None):
             require_ap_password=require_ap_password,
         ),
     }
+    if schema_version == CONFIG_SCHEMA_VERSION:
+        result["network_services"] = _normalize_network_services(
+            candidate["network_services"]
+        )
     if _canonical_json_size(result) > MAX_CONFIGURATION_CANONICAL_BYTES:
         _validation_error("configuration canonical payload exceeds size limit")
     return result
 
 
 def validate_configuration(candidate):
-    """Return a detached, canonical schema-v2 configuration."""
+    """Return a detached, canonical current-schema configuration."""
 
     return _validate_configuration(candidate)
 
@@ -564,9 +618,24 @@ def migrate_configuration_v1_to_v2(candidate):
     # before changing any meaning.  The internal password override exists
     # only because v1 had no network section or AP credential at all.
     migrated = _validate_configuration(
-        migrated, require_ap_password=False
+        migrated, require_ap_password=False, schema_version=2
     )
     migrated["system"]["setup_complete"] = False
+    return _validate_configuration(migrated, schema_version=2)
+
+
+def migrate_configuration_v2_to_v3(candidate):
+    """Add independent captive-portal and Bonjour service switches.
+
+    Both features were part of the prior intended product behaviour, so the
+    additive migration enables them and changes no credential, timer or
+    heater authority.  ConfigManager therefore treats this exact released
+    migration as safe to use in memory without fencing the existing runtime.
+    """
+
+    migrated = _validate_configuration(candidate, schema_version=2)
+    migrated["schema_version"] = 3
+    migrated["network_services"] = default_network_services_configuration()
     return validate_configuration(migrated)
 
 
@@ -714,17 +783,19 @@ class ConfigManager:
             migrations = {}
         if type(migrations) is not dict or len(migrations) > MAX_MIGRATION_STEPS:
             raise ValueError("migrations must be a bounded dictionary")
-        # Schema 1 is the released Phase-6 format.  Its migration is part of
-        # the production contract and cannot be replaced by an injected test
-        # or caller function.
-        normalized_migrations = {1: migrate_configuration_v1_to_v2}
+        # Schemas 1 and 2 are released formats.  Their migrations are part of
+        # the production contract and cannot be replaced by injected callers.
+        normalized_migrations = {
+            1: migrate_configuration_v1_to_v2,
+            2: migrate_configuration_v2_to_v3,
+        }
         for version, migration in migrations.items():
             if type(version) is not int or version < 0 or version >= CONFIG_SCHEMA_VERSION:
                 raise ValueError("migration source version is invalid")
             if not callable(migration):
                 raise ValueError("migration must be callable")
-            if version == 1:
-                raise ValueError("schema-v1 migration is built in")
+            if version in (1, 2):
+                raise ValueError("released-schema migration is built in")
             normalized_migrations[version] = migration
 
         self._config_store = config_store
@@ -810,6 +881,7 @@ class ConfigManager:
         if type(payload) is not dict or type(payload.get("schema_version")) is not int:
             _validation_error("configuration schema version is missing")
         version = payload["schema_version"]
+        source_version = version
         migrated = _clone_json(payload)
         steps = 0
         while version < CONFIG_SCHEMA_VERSION:
@@ -828,7 +900,18 @@ class ConfigManager:
                 _validation_error("too many configuration migrations")
         if version != CONFIG_SCHEMA_VERSION:
             _validation_error("unsupported future configuration schema")
-        return validate_configuration(migrated), steps > 0
+        # The released v2->v3 transition only adds enabled discovery-service
+        # switches that describe the already intended v2 behaviour.  It does
+        # not change credentials, setup trust, timer history or heater
+        # authority, so an otherwise trusted v2 A/B pair remains start-safe.
+        # Every older, injected or multi-step migration remains fenced until
+        # an explicit canonical commit reseals it.
+        migration_pending = steps > 0 and not (
+            source_version == 2
+            and CONFIG_SCHEMA_VERSION == 3
+            and steps == 1
+        )
+        return validate_configuration(migrated), migration_pending
 
     @staticmethod
     def _record_contract(record):
@@ -1092,6 +1175,20 @@ class ConfigManager:
         return {
             "generation": self._generation,
             "network": _clone_json(self._configuration["network"]),
+        }
+
+    def network_services_for_runtime(self):
+        """Return generation-bound discovery switches to product composition."""
+
+        if not self.network_start_allowed:
+            raise ConfigurationStateError(
+                "network configuration is not trusted or provisioned"
+            )
+        return {
+            "generation": self._generation,
+            "network_services": _clone_json(
+                self._configuration["network_services"]
+            ),
         }
 
     def scheduler_checkpoint(self):

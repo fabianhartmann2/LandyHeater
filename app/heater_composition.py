@@ -172,6 +172,7 @@ class ConfiguredHeaterRuntime:
             "request_status",
             "request_start",
             "request_shutdown",
+            "request_external_temperature",
             "deinit",
         ):
             if not callable(getattr(protocol, name, None)):

@@ -455,6 +455,89 @@ class TestHttpJsonResponseEncoder(unittest.TestCase):
         self.assertIn(b"X-Content-Type-Options: nosniff", head)
         self.assertNotIn(b"Transfer-Encoding", head)
 
+    def test_cache_policy_is_exactly_allowlisted(self):
+        cached = encode_bytes_response(
+            200,
+            b"asset",
+            "application/javascript; charset=utf-8",
+            cache_control="no-cache",
+        )
+        self.assertIn(b"Cache-Control: no-cache\r\n", cached)
+        self.assertNotIn(b"Cache-Control: no-store\r\n", cached)
+
+        immutable = encode_bytes_response(
+            200,
+            b"asset-v1",
+            "application/javascript; charset=utf-8",
+            cache_control="public, max-age=31536000, immutable",
+        )
+        self.assertIn(
+            b"Cache-Control: public, max-age=31536000, immutable\r\n",
+            immutable,
+        )
+
+        not_modified = encode_bytes_response(
+            304,
+            b"",
+            "application/javascript; charset=utf-8",
+            (("ETag", '"abc"'),),
+            "no-cache",
+        )
+        self.assertIn(b"HTTP/1.1 304 Not Modified\r\n", not_modified)
+        self.assertIn(b"Cache-Control: no-cache\r\n", not_modified)
+        self.assertIn(b'ETag: "abc"\r\n', not_modified)
+        self.assertNotIn(b"Content-Length:", not_modified)
+        self.assertNotIn(b"Content-Type:", not_modified)
+
+        for value in (None, True, "public", "no-store, max-age=1", 1):
+            with self.subTest(value=value):
+                with self.assertRaises(HttpResponseEncodeError) as caught:
+                    encode_json_response(
+                        200, b"{}", cache_control=value
+                    )
+                self.assertEqual(
+                    caught.exception.code, "unsupported_cache_control"
+                )
+
+    def test_static_content_encoding_is_strict_and_core_owned(self):
+        body = b"\x1f\x8bcompressed"
+        encoded = encode_bytes_response(
+            200,
+            body,
+            "application/javascript; charset=utf-8",
+            content_encoding="gzip",
+        )
+        head, returned_body = encoded.split(b"\r\n\r\n", 1)
+        self.assertEqual(returned_body, body)
+        self.assertEqual(head.count(b"Content-Encoding: gzip"), 1)
+        self.assertIn(
+            b"Content-Length: " + str(len(body)).encode("ascii") + b"\r\n",
+            head + b"\r\n",
+        )
+
+        for value in ("", "br", True, 1, b"gzip"):
+            with self.subTest(value=value):
+                with self.assertRaises(HttpResponseEncodeError) as caught:
+                    encode_bytes_response(
+                        200,
+                        body,
+                        "application/javascript; charset=utf-8",
+                        content_encoding=value,
+                    )
+                self.assertEqual(
+                    caught.exception.code, "unsupported_content_encoding"
+                )
+
+        with self.assertRaises(HttpResponseEncodeError) as caught:
+            encode_bytes_response(
+                200,
+                body,
+                "application/javascript; charset=utf-8",
+                (("Content-Encoding", "gzip"),),
+                content_encoding="gzip",
+            )
+        self.assertEqual(caught.exception.code, "forbidden_response_header")
+
     def test_allow_header_for_405_is_bounded_and_ascii(self):
         encoded = encode_json_response(
             405,

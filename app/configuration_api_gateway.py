@@ -7,7 +7,12 @@ ConfigManager and immediately disarm the old Scheduler runtime; live apply is
 intentionally deferred to a controlled composition rebuild.
 """
 
-_SETTINGS_GROUPS = frozenset(("heater", "sensors", "time"))
+_SETTINGS_GROUPS = frozenset((
+    "heater",
+    "sensors",
+    "time",
+    "network_services",
+))
 _SETUP_GROUPS = frozenset(("heater", "sensors", "time", "network", "checks"))
 _SETUP_CHECKS = frozenset(("sensors", "autoterm"))
 _SETUP_CHECK_STATES = frozenset(("reviewed", "deferred"))
@@ -460,6 +465,9 @@ class ConfigurationAPIGateway:
                 "sensors": _clone_json(configuration["sensors"]),
                 "time": _clone_json(configuration["time"]),
                 "network": _clone_json(configuration["network"]),
+                "network_services": _clone_json(
+                    configuration["network_services"]
+                ),
                 "restart_required": self._runtime_restart_required(),
             }
         except BaseException as error:

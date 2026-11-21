@@ -326,6 +326,12 @@ Actual RUNNING + Requested ON
 Actual RUNNING + Requested OFF
     -> send SHUTDOWN once
 
+Actual TEMP_MONITORING + Requested ON in a temperature session
+    -> supervise and report the selected external temperature
+
+Actual TEMP_MONITORING + Requested OFF
+    -> use the same bounded SHUTDOWN attempt policy as RUNNING
+
 Actual SHUTTING_DOWN
     -> wait for OFF; no immediate restart
 
@@ -478,6 +484,15 @@ controller, performs no external-temperature transmission and keeps polling
 STATUS through automatic session expiry and controlled shutdown until a
 CRC-confirmed OFF state. The tool remains unusable while product pin and
 protocol-TX activation flags are closed.
+
+The subsequent product temperature path schedules the selected roof-tent or
+cabin DS18B20 value only after fresh STATUS truth. STATUS and control commands
+take priority, and at most one operation leaves each controller step. Reports
+use the named one-second interval and are allowed in STARTING, RUNNING and
+TEMP_MONITORING. The report field is signed eight-bit Celsius; negative values
+are encoded as two's-complement and remain valid regulation input.
+SHUTDOWN from TEMP_MONITORING uses the existing two-attempt confirmation
+boundary; target hardware confirmation remains mandatory before acceptance.
 
 ## 15. Sensor-health timing
 
@@ -879,11 +894,11 @@ The boundary is strictly finite. `strict_json` limits input/output bytes,
 depth, node count and string length. `http_protocol` accepts one complete
 HTTP/1.1 request with CRLF and `Content-Length`, bounded request line, target,
 header count/block and a 4096-byte body. Transfer-Encoding/chunking,
-pipelining, upgrades, content encoding and method overrides are rejected. The
-MicroPython socket adapter is inert until explicitly started on a validated AP
-IPv4 address, owns at most two clients with backlog two, and performs at most
-one bounded accept, receive or send action per cooperative `step()`; receive
-and send budgets are 256 bytes.
+pipelining, upgrades, request content encoding and method overrides are
+rejected. The MicroPython socket adapter is inert until explicitly started on
+a validated AP IPv4 address, owns at most two clients with backlog two, and
+performs at most one bounded accept, receive or send action per cooperative
+`step()`; receive and send budgets are 256 and 1024 bytes respectively.
 
 `RestRateLimiter` keeps at most four canonical IPv4 peers. Each peer gets ten
 requests per ten seconds, two mutations per second and a five-second cooldown
@@ -984,6 +999,39 @@ Actual: SHUTTING_DOWN
 ```
 
 The UI shows `Shutting Down`, not immediately `Off`.
+
+Dialog close and cancel controls are non-mutating by construction: they must be
+explicit `type="button"` controls with direct close handlers, never implicit
+form submits. Mutation submit handlers additionally reject cancel submitters as
+defense in depth. This invariant applies to heater Start and Timer editing and
+is covered by frozen-asset regression tests.
+
+Static delivery separates mutable truth from reusable representation bytes.
+The root document at `/` and `/index.html` uses `no-cache` plus a strong
+representation-specific ETag; APIs and errors remain `no-store`. The static
+asset generator derives one full bundle SHA-256 and emits current URLs under
+`/assets/v-<bundle-sha256>/...`. Only that exact prefix is mapped to canonical
+asset bytes and receives `public, max-age=31536000, immutable`. A request with
+an old version prefix returns `404` rather than receiving new bytes under an
+old cache key. Allowlisted unversioned `/assets/...` routes remain a migration
+and diagnostic compatibility surface with `no-cache` and never receive the
+immutable policy.
+
+The generator deterministically creates identity and precompressed gzip bytes;
+the request path only selects an existing representation and never compresses
+at runtime. Identity and gzip have separate strong content-derived ETags, and
+static negotiation emits `Vary: Accept-Encoding`. Consequently the index can
+be cheaply revalidated, while a current versioned representation can be reused
+for one year without an asset request and without risking stale code after a
+bundle change.
+
+The bootstrap starts CSS and translations in parallel, waits for both, and
+then loads the application core. The normal path starts the Home module and
+status read in parallel. Timer, Settings, Setup and Diagnostics modules and
+their dedicated data are loaded on first use. These two-way overlaps stay
+within the two-client/two-backlog bound; module-load and binding registries
+make initialization idempotent, while a monotonic navigation token preserves
+the latest user choice across overlapping slow loads.
 
 ## 29. Internationalization
 

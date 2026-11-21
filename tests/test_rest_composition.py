@@ -312,6 +312,31 @@ class TestRestComposition(unittest.TestCase):
         self.assertEqual(snapshot["request_ingress"], "sta")
         self.assertTrue(snapshot["ingress_dispatch"])
 
+    def test_web_factory_can_disable_captive_probe_redirects(self):
+        runtime = self._build()
+        runtime.start()
+        server = build_web_http_server(
+            runtime,
+            "192.168.4.1",
+            request_ingress="ap",
+            captive_portal_enabled=False,
+            socket_factory=lambda: (_ for _ in ()).throw(
+                AssertionError("construction must not open a socket")
+            ),
+        )
+        handler = server._MicroPythonHTTPServer__request_handler
+        probe = handler(
+            parse_request(
+                b"GET /generate_204 HTTP/1.1\r\n"
+                b"Host: 192.168.4.1\r\n\r\n"
+            ),
+            "192.168.4.2",
+            "ap",
+            "192.168.4.1",
+        )
+        self.assertEqual(probe.status, 404)
+        self.assertNotIn("Location", probe.headers)
+
     def test_tick_helpers_are_all_or_nothing(self):
         for field in ("ticks_ms", "ticks_diff", "ticks_add"):
             with self.subTest(field=field):

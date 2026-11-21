@@ -345,10 +345,83 @@ class TestSensorStartPolicy(unittest.TestCase):
 
 
 class TestActiveSensorSafety(unittest.TestCase):
+    def test_selected_temperature_is_reported_after_each_fresh_status(self):
+        temperatures = assigned_manager()
+        temperatures.record_valid(ROM_ROOF, 18.2, 0)
+        temperatures.record_valid(ROM_CABIN, 24.7, 0)
+        port = RecordingProtocolPort()
+        controller = HeaterController(port, temperature_manager=temperatures)
+        controller.request_start(
+            CONTROL_MODE_ROOF_TENT_TEMPERATURE,
+            target_temperature=20,
+        )
+        synchronize(controller, parse_frame(REAL_OFF_STATUS))
+        temperatures.record_valid(ROM_ROOF, 18.2, 210)
+        self.assertEqual(controller.step(220), ["start"])
+
+        self.assertEqual(controller.step(1220), ["status"])
+        controller.handle_frame(status_frame(4), 1230)
+        self.assertEqual(controller.step(1230), ["external_temperature"])
+        self.assertEqual(controller.step(2000), [])
+
+        self.assertEqual(controller.step(2230), ["status"])
+        temperatures.record_valid(ROM_ROOF, 18.7, 2240)
+        controller.handle_frame(status_frame(4), 2240)
+        self.assertEqual(controller.step(2240), ["external_temperature"])
+        reports = [
+            details
+            for name, details in port.calls
+            if name == "external_temperature"
+        ]
+        self.assertEqual(reports, [18.2, 18.7])
+        self.assertEqual(
+            controller.snapshot()["external_temperature_reports"], 2
+        )
+
+    def test_negative_active_temperature_starts_and_is_reported(self):
+        temperatures = assigned_manager()
+        temperatures.record_valid(ROM_ROOF, -1.2, 0)
+        port = RecordingProtocolPort()
+        controller = HeaterController(port, temperature_manager=temperatures)
+        controller.request_start(
+            CONTROL_MODE_ROOF_TENT_TEMPERATURE,
+            target_temperature=20,
+        )
+        synchronize(controller, parse_frame(REAL_OFF_STATUS))
+
+        self.assertEqual(controller.step(220), ["start"])
+        temperatures.record_valid(ROM_ROOF, -1.2, 1200)
+        self.assertEqual(controller.step(1220), ["status"])
+        controller.handle_frame(status_frame(4), 1230)
+        self.assertEqual(controller.step(1230), ["external_temperature"])
+        snapshot = controller.snapshot()
+        self.assertTrue(snapshot["requested"]["on"])
+        self.assertIsNone(snapshot["sensor_alert"])
+        self.assertEqual(
+            [name for name, _ in port.calls].count("start"), 1
+        )
+        self.assertEqual(
+            [name for name, _ in port.calls].count("external_temperature"),
+            1,
+        )
+        self.assertIn(("external_temperature", -1.2), port.calls)
+
+    def test_external_temperature_failure_enters_communication_recovery(self):
+        controller, port, temperatures = running_temperature_controller()
+        port.raise_on = "external_temperature"
+
+        self.assertEqual(
+            controller.step(1230), ["external_temperature_error"]
+        )
+        snapshot = controller.snapshot()
+        self.assertEqual(snapshot["phase"], PHASE_ERROR)
+        self.assertEqual(snapshot["actual"]["communication"], "error")
+        self.assertEqual(snapshot["external_temperature_reports"], 0)
+
     def test_stale_running_sensor_warns_then_failed_sensor_shutdowns_once(self):
         controller, port, temperatures = running_temperature_controller()
 
-        self.assertEqual(controller.step(2200), [])
+        self.assertEqual(controller.step(2200), ["external_temperature"])
         stale = controller.snapshot()
         self.assertTrue(stale["requested"]["on"])
         self.assertEqual(stale["active_sensor"]["health"], SENSOR_HEALTH_STALE)
@@ -401,7 +474,7 @@ class TestActiveSensorSafety(unittest.TestCase):
             failed_roles, {SENSOR_ROLE_CABIN, SENSOR_ROLE_OUTSIDE}
         )
 
-        self.assertEqual(controller.step(3231), [])
+        self.assertEqual(controller.step(3231), ["external_temperature"])
         self.assertTrue(controller.requested["on"])
         self.assertEqual(
             controller.snapshot()["active_sensor"]["role"],
@@ -597,23 +670,20 @@ class TestSensorStateMachineInteractions(unittest.TestCase):
             [name for name, _ in port.calls].count("shutdown"), 1
         )
 
-    def test_temp_monitoring_failure_is_visible_then_recovers_to_safe_stop(self):
+    def test_temp_monitoring_failure_requests_bounded_safe_stop(self):
         controller, port, temperatures = running_temperature_controller(state=6)
 
         controller.step(2200)
         refresh_running_status(controller, state=6)
-        self.assertEqual(controller.step(3200), [])
+        self.assertEqual(controller.step(3200), ["shutdown"])
         snapshot = controller.snapshot()
-        self.assertEqual(snapshot["phase"], PHASE_ERROR)
+        self.assertNotEqual(snapshot["phase"], PHASE_ERROR)
         self.assertFalse(snapshot["requested"]["on"])
-        self.assertIn("TEMP_MONITORING", snapshot["last_error"])
         self.assertEqual(
-            [name for name, _ in port.calls].count("shutdown"), 0
+            [name for name, _ in port.calls].count("shutdown"), 1
         )
 
-        self.assertEqual(controller.step(3240), ["status"])
-        controller.handle_frame(status_frame(4), 3250)
-        self.assertEqual(controller.step(3450), ["shutdown"])
+        self.assertEqual(controller.step(3240), [])
 
     def test_communication_loss_delays_but_does_not_cancel_sensor_stop(self):
         controller, port, temperatures = running_temperature_controller()
@@ -693,7 +763,7 @@ class TestSensorStateMachineInteractions(unittest.TestCase):
         )
 
         self.assertTrue(controller.handle_frame(status_frame(1), 1030))
-        self.assertEqual(controller.step(1030), [])
+        self.assertEqual(controller.step(1030), ["external_temperature"])
         snapshot = controller.snapshot()
         self.assertIsNotNone(snapshot["session"])
         self.assertTrue(snapshot["session"]["confirmed_active"])

@@ -210,30 +210,30 @@ def build_start_for_mode(
 def encode_external_temperature(temperature):
     """Encode a sensor reading using the Node-RED ``Math.ceil`` behaviour.
 
-    The known wire representation is one unsigned byte.  Negative values are
-    rejected because their protocol encoding is still an open question.
+    The wire field is a signed eight-bit Celsius value represented by its raw
+    byte.  Positive fractional readings retain the reference flow's explicit
+    ceiling conversion; negative readings use the same conversion before
+    two's-complement encoding.
     """
 
     if isinstance(temperature, bool) or not isinstance(temperature, (int, float)):
         raise ValueError("temperature must be a number")
-    if temperature < 0 or temperature > 0xFF:
-        raise ValueError("temperature encoding is only known for 0..255")
 
     try:
         encoded = int(math.ceil(temperature))
     except (ValueError, OverflowError):
         raise ValueError("temperature must be a finite number")
 
-    if not 0 <= encoded <= 0xFF:
-        raise ValueError("temperature encoding is only known for 0..255")
-    return encoded
+    if not -128 <= encoded <= 127:
+        raise ValueError("temperature must fit a signed eight-bit value")
+    return encoded & 0xFF
 
 
 def build_external_temperature(temperature):
     """Build the known one-byte external/panel temperature report.
 
-    Negative-temperature encoding is not documented by the reference flow.
-    Positive fractional readings preserve its explicit ceiling conversion.
+    The payload carries signed Celsius in one two's-complement byte.  Fractional
+    readings preserve the reference flow's explicit ceiling conversion.
     """
 
     encoded = encode_external_temperature(temperature)

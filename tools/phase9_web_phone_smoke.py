@@ -10,6 +10,11 @@ import gc as _gc
 import os as _os
 import sys as _sys
 
+from app.web_assets import (
+    VERSIONED_ASSET_PREFIX as _VERSIONED_ASSET_PREFIX,
+    versioned_asset_path as _versioned_asset_path,
+)
+
 
 PHASE9_WEB_PHONE_CONFIRMATION = "PHASE9_WEB_PHONE_CONFIRM_V1"
 PHASE9_WEB_PHONE_READY_TOKEN = "PHASE9_WEB_PHONE_READY_V1"
@@ -22,15 +27,33 @@ MINIMUM_FREE_HEAP_BYTES = 32 * 1024
 POLL_INTERVAL_MS = 25
 DEFAULT_WINDOW_SECONDS = 300
 
+
+def _versioned_static_target(path):
+    target = _versioned_asset_path(path)
+    if type(target) is not str:
+        raise RuntimeError("generated Web asset route is unavailable")
+    return target
+
+
+def _canonical_static_target(target):
+    if target == "/":
+        return "/index.html"
+    if type(target) is not str or not target.startswith(
+        _VERSIONED_ASSET_PREFIX
+    ):
+        return None
+    return "/assets/" + target[len(_VERSIONED_ASSET_PREFIX):]
+
+
 _STATIC_TARGETS = (
     "/",
-    "/assets/boot.js",
-    "/assets/ui.css",
-    "/assets/i18n.js",
-    "/assets/app.js",
-    "/assets/home.js",
-    "/assets/timers.js",
-    "/assets/settings.js",
+    _versioned_static_target("/assets/boot.js"),
+    _versioned_static_target("/assets/ui.css"),
+    _versioned_static_target("/assets/i18n.js"),
+    _versioned_static_target("/assets/app.js"),
+    _versioned_static_target("/assets/home.js"),
+    _versioned_static_target("/assets/timers.js"),
+    _versioned_static_target("/assets/settings.js"),
 )
 _API_TARGETS = (
     "/api/v1/security-context",
@@ -267,7 +290,7 @@ class _ReadOnlyWebGateway:
         if target in _STATIC_TARGETS:
             from app.web_assets import asset_for_path
 
-            route = "/index.html" if target == "/" else target
+            route = _canonical_static_target(target)
             expected = asset_for_path(route)
             return (
                 expected is not None

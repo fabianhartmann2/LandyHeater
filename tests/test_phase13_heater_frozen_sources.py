@@ -12,7 +12,7 @@ class TestPhase13HeaterFrozenSources(unittest.TestCase):
         files = (CANDIDATE / "FROZEN_MODULES.txt").read_text(
             encoding="utf-8"
         ).splitlines()
-        self.assertEqual(len(files), 50)
+        self.assertEqual(len(files), 51)
         self.assertEqual(len(files), len(set(files)))
         self.assertEqual(
             files[0],
@@ -24,6 +24,7 @@ class TestPhase13HeaterFrozenSources(unittest.TestCase):
         )
         self.assertIn("app/heater_composition.py", files)
         self.assertIn("app/product_runtime.py", files)
+        self.assertIn("adapters/micropython_bonjour.py", files)
         for excluded in ("boot.py", "main.py"):
             self.assertNotIn(excluded, files)
 
@@ -42,6 +43,36 @@ class TestPhase13HeaterFrozenSources(unittest.TestCase):
                 entries[relative],
                 relative,
             )
+
+    def test_candidate_binds_exact_native_user_module_sources(self):
+        entries = {}
+        for line in (CANDIDATE / "NATIVE_SOURCES.sha256").read_text(
+            encoding="ascii"
+        ).splitlines():
+            digest, relative = line.split("  ", 1)
+            entries[relative] = digest
+        self.assertEqual(list(entries), [
+            "native/landy_mdns/micropython.cmake",
+            "native/landy_mdns/modlandy_mdns.c",
+        ])
+        for relative, digest in entries.items():
+            source = ROOT / relative
+            self.assertTrue(source.is_file(), relative)
+            self.assertEqual(
+                hashlib.sha256(source.read_bytes()).hexdigest(),
+                digest,
+                relative,
+            )
+
+        cmake = (ROOT / "native/landy_mdns/micropython.cmake").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("modlandy_mdns.c", cmake)
+        self.assertNotIn("idf::espressif__mdns", cmake)
+        self.assertIn(
+            "target_link_libraries(usermod INTERFACE usermod_landy_mdns)",
+            cmake,
+        )
 
     def test_private_profile_opens_only_two_runtime_locks(self):
         safe = (ROOT / "board_config.py").read_text(encoding="utf-8")

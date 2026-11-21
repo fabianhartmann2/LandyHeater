@@ -11,6 +11,7 @@ import time as _time
 from protocol.autoterm_protocol import (
     CMD_INIT,
     CMD_STATUS,
+    DEFAULT_EXTERNAL_TEMPERATURE_INTERVAL_MS,
     DEVICE_HEATER,
     FRAME_START,
 )
@@ -124,6 +125,9 @@ class HeaterController:
             DEFAULT_STARTING_STOP_POLICY_TIMEOUT_MS
         ),
         invalid_frame_threshold=DEFAULT_INVALID_FRAME_THRESHOLD,
+        external_temperature_interval_ms=(
+            DEFAULT_EXTERNAL_TEMPERATURE_INTERVAL_MS
+        ),
         temperature_manager=None,
     ):
         for method_name in _PROTOCOL_METHODS:
@@ -152,6 +156,10 @@ class HeaterController:
         )
         _require_positive_integer(
             "invalid_frame_threshold", invalid_frame_threshold
+        )
+        _require_positive_integer(
+            "external_temperature_interval_ms",
+            external_temperature_interval_ms,
         )
         if response_timeout_ms <= heartbeat_ms:
             raise ValueError("response_timeout_ms must exceed heartbeat_ms")
@@ -247,6 +255,9 @@ class HeaterController:
             starting_stop_policy_timeout_ms
         )
         self.invalid_frame_threshold = invalid_frame_threshold
+        self.external_temperature_interval_ms = (
+            external_temperature_interval_ms
+        )
         self._temperature_manager = temperature_manager
         self._sensor_stale_after_ms = sensor_stale_after_ms
         self._sensor_failed_after_ms = sensor_failed_after_ms
@@ -262,6 +273,7 @@ class HeaterController:
         self._phase = PHASE_UNSYNCHRONIZED
 
         self._next_request_due_ms = None
+        self._next_external_temperature_due_ms = None
         self._pending_control_due_ms = None
         self._expected_command = None
         self._response_wait_started_ms = None
@@ -296,6 +308,7 @@ class HeaterController:
         self.ignored_frames = 0
         self.communication_failures = 0
         self.control_failures = 0
+        self.external_temperature_reports = 0
         self.last_error = None
 
     @property
@@ -410,6 +423,7 @@ class HeaterController:
             and sensor["health"] == SENSOR_HEALTH_OK
             and sensor["present"] is True
             and sensor["usable"] is True
+            and sensor["value_c"] is not None
         )
 
     def timer_start_available(self, now_ms, request=None):
@@ -799,7 +813,10 @@ class HeaterController:
                     self._restore_noncommunication_error()
                 return
 
-        if health == SENSOR_HEALTH_STALE and confirmed_active:
+        if (
+            health == SENSOR_HEALTH_STALE
+            and confirmed_active
+        ):
             if self._sensor_stop_latch is None:
                 self._set_sensor_alert(
                     role,
@@ -1328,6 +1345,7 @@ class HeaterController:
         self._session_sensor_rom_id = None
         self._session_sensor_failure_generation = None
         self._session_sensor_assignment_revision = None
+        self._next_external_temperature_due_ms = None
 
     def _complete_sensor_stop_if_off(self, now_ms):
         if (
@@ -1723,7 +1741,10 @@ class HeaterController:
         state = self._actual.heater_state
         if attempt["command"] == _CONTROL_START:
             return self._requested.on and state == HEATER_STATE_OFF
-        return not self._requested.on and state == HEATER_STATE_RUNNING
+        return not self._requested.on and state in (
+            HEATER_STATE_RUNNING,
+            HEATER_STATE_TEMP_MONITORING,
+        )
 
     def _attempt_command_is_confirmed(self, attempt):
         state = self._actual.heater_state
@@ -1742,7 +1763,10 @@ class HeaterController:
         state = self._actual.heater_state
         if attempt["command"] == _CONTROL_START:
             return not self._requested.on and state == HEATER_STATE_OFF
-        return self._requested.on and state == HEATER_STATE_RUNNING
+        return self._requested.on and state in (
+            HEATER_STATE_RUNNING,
+            HEATER_STATE_TEMP_MONITORING,
+        )
 
     def _set_control_fault(self, now_ms, reason):
         attempt = self._control_attempt
@@ -1936,9 +1960,9 @@ class HeaterController:
                 return self._send_control(_CONTROL_START, now_ms)
             return None
 
-        # Confirmed behaviour of the working Node-RED controller: it waits for
-        # RUNNING before requesting shutdown.  TEMP_MONITORING stop semantics
-        # remain unknown and therefore fail closed without a command.
+        # Confirmed behaviour of the working Node-RED controller waits for an
+        # active shutdown-capable state.  Product acceptance additionally
+        # bounds the same canonical SHUTDOWN command in TEMP_MONITORING.
         if state == HEATER_STATE_STARTING:
             if not self._requested.on:
                 if self._starting_stop_since_ms is None:
@@ -1974,12 +1998,14 @@ class HeaterController:
 
         if state == HEATER_STATE_TEMP_MONITORING:
             if not self._requested.on:
-                self._set_policy_fault(
-                    now_ms,
-                    _CONTROL_SHUTDOWN,
-                    "shutdown behaviour for TEMP_MONITORING is unconfirmed",
-                    recover_on_running=True,
-                )
+                if self._shutdown_sent_revision == self._request_revision:
+                    self._set_policy_fault(
+                        now_ms,
+                        _CONTROL_SHUTDOWN,
+                        "TEMP_MONITORING returned after a completed SHUTDOWN generation",
+                    )
+                    return None
+                return self._send_control(_CONTROL_SHUTDOWN, now_ms)
             return None
 
         if state in (HEATER_STATE_SHUTTING_DOWN, HEATER_STATE_UNKNOWN):
@@ -1992,6 +2018,48 @@ class HeaterController:
             return False
         age_ms = self._ticks_diff(now_ms, last_status_ms)
         return 0 <= age_ms < self.heartbeat_ms
+
+    def _temperature_report_due(self, now_ms):
+        if (
+            not self._requested.on
+            or self._session is None
+            or self._requested.mode not in _ACTIVE_SENSOR_ROLE_BY_MODE
+            or self._actual.heater_state
+            not in (
+                HEATER_STATE_STARTING,
+                HEATER_STATE_RUNNING,
+                HEATER_STATE_TEMP_MONITORING,
+            )
+            or self._expected_command is not None
+            or self._control_fault is not None
+        ):
+            self._next_external_temperature_due_ms = None
+            return False
+        return (
+            self._next_external_temperature_due_ms is None
+            or self._due(now_ms, self._next_external_temperature_due_ms)
+        )
+
+    def _request_external_temperature(self, now_ms):
+        sensor = self._active_sensor
+        if (
+            not isinstance(sensor, dict)
+            or sensor.get("health")
+            not in (SENSOR_HEALTH_OK, SENSOR_HEALTH_STALE)
+            or sensor.get("usable") is not True
+            or sensor.get("value_c") is None
+        ):
+            return None
+        value_c = sensor["value_c"]
+        self._next_external_temperature_due_ms = self._ticks_add(
+            now_ms, self.external_temperature_interval_ms
+        )
+        if self._call_protocol(
+            "request_external_temperature", now_ms, value_c
+        ):
+            self.external_temperature_reports += 1
+            return "external_temperature"
+        return "external_temperature_error"
 
     def step(self, now_ms):
         """Run one bounded controller cycle and return requested operations."""
@@ -2017,11 +2085,17 @@ class HeaterController:
                     operations.append(operation)
                     return operations
 
-        if (
+        synchronization_due = (
             self._next_request_due_ms is None
             or self._due(now_ms, self._next_request_due_ms)
-        ):
+        )
+        if synchronization_due:
             operations.append(self._request_synchronization(now_ms))
+            return operations
+        if self._temperature_report_due(now_ms):
+            operation = self._request_external_temperature(now_ms)
+            if operation is not None:
+                operations.append(operation)
         return operations
 
     def snapshot(self):
@@ -2079,6 +2153,12 @@ class HeaterController:
             "ignored_frames": self.ignored_frames,
             "communication_failures": self.communication_failures,
             "control_failures": self.control_failures,
+            "external_temperature_reports": (
+                self.external_temperature_reports
+            ),
+            "next_external_temperature_due_ms": (
+                self._next_external_temperature_due_ms
+            ),
             "last_error": self.last_error,
             "events_pending": len(self._events),
             "events_dropped": self.events_dropped,

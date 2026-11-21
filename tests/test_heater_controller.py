@@ -86,6 +86,9 @@ class RecordingProtocolPort:
     def request_shutdown(self):
         return self._record("shutdown")
 
+    def request_external_temperature(self, temperature):
+        return self._record("external_temperature", temperature)
+
 
 def status_frame(state, voltage=126, glow=7, fan=55):
     payload = bytearray(19)
@@ -547,7 +550,7 @@ class TestHeaterControllerDecisions(unittest.TestCase):
         self.assertEqual(controller.phase, PHASE_READY)
         self.assertEqual(controller.step(2240), ["shutdown"])
 
-    def test_unknown_and_temp_monitoring_states_never_guess_a_command(self):
+    def test_unknown_is_inert_and_temp_monitoring_uses_bounded_shutdown(self):
         self.controller.request_start(CONTROL_MODE_POWER, power_level=5)
         synchronize(self.controller, status_frame(2))
         self.assertEqual(
@@ -560,19 +563,16 @@ class TestHeaterControllerDecisions(unittest.TestCase):
         self.assertEqual(
             other.actual["heater_state"], HEATER_STATE_TEMP_MONITORING
         )
-        self.assertEqual(other.step(220), [])
-        self.assertEqual(other.phase, PHASE_ERROR)
+        self.assertEqual(other.step(220), ["shutdown"])
+        self.assertEqual(other.phase, PHASE_READY)
         self.assertEqual(
-            other.snapshot()["control_fault"]["command"], "shutdown"
+            other.snapshot()["control_attempt"]["command"], "shutdown"
         )
 
-        # No unconfirmed command is guessed in state 6.  If a later requested
-        # STATUS reports confirmed RUNNING, the normal safe shutdown path can
-        # resume without deadlocking on the policy fault.
-        self.assertEqual(other.step(1020), ["status"])
-        other.handle_frame(status_frame(4), 1030)
+        self.assertEqual(other.step(1220), ["status"])
+        other.handle_frame(status_frame(5), 1230)
         self.assertEqual(other.phase, PHASE_READY)
-        self.assertEqual(other.step(1230), ["shutdown"])
+        self.assertIsNone(other.snapshot()["control_attempt"])
 
 
 class TestHeaterControllerRetriesAndRuntime(unittest.TestCase):
@@ -620,6 +620,28 @@ class TestHeaterControllerRetriesAndRuntime(unittest.TestCase):
         controller.step(1030)
         controller.handle_frame(status_frame(4), 1040)
         self.assertEqual(controller.step(1240), ["shutdown"])
+        self.assertEqual(
+            [name for name, _ in port.calls].count("shutdown"), 2
+        )
+
+    def test_unconfirmed_temp_monitoring_shutdown_is_bounded_to_two_attempts(self):
+        port = RecordingProtocolPort()
+        controller = HeaterController(
+            port,
+            control_confirmation_timeout_ms=500,
+            max_control_attempts=2,
+        )
+        synchronize(controller, status_frame(6))
+        self.assertEqual(controller.step(220), ["shutdown"])
+
+        self.assertEqual(controller.step(1220), ["status"])
+        controller.handle_frame(status_frame(6), 1230)
+        self.assertEqual(controller.step(1430), ["shutdown"])
+
+        self.assertEqual(controller.step(2430), ["status"])
+        controller.handle_frame(status_frame(6), 2440)
+        self.assertEqual(controller.step(2640), [])
+        self.assertEqual(controller.phase, PHASE_ERROR)
         self.assertEqual(
             [name for name, _ in port.calls].count("shutdown"), 2
         )
@@ -678,7 +700,7 @@ class TestHeaterControllerRetriesAndRuntime(unittest.TestCase):
         self.assertTrue(snapshot["session"]["expired"])
         self.assertEqual([name for name, _ in port.calls].count("shutdown"), 1)
 
-    def test_temp_monitoring_expiry_is_an_explicit_fault_not_silent_ready(self):
+    def test_temp_monitoring_expiry_requests_bounded_shutdown(self):
         port = RecordingProtocolPort()
         temperatures = TemperatureManager(
             {SENSOR_ROLE_ROOF_TENT: "28-runtime-test"}
@@ -702,14 +724,13 @@ class TestHeaterControllerRetriesAndRuntime(unittest.TestCase):
         self.assertEqual(controller.step(60019), ["status"])
         self.assertEqual(controller.step(60020), [])
         controller.handle_frame(status_frame(6), 60021)
-        self.assertEqual(controller.step(60221), [])
+        self.assertEqual(controller.step(60221), ["shutdown"])
         snapshot = controller.snapshot()
-        self.assertEqual(snapshot["phase"], PHASE_ERROR)
+        self.assertEqual(snapshot["phase"], PHASE_READY)
         self.assertFalse(snapshot["requested"]["on"])
         self.assertTrue(snapshot["session"]["expired"])
-        self.assertIn("TEMP_MONITORING", snapshot["last_error"])
         self.assertEqual(
-            [name for name, _ in port.calls].count("shutdown"), 0
+            [name for name, _ in port.calls].count("shutdown"), 1
         )
 
     def test_runtime_cannot_exceed_configured_global_maximum(self):

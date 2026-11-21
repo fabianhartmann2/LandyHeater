@@ -24,9 +24,9 @@ DEFAULT_WINDOW_SECONDS = 300
 _SECRET_SENTINEL = "PHASE11-MUST-NOT-LEAK"
 
 _STATIC_TARGETS = (
-    "/assets/ui.css",
-    "/assets/diagnostics.js",
-    "/assets/diagnostics.html",
+    _phase9._versioned_static_target("/assets/ui.css"),
+    _phase9._versioned_static_target("/assets/diagnostics.js"),
+    _phase9._versioned_static_target("/assets/diagnostics.html"),
 )
 _DIAGNOSTICS_PREFIX = "/api/v1/diagnostics?"
 _CAPTURE_EXPORT_PREFIX = "/api/v1/capture/export?"
@@ -100,7 +100,9 @@ class _DiagnosticsWebGateway:
         if target in _STATIC_TARGETS:
             from app.web_assets import asset_for_path
 
-            expected = asset_for_path(target)
+            expected = asset_for_path(
+                _phase9._canonical_static_target(target)
+            )
             return (
                 expected is not None
                 and getattr(response, "status", None) == 200

@@ -24,14 +24,12 @@ class ConfiguredDiscoveryRuntime:
         "_last_error",
     )
 
-    def __init__(self, ap_http_server, dns_server, station_http_server=None):
+    def __init__(self, ap_http_server, dns_server=None, station_http_server=None):
         owners = [ap_http_server]
-        names = ["ap_http"]
         if station_http_server is not None:
             owners.append(station_http_server)
-            names.append("station_http")
-        owners.append(dns_server)
-        names.append("dns")
+        if dns_server is not None:
+            owners.append(dns_server)
         for owner in owners:
             methods = ("start", "step", "deinit", "snapshot")
             for method in methods:
@@ -40,8 +38,9 @@ class ConfiguredDiscoveryRuntime:
         self._ap_http = ap_http_server
         self._station_http = station_http_server
         self._dns = dns_server
-        self._services = tuple(owners)
-        self._service_names = tuple(names)
+        self._services = ()
+        self._service_names = ()
+        self._rebuild_services()
         self._next_service = 0
         self._started = False
         self._closed = False
@@ -99,6 +98,19 @@ class ConfiguredDiscoveryRuntime:
                 raise ValueError("discovery dependency is malformed")
         return service
 
+    def _rebuild_services(self):
+        services = [self._ap_http]
+        names = ["ap_http"]
+        if self._station_http is not None:
+            services.append(self._station_http)
+            names.append("station_http")
+        if self._dns is not None:
+            services.append(self._dns)
+            names.append("dns")
+        self._services = tuple(services)
+        self._service_names = tuple(names)
+        self._next_service = 0
+
     def attach_station_http(self, station_http_server):
         """Attach one DHCP-address-bound station listener at runtime."""
 
@@ -122,9 +134,7 @@ class ConfiguredDiscoveryRuntime:
                 raise
         self._station_http = service
         self._last_error = None
-        self._services = (self._ap_http, service, self._dns)
-        self._service_names = ("ap_http", "station_http", "dns")
-        self._next_service = 0
+        self._rebuild_services()
         return True
 
     def detach_station_http(self):
@@ -143,9 +153,7 @@ class ConfiguredDiscoveryRuntime:
             self._last_error = "station_http_detach_failed"
             raise
         self._station_http = None
-        self._services = (self._ap_http, self._dns)
-        self._service_names = ("ap_http", "dns")
-        self._next_service = 0
+        self._rebuild_services()
         self._last_error = None
         return True
 
@@ -194,7 +202,7 @@ class ConfiguredDiscoveryRuntime:
                 if self._station_http is None
                 else self._station_http.snapshot()
             ),
-            "dns": self._dns.snapshot(),
+            "dns": None if self._dns is None else self._dns.snapshot(),
         }
 
 
@@ -208,6 +216,7 @@ def build_discovery_runtime(
     ticks_ms=None,
     ticks_diff=None,
     ticks_add=None,
+    captive_portal_enabled=True,
 ):
     """Build inert explicit-interface HTTP and AP-DNS socket owners.
 
@@ -216,8 +225,10 @@ def build_discovery_runtime(
     exact address at the same port 80 and carries fixed read-only STA ingress.
     """
 
-    from adapters.micropython_captive_dns import MicroPythonCaptiveDNS
     from app.rest_composition import build_web_http_server
+
+    if type(captive_portal_enabled) is not bool:
+        raise ValueError("captive_portal_enabled must be boolean")
 
     ap_http = build_web_http_server(
         rest_runtime,
@@ -228,6 +239,7 @@ def build_discovery_runtime(
         ticks_add=ticks_add,
         request_ingress="ap",
         captive_ap_address=ap_address,
+        captive_portal_enabled=captive_portal_enabled,
     )
     station_http = None
     if station_address is not None:
@@ -242,6 +254,13 @@ def build_discovery_runtime(
             ticks_add=ticks_add,
             request_ingress="sta",
             captive_ap_address=ap_address,
+            captive_portal_enabled=captive_portal_enabled,
         )
-    dns = MicroPythonCaptiveDNS(ap_address, socket_factory=dns_socket_factory)
+    dns = None
+    if captive_portal_enabled:
+        from adapters.micropython_captive_dns import MicroPythonCaptiveDNS
+
+        dns = MicroPythonCaptiveDNS(
+            ap_address, socket_factory=dns_socket_factory
+        )
     return ConfiguredDiscoveryRuntime(ap_http, dns, station_http)

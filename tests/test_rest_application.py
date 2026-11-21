@@ -76,6 +76,10 @@ def public_configuration():
                 "password_configured": True,
             }],
         },
+        "network_services": {
+            "captive_portal_enabled": True,
+            "bonjour_http_enabled": True,
+        },
         "timers": [],
     }
 
@@ -1529,6 +1533,42 @@ class TestRestConfigurationMutations(unittest.TestCase):
             ("patch_settings", {"time": {"timezone": "UTC"}}, 7)
         ])
         self.assertNotIn("'password':", repr(response.body))
+
+    def test_network_service_settings_are_readable_and_patchable(self):
+        settings = self.fixture.app.handle(
+            make_request(target="/api/v1/settings")
+        )
+        self.assertEqual(settings.status, 200)
+        self.assertEqual(settings.body["network_services"], {
+            "captive_portal_enabled": True,
+            "bonjour_http_enabled": True,
+        })
+
+        body = (
+            b'{"network_services":{"captive_portal_enabled":false,'
+            b'"bonjour_http_enabled":false}}'
+        )
+        response = self.fixture.app.handle(json_request(
+            "PATCH",
+            "/api/v1/settings",
+            body,
+            self.fixture.mutation_headers(7),
+        ))
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.body["network_services"], {
+            "captive_portal_enabled": False,
+            "bonjour_http_enabled": False,
+        })
+        self.assertEqual(self.fixture.configuration.calls, [(
+            "patch_settings",
+            {
+                "network_services": {
+                    "captive_portal_enabled": False,
+                    "bonjour_http_enabled": False,
+                }
+            },
+            7,
+        )])
 
     def test_settings_patch_rejects_empty_unknown_and_duplicate_groups(self):
         for body in (

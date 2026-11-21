@@ -34,10 +34,10 @@ class TestPhase13HeaterFirmwareArtifacts(unittest.TestCase):
         partition = (
             ARTIFACTS / "partition_table/partition-table.bin"
         ).read_bytes()
-        self.assertEqual(len(application), 2_131_568)
+        self.assertEqual(len(application), 2_181_024)
         self.assertEqual(
             hashlib.sha256(application).hexdigest(),
-            "c344bb3ca6f4f7540b1925e8d65a7a8cdc93328c230a8a640fe9c7c6b153aae9",
+            "67393e2b052d88139e9a8533b8f8b2cc73cd4c8a0ef14fa41168473d7478313d",
         )
         self.assertEqual(combined[: len(bootloader)], bootloader)
         self.assertEqual(combined[0x8000:0x8000 + len(partition)], partition)
@@ -99,6 +99,10 @@ class TestPhase13HeaterFirmwareArtifacts(unittest.TestCase):
             (ARTIFACTS / "SHA256SUMS").read_bytes()
         ).hexdigest()
         self.assertIn(digest, build_info)
+        native_digest = hashlib.sha256(
+            (CANDIDATE / "NATIVE_SOURCES.sha256").read_bytes()
+        ).hexdigest()
+        self.assertIn(native_digest, build_info)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ package(
         "config_file_store.py",
         "ds18b20_adapter.py",
         "ds3231_adapter.py",
+        "micropython_bonjour.py",
         "micropython_captive_dns.py",
         "micropython_http_server.py",
     ),

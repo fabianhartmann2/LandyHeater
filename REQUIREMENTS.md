@@ -671,8 +671,8 @@ bodies and method overrides shall be rejected.
 The MicroPython socket adapter shall bind only to an explicitly supplied AP
 IPv4 address, own at most two clients with a backlog of two and perform at most
 one accept, receive or send action per cooperative `step()`. Receive and send
-actions shall each be limited to 256 bytes and guarded by finite idle and
-absolute deadlines.
+actions shall be limited to 256 and 1024 bytes respectively and guarded by
+finite idle and absolute deadlines.
 
 ### 27.5 Rate limits and recovery path
 
@@ -783,6 +783,36 @@ Main navigation in version 1:
 - Home
 - Timers
 - Settings
+
+The root document at `/` and `/index.html` shall use `Cache-Control: no-cache`
+and a strong representation-specific ETag, so every reuse is validated without
+retransmitting an unchanged body. API responses and errors shall remain
+`no-store`.
+
+The build shall derive one full SHA-256 bundle version and place it in every
+current asset URL as `/assets/v-<bundle-sha256>/...`. Responses under exactly
+the current version prefix shall use `Cache-Control: public,
+max-age=31536000, immutable`. An old or otherwise non-current version prefix
+shall return `404` and shall never be resolved to current bytes. For migration
+and direct diagnostics, allowlisted unversioned `/assets/...` URLs may remain
+available with `Cache-Control: no-cache`; they shall not receive the immutable
+policy.
+
+Static identity and gzip representations shall be produced deterministically
+at build time; request handling shall perform no runtime compression. Each
+representation shall have its own strong content-derived ETag, and every
+negotiated static response shall carry `Vary: Accept-Encoding`. An exact
+matching `If-None-Match` shall return a bodyless `304` with the selected
+representation's cache policy. A stale or unsupported validator for a current
+or unversioned URL shall receive the complete selected `200` representation.
+
+The bounded bootstrap shall start the stylesheet and translations concurrently,
+wait for both, and then load the application core. Normal Home startup shall
+then start the Home module and status API concurrently. Timer, Settings, Setup
+and Diagnostics modules and their dedicated data shall load on first use.
+Direct view links and required Setup auto-open shall remain functional,
+bindings shall be idempotent and the latest user navigation request shall win
+if loads overlap.
 
 ## 29. Home screen
 

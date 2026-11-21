@@ -147,6 +147,10 @@ class TestConfigurationAPIGateway(unittest.TestCase):
 
     def test_setup_rerun_preserves_existing_write_only_credentials(self):
         configuration = default_configuration()
+        configuration["network_services"] = {
+            "captive_portal_enabled": False,
+            "bonjour_http_enabled": False,
+        }
         configuration["network"]["access_point"]["password"] = "ExistingAP92"
         configuration["network"]["known_networks"] = [{
             "id": "home",
@@ -173,6 +177,13 @@ class TestConfigurationAPIGateway(unittest.TestCase):
         )
         self.assertEqual(
             privileged["known_networks"][0]["ssid"], "Renamed WiFi"
+        )
+        self.assertEqual(
+            manager.snapshot()["configuration"]["network_services"],
+            {
+                "captive_portal_enabled": False,
+                "bonjour_http_enabled": False,
+            },
         )
 
     def test_setup_rejects_false_check_claims_and_missing_keep_secret(self):
@@ -233,6 +244,53 @@ class TestConfigurationAPIGateway(unittest.TestCase):
         self.assertTrue(
             public["network"]["known_networks"][0]["password_configured"]
         )
+        self.assertEqual(
+            public["network_services"],
+            {
+                "captive_portal_enabled": True,
+                "bonjour_http_enabled": True,
+            },
+        )
+
+    def test_network_service_settings_commit_and_noop_preserve_secrets(self):
+        configuration = default_configuration()
+        configuration["network"]["access_point"]["password"] = "AP-secret-123"
+        gateway, manager, store, _, scheduler, _, _ = build_gateway(
+            configuration
+        )
+        disabled = {
+            "captive_portal_enabled": False,
+            "bonjour_http_enabled": False,
+        }
+
+        changed = gateway.patch_settings({"network_services": disabled}, 2)
+
+        self.assertTrue(changed["changed"])
+        self.assertTrue(changed["restart_required"])
+        self.assertEqual(
+            changed["configuration"]["network_services"], disabled
+        )
+        self.assertFalse(scheduler.armed)
+        self.assertEqual(len(store.commit_calls), 1)
+        self.assertEqual(
+            manager.snapshot()["configuration"]["network"]["access_point"][
+                "password"
+            ],
+            "AP-secret-123",
+        )
+        self.assertNotIn("AP-secret-123", repr(changed))
+
+        scheduler.armed = True
+        noop = gateway.patch_settings({"network_services": disabled}, 3)
+        self.assertFalse(noop["changed"])
+        self.assertTrue(noop["restart_required"])
+        self.assertTrue(scheduler.armed)
+        self.assertEqual(len(store.commit_calls), 1)
+
+        invalid = dict(disabled)
+        invalid["bonjour_http_enabled"] = 1
+        with self.assertRaises(ConfigurationAPIValidationError):
+            gateway.patch_settings({"network_services": invalid}, 3)
 
     def test_settings_commit_preserves_secrets_and_disarms_old_runtime(self):
         configuration = default_configuration()

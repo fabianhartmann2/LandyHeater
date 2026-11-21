@@ -44,6 +44,7 @@ _FORBIDDEN_REQUEST_HEADERS = (
 _RESPONSE_CORE_HEADER_NAMES = (
     "content-type",
     "content-length",
+    "content-encoding",
     "connection",
     "cache-control",
     "x-content-type-options",
@@ -90,6 +91,11 @@ _RESPONSE_CONTENT_TYPES = (
     "application/javascript; charset=utf-8",
     "image/svg+xml",
     "text/plain; charset=utf-8",
+)
+_RESPONSE_CACHE_CONTROLS = (
+    "no-store",
+    "no-cache",
+    "public, max-age=31536000, immutable",
 )
 
 
@@ -441,7 +447,13 @@ def _validate_response_header(name, value):
 
 
 def _encode_response(
-    status, body, content_type, extra_headers, maximum_body_bytes
+    status,
+    body,
+    content_type,
+    extra_headers,
+    maximum_body_bytes,
+    cache_control,
+    content_encoding=None,
 ):
     """Encode one bounded response with an allowlisted representation type.
 
@@ -459,6 +471,21 @@ def _encode_response(
         _encode_error("response_body_too_large")
     if status in _BODYLESS_RESPONSE_STATUSES and body:
         _encode_error("response_body_not_allowed")
+    if (
+        type(cache_control) is not str
+        or cache_control not in _RESPONSE_CACHE_CONTROLS
+    ):
+        _encode_error("unsupported_cache_control")
+    if content_encoding is not None and (
+        type(content_encoding) is not str or content_encoding != "gzip"
+    ):
+        _encode_error("unsupported_content_encoding")
+    cache_control_line = (
+        b"Cache-Control: " + cache_control.encode("ascii") + b"\r\n"
+    )
+    content_encoding_line = None
+    if content_encoding == "gzip":
+        content_encoding_line = b"Content-Encoding: gzip\r\n"
 
     if extra_headers is None:
         extra_items = ()
@@ -483,18 +510,22 @@ def _encode_response(
         # the only safe generic encoding.
         header_lines = [
             b"Connection: close\r\n",
-            b"Cache-Control: no-store\r\n",
+            cache_control_line,
             b"X-Content-Type-Options: nosniff\r\n",
         ]
+        if content_encoding_line is not None:
+            header_lines.insert(0, content_encoding_line)
     else:
         body_length = str(len(body)).encode("ascii")
         header_lines = [
             b"Content-Type: " + content_type.encode("ascii") + b"\r\n",
             b"Content-Length: " + body_length + b"\r\n",
             b"Connection: close\r\n",
-            b"Cache-Control: no-store\r\n",
+            cache_control_line,
             b"X-Content-Type-Options: nosniff\r\n",
         ]
+        if content_encoding_line is not None:
+            header_lines.insert(2, content_encoding_line)
     names = {}
     for name in _RESPONSE_CORE_HEADER_NAMES:
         names[name] = True
@@ -505,10 +536,10 @@ def _encode_response(
         if len(item) != 2:
             _encode_error("invalid_response_headers")
         normalized_name, line = _validate_response_header(item[0], item[1])
-        if normalized_name in names:
-            _encode_error("duplicate_response_header")
         if normalized_name in _FORBIDDEN_RESPONSE_HEADERS:
             _encode_error("forbidden_response_header")
+        if normalized_name in names:
+            _encode_error("duplicate_response_header")
         names[normalized_name] = True
         header_lines.append(line)
 
@@ -523,7 +554,9 @@ def _encode_response(
     return status_line + b"".join(header_lines) + _CRLF + body
 
 
-def encode_json_response(status, body, extra_headers=None):
+def encode_json_response(
+    status, body, extra_headers=None, cache_control="no-store"
+):
     """Encode bounded JSON bytes with the canonical Phase-8 wire format."""
 
     return _encode_response(
@@ -532,10 +565,19 @@ def encode_json_response(status, body, extra_headers=None):
         "application/json; charset=utf-8",
         extra_headers,
         MAX_RESPONSE_BODY_BYTES,
+        cache_control,
+        None,
     )
 
 
-def encode_bytes_response(status, body, content_type, extra_headers=None):
+def encode_bytes_response(
+    status,
+    body,
+    content_type,
+    extra_headers=None,
+    cache_control="no-store",
+    content_encoding=None,
+):
     """Encode one bounded static Web-UI asset without implicit conversion."""
 
     if type(content_type) is not str:
@@ -546,4 +588,6 @@ def encode_bytes_response(status, body, content_type, extra_headers=None):
         content_type,
         extra_headers,
         MAX_STATIC_RESPONSE_BODY_BYTES,
+        cache_control,
+        content_encoding,
     )
