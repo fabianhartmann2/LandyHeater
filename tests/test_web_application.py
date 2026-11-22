@@ -5,7 +5,12 @@ from app.web_application import Phase9WebApplication
 from app.web_assets import ASSET_VERSION, VERSIONED_ASSET_PREFIX
 from services.http_protocol import encode_bytes_response, parse_request
 from services.rest_security import INGRESS_ACCESS_POINT, RestSecurityPolicy
-from tools.build_web_assets import OUTPUT, render
+from tools.build_web_assets import (
+    MAXIMUM_ASSET_BYTES,
+    MAXIMUM_OPENAPI_BYTES,
+    OUTPUT,
+    render,
+)
 
 
 HOST = "192.168.4.1"
@@ -70,6 +75,7 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn("default-src 'self'", root.headers["Content-Security-Policy"])
         self.assertEqual(root.headers["X-Frame-Options"], "DENY")
         for path in (
+            "/openapi.json",
             "/assets/boot.js",
             "/assets/ui.css",
             "/assets/diagnostics.html",
@@ -78,6 +84,9 @@ class TestPhase9WebApplication(unittest.TestCase):
             "/assets/home.js",
             "/assets/timers.js",
             "/assets/settings.js",
+            "/assets/api-docs.js",
+            "/assets/api-console.js",
+            "/assets/api-docs.css",
             "/assets/setup.js",
             "/assets/diagnostics.js",
         ):
@@ -85,7 +94,12 @@ class TestPhase9WebApplication(unittest.TestCase):
                 response = self.app.handle(request(target=path), PEER)
                 self.assertEqual(response.status, 200)
                 self.assertIs(type(response.body), bytes)
-                self.assertLessEqual(len(response.body), 16 * 1024)
+                maximum = (
+                    MAXIMUM_OPENAPI_BYTES
+                    if path == "/openapi.json"
+                    else MAXIMUM_ASSET_BYTES
+                )
+                self.assertLessEqual(len(response.body), maximum)
                 self.assertIn("Content-Security-Policy", response.headers)
 
     def test_api_requests_are_delegated_without_rewriting(self):
@@ -398,6 +412,195 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn(b'prefers-color-scheme', self.app.handle(
             request(target="/assets/ui.css"), PEER
         ).body)
+
+    def test_api_documentation_is_local_and_loaded_on_demand(self):
+        index = self.app.handle(request(), PEER).body
+        boot = self.app.handle(
+            request(target="/assets/boot.js"), PEER
+        ).body
+        app = self.app.handle(
+            request(target="/assets/app.js"), PEER
+        ).body
+        settings = self.app.handle(
+            request(target="/assets/settings.js"), PEER
+        ).body
+        script = self.app.handle(
+            request(target="/assets/api-docs.js"), PEER
+        ).body
+        style = self.app.handle(
+            request(target="/assets/api-docs.css"), PEER
+        ).body
+
+        # Neither the first paint nor the Settings module load starts the
+        # documentation bundle. It is attached only to the explicit button.
+        self.assertNotIn(b"api-docs.js", index + boot + app)
+        self.assertNotIn(b"api-docs.css", index + boot + app)
+        self.assertIn(b'id="api-docs-card"', settings)
+        self.assertIn(b'id="open-api-docs"', settings)
+        self.assertIn(
+            b'button.addEventListener("click",openApiDocs)', settings
+        )
+        self.assertIn(b"if(apiDocsLoad)return apiDocsLoad", settings)
+        self.assertEqual(settings.count(b"loadApiDocs()"), 2)
+        self.assertNotIn(
+            b"loadApiDocs()", settings.split(b"function bind()", 1)[1]
+        )
+        self.assertIn(
+            b'href:"' + versioned_asset_url("api-docs.css") + b'"',
+            settings,
+        )
+        self.assertIn(
+            b'src:"' + versioned_asset_url("api-docs.js") + b'"',
+            settings,
+        )
+
+        # The explorer performs one plain, same-origin fetch for the static
+        # description. Executable examples remain isolated in their own
+        # bundle and therefore cannot run merely by opening the explorer.
+        self.assertEqual(script.count(b'fetch("/openapi.json")'), 1)
+        self.assertIn(b'raw.href="/openapi.json"', script)
+        self.assertIn(b"MAX_OPERATIONS=64", script)
+        self.assertIn(b'addEventListener("toggle"', script)
+        self.assertIn(b"details.open", script)
+        self.assertIn(b'aria-labelledby","api-docs-title"', script)
+        self.assertIn(b'search.id="api-docs-search"', script)
+        self.assertIn(b"L.modules.apiDocs={open,render}", script)
+        for forbidden in (
+            b"L.request(",
+            b"L.mutate(",
+            b"L.controlMutate(",
+            b"/api/v1/security-context",
+            b"/api/v1/control-context",
+            b"X-Landy-CSRF",
+            b"innerHTML",
+            b"outerHTML",
+            b"insertAdjacentHTML",
+            b"eval(",
+            b"new Function(",
+            b"XMLHttpRequest",
+            b"WebSocket",
+            b"EventSource",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden.lower(), script.lower())
+        for payload in (settings, script, style):
+            self.assertNotIn(b"https://", payload.lower())
+            self.assertNotIn(b"http://", payload.lower())
+        self.assertNotIn(b"@import", style.lower())
+        self.assertNotIn(b"url(", style.lower())
+        self.assertOnlyVersionedAssetReferences(settings)
+
+    def test_api_console_is_lazy_local_and_safely_gated(self):
+        index = self.app.handle(request(), PEER).body
+        boot = self.app.handle(
+            request(target="/assets/boot.js"), PEER
+        ).body
+        app = self.app.handle(
+            request(target="/assets/app.js"), PEER
+        ).body
+        settings = self.app.handle(
+            request(target="/assets/settings.js"), PEER
+        ).body
+        docs = self.app.handle(
+            request(target="/assets/api-docs.js"), PEER
+        ).body
+        console = self.app.handle(
+            request(target="/assets/api-console.js"), PEER
+        ).body
+
+        # The tester is absent from initial application and Settings loads.
+        # Only an explicit control inside one expanded operation loads it.
+        self.assertNotIn(b"api-console.js", index + boot + app + settings)
+        self.assertIn(
+            versioned_asset_url("api-console.js"), docs
+        )
+        self.assertIn(b'addEventListener("click"', docs)
+        self.assertIn(b"apiDocsTry", docs)
+        self.assertIn(b"apiConsole", docs)
+
+        # Merely rendering an operation cannot call a device API. The
+        # executable bundle exposes a renderer, and fetches occur only in
+        # named async helpers reached from an explicit Execute control.
+        self.assertIn(b"L.modules.apiConsole", console)
+        self.assertIn(b'addEventListener("click"', console)
+        self.assertNotIn(b"apiConsole.render(", console)
+
+        # All three network call sites are same-origin constrained: helper
+        # reads pass through sameOriginPath directly, while the final request
+        # uses a target previously returned by the same validator. There is
+        # exactly one final fetch and no automatic retry loop.
+        self.assertIn(
+            b"const url=new URL(path,location.origin);"
+            b"if(url.origin!==location.origin||"
+            b'!url.pathname.startsWith("/api/v1/"))',
+            console,
+        )
+        self.assertEqual(console.count(b"fetch("), 3)
+        self.assertEqual(console.count(b"await fetch(target,options)"), 1)
+        self.assertNotIn(b"setInterval(", console)
+        self.assertNotIn(b"while(", console)
+
+        # Mutation credentials are acquired only for the execution request.
+        # Both AP-only administration and STA-capable heater control are
+        # represented, as are generation and configuration preconditions.
+        for required in (
+            b"/api/v1/security-context",
+            b"/api/v1/control-context",
+            b"/api/v1/settings",
+            b"/api/v1/status",
+            b"X-Landy-CSRF",
+            b"If-Match",
+            b"Origin",
+            b"expected_request_revision",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, console)
+
+        # Every mutation has a positive acknowledgement. Heater start and
+        # quick-start additionally require the exact confirmation word.
+        self.assertIn(b'.type="checkbox"', console)
+        self.assertIn(b'.type="text"', console)
+        self.assertIn(b'!=="START"', console)
+        self.assertIn(
+            b'START_IDS=new Set(["startHeater","quickStartHeater"])',
+            console,
+        )
+
+        # DELETE/STOP operations are bodyless. A JSON content type and body
+        # are attached only when the OpenAPI operation actually has a body.
+        self.assertIn(
+            b'if(payload!==undefined){headers["Content-Type"]='
+            b'"application/json";options.body=JSON.stringify(payload)}',
+            console,
+        )
+        self.assertIn(b"execute.disabled=true", console)
+        self.assertIn(b"finally{execute.disabled=false", console)
+
+        # Examples are complete enough to copy from an HTTP-served device;
+        # the legacy fallback is required because the modern Clipboard API
+        # can be unavailable outside a secure browser context.
+        self.assertIn(b"curl -i", console)
+        self.assertIn(b"CSRF_TOKEN_HIER_EINSETZEN", console)
+        self.assertIn(b"navigator.clipboard", console)
+        self.assertIn(b'execCommand("copy")', console)
+
+        # The tester uses only local platform APIs and text nodes. Response
+        # payloads and generated examples must never become executable HTML.
+        for forbidden in (
+            b"innerHTML",
+            b"outerHTML",
+            b"insertAdjacentHTML",
+            b"eval(",
+            b"new Function(",
+            b"XMLHttpRequest",
+            b"WebSocket",
+            b"EventSource",
+            b"https://",
+            b"http://",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden.lower(), console.lower())
+        self.assertOnlyVersionedAssetReferences(docs)
 
     def test_generated_frozen_assets_match_the_readable_sources_exactly(self):
         self.assertEqual(OUTPUT.read_bytes(), render())

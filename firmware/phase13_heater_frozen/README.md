@@ -1,10 +1,25 @@
-# Phase 13 temperature-control frozen-module candidate
+# Phase 13 temperature-control frozen firmware
 
 This directory defines the exact 51-file DFR0975-U N16R8 frozen closure plus
 two bound native user-module sources for the integrated Landy Heater runtime.
 It includes the accepted sensor, heater, REST/Web, discovery, diagnostics,
 Scheduler and volatile browser-time paths, plus a private frozen `main.py`
 that starts the product after every reset.
+
+The current installed application extends the local OpenAPI 3.0.3 description
+at `/openapi.json` with per-operation cURL examples
+and an explicitly gated browser tester in Settings. It documents
+all 24 semantic REST operations plus the three deprecated timer-segment
+aliases, including AP-only versus AP-and-station
+access, CSRF contexts, generation ETags, request schemas, query bounds, rate
+limits and the STOP safety exception. The explorer and tester are loaded only
+after explicit clicks and have no external dependency. Merely opening an
+example never calls the API. Browser tests remain strictly same-origin;
+security tokens, the current configuration ETag and heater request revision
+are obtained only immediately before a confirmed execution. Every mutation
+requires an acknowledgement checkbox, and Start or Quick Start additionally
+requires the exact confirmation word `START`. Mutations are never retried
+automatically, and cURL examples contain placeholders rather than live tokens.
 
 Startup is ordered and fail-closed: trusted production storage must load;
 sensors and the heater protocol start requested OFF; the recovery AP, REST
@@ -67,41 +82,47 @@ The silent browser-time attempt remains AP-only; its expected station rejection
 is suppressed during Home startup, while a manual browser-time request remains
 rejected on station ingress.
 
-The Web UI now emits deterministic identity and precompressed gzip
+The currently installed Web UI emits deterministic identity and precompressed gzip
 representations. The revalidated index references only full-bundle-hash asset
 URLs; the current version is immutable for one year, while an old version
 prefix returns `404` rather than new bytes under an old cache key. Identity and
 gzip have separate strong ETags and `Vary: Accept-Encoding`. CSS and
 translations load together before the application core, then Home and status
 load together. Timer, Settings, Setup and Diagnostics remain on demand. Across
-all 11 assets, gzip reduces 106,593 bytes to 32,842 bytes; the gzip index is
-3,758 bytes. The cooperative HTTP receive budget remains 256 bytes while the
+all 15 installed assets, gzip reduces 174,416 bytes to 49,613 bytes. The
+cooperative HTTP receive budget remains 256 bytes while the
 reviewed send budget is 1,024 bytes, below the 1,440-byte TCP MSS. Client and
 backlog limits are unchanged.
 
 `BUILD_INFO.md` records inputs, both source ledgers, two byte-identical builds,
-artifact checks and target evidence. The installed application is 2,185,376
+artifact checks and target evidence. The installed application is 2,271,296
 bytes with SHA-256
-`a4d5a2f114c15db24ce215a88d5549e57a67e0ac8c332fb6da4e465613695af4`.
-It was exactly authorized, written app-only without a full-chip erase and
-confirmed byte-for-byte by a complete readback. Its Web bundle version is
-`14e033cf0a1a19f2c3adf16c9e05d1138482ac4789e5ec4b5cf6cce9f9dd819f`.
+`0711bbe572c9f1e00fee1af5c055961eac134e2649f8b03a1ef83e0670a5cd07`.
+Its 15-asset Web bundle version is
+`66178bd9a37ee7dd69af1e7b4a76d4da1a833254016bb2703a0f954bf29558bb`;
+174,416 identity bytes compress deterministically to 49,613 gzip bytes. Two
+clean canonical-path builds produced byte-identical results. The application
+was exactly authorized, written app-only at `0x10000` without a full-chip erase
+and confirmed byte-for-byte by a complete postflash readback. Esptool erased
+only the application sectors from `0x10000` through `0x23afff`; bootloader,
+partition table and VFS were not written. A watchdog reset returned the
+controller to the application, after which `http://192.168.36.114/` returned
+HTTP 200.
 
-Immediately before that write, the complete 2,183,648-byte application
-readback confirmed the previously installed SHA-256
-`e73a28ed5e08db193446c6936f9808e39f194e99e7f7d9394d500d5975220fc6`.
-Esptool 4.12 erased only `0x10000` through `0x225fff`; bootloader, partition
-table and VFS were not written. After a manual reset the station was online at
-`192.168.36.114`, Requested state remained OFF and the control path remained
-unfaulted. Stored and runtime generation both reported 11,
-`restart_required` was false, the Scheduler was armed and its one preserved
-timer remained present. The station control context returned HTTP 200 with a
-valid boot-ephemeral CSRF token, while the persistent mutation context remained
-station-blocked with HTTP 503 `mutation_security_unavailable`. The live root
-and `app.js` served the final Web bundle and its separate control path. Heater
-communication and all three sensors were missing as expected while the heater
-hardware was disconnected. No heater start or other mutation was used during
-this deployment gate.
+Immediately before this API-tester application was written, a complete
+2,245,552-byte readback confirmed the installed `824b63bc...` baseline and was
+byte-identical to its retained application artifact. The separate complete
+2,271,296-byte postflash readback had SHA-256 `0711bbe5...` and was
+byte-identical to the newly authorized application. No heater command or other
+API mutation was used for this deployment gate.
+
+Immediately before the preceding OpenAPI image was written, a complete
+2,185,376-byte readback confirmed the `a4d5a2f1...` baseline. That deployment
+then wrote only the 2,245,552-byte application at
+`0x10000`. Esptool 4.12 erased only `0x10000` through `0x234fff`; bootloader,
+partition table and VFS were not written. A separate complete readback was
+byte-identical to the authorized `824b63bc...` application. No heater command
+or other API mutation was used for that deployment gate.
 
 Three staged cold Home paths measured 4.157, 4.228 and 4.519 seconds
 (median 4.228 seconds); three normal cached reopens measured 0.848, 0.866 and

@@ -1,15 +1,14 @@
 # Phase 13 temperature-control frozen firmware build record
 
-Build date: 2026-11-22. Status: **exact 51-file frozen source closure plus two
-native user-module sources, focused station-control, start-safety and Web
-tests, two byte-identical canonical-path builds and offline image gates passed.
-The retained `a4d5a2f1...` application was exactly authorized, written
-app-only at `0x10000` without a full-chip erase and confirmed byte-for-byte by
-an independent complete application readback. After a manual reset, normal
-boot, requested-OFF safety, station HTTP, the live Web bundle and the separated
-station-control/persistent-mutation boundary passed read-only target gates.**
+Build date: 2026-11-22. Status: **the exact 51-file frozen source closure plus
+two native user-module sources now contains the local OpenAPI explorer, safe
+browser tester and per-operation cURL examples. Contract, Web, cache,
+source-ledger and image gates passed, and two clean canonical-path builds were
+byte-identical. The `0711bbe5...` application was exactly authorized, written
+app-only without a full-chip erase and independently read back byte-for-byte.
+After a watchdog reset, the controller returned HTTP 200 from the application.**
 
-This candidate retains periodic
+This application retains periodic
 external-temperature reports for roof-tent and cabin control, signed negative
 DS18B20 support and bounded shutdown from `TEMP_MONITORING`, and prevents Start
 and Timer cancel controls from submitting their forms. At every normal reset it
@@ -33,12 +32,29 @@ only while station mDNS is ready. Its native owner is degradable: a service
 failure cannot stop the direct HTTP listeners or heater supervision, and the
 heater receives its cooperative step before a native advertisement update.
 
-The candidate retains the deterministic gzip/cache Web path. The cooperative
+The application retains the deterministic gzip/cache Web path. The cooperative
 send budget is 1,024 bytes; the 256-byte receive budget,
 two-client/two-backlog limits and one-action-per-step contract remain
 unchanged.
 
-This candidate also makes rejected manual starts understandable without
+The new Settings card lazy-loads a local API explorer, per-operation cURL
+examples, an explicitly gated browser tester and the minified OpenAPI 3.0.3
+document. The document covers 18 paths and 27 operations:
+24 semantic operations plus three deprecated timer-segment aliases. It records
+request and response contracts, AP-only and AP-and-station ingress, the two
+CSRF contexts, Origin and `If-Match` requirements, query bounds, rate limits
+and the STOP recovery exception. Documentation and example rendering perform
+no API call. A browser test runs only after an explicit execution click and is
+strictly same-origin. CSRF tokens, generation ETags and heater request
+revisions are acquired only immediately before execution. Every mutation
+requires a confirmation checkbox; Start and Quick Start additionally require
+the exact word `START`. Mutations are never retried automatically, and cURL
+examples use safe placeholders instead of exposing live tokens. The explorer
+contains no external URL or dependency.
+The raw `/openapi.json` remains directly downloadable, ETag-revalidatable and
+available over both listeners.
+
+This application also makes rejected manual starts understandable without
 weakening the start gate. A pending runtime activation returns HTTP `409` with
 `runtime_restart_required`. When the heater is disconnected, the Home view
 shows it as not reachable instead of off, and Quick Start or configured Start
@@ -98,9 +114,9 @@ loaded. The repository-root `main.py` remains passive and is excluded.
 | --- | --- |
 | `manifest.py` | `44a9d350dfa2ba63f77571772c53c06f4457f2232f735332381dedb2cdcacb5b` |
 | `FROZEN_MODULES.txt` | `45c437fcdde6dbafd5f40812cbc728695b9ae86f1b71e26167d12a1b2ed88771` |
-| `CURRENT_FROZEN_SOURCES.sha256` | `e1b7aa3787e3d9b04b655be5a7c7c54beac4c52e484f383721d4e67daf21ced0` |
+| `CURRENT_FROZEN_SOURCES.sha256` | `a4f6556d699ebef7afe18b6d71a3e629cd654820d5aee0b0adc06fd5c6f44c6a` |
 | `NATIVE_SOURCES.sha256` | `da5570143e9612bb354e552d205181f0cc56e8277abe5c6cf43414f0fa5e2d50` |
-| `artifacts/SHA256SUMS` | `bd36c9da447468c7a70eff84819d643d3b21b46bc8dcad7255f1d22299353df8` |
+| `artifacts/SHA256SUMS` | `0b9963fb2734b028eb7b2ba16e8df8b9d445f16fdd5021049bad77372515b39e` |
 
 The closure excludes credentials, persistent data, acceptance tools and tests.
 The VFS copy of `main.py` cannot override the private frozen entry point because
@@ -115,12 +131,12 @@ table, application, combined image, UF2, final and combined configurations,
 four flash-argument files, flasher JSON, frozen C, ELF and map. The dependency
 lock matched the retained DFR0975-U lock byte-for-byte.
 
-The focused station-security, REST, composition, product-runtime and Web matrix
-passed all 127 tests. The current 51-file frozen closure, two-file native
+The focused OpenAPI, Web, cache, HTTP, frozen-source and artifact matrix passed
+all 97 tests. The current 51-file frozen closure, two-file native
 ledger and retained artifact ledger match exactly. All 51 frozen modules
 compile for `xtensawin`; the changed JavaScript passes syntax checking. Both
 retained ESP32-S3 images have valid checksums and validation hashes, and
-`git diff --check` passes. The complete repository suite ran 1,347 tests: 1,345
+`git diff --check` passes. The complete repository suite ran 1,360 tests: 1,358
 passed; only the two deliberately immutable historical Phase-11 and early
 Phase-13 source-ledger mismatches remain. Those ledgers are historical evidence
 rather than being rewritten.
@@ -138,13 +154,67 @@ is no OTA partition.
 | --- | ---: |
 | Bootloader | 19,232 B; unchanged |
 | Partition table | 3,072 B; unchanged |
-| Factory application | 2,185,376 B used of 3,145,728 B |
-| Growth from previously installed `e73a28ed...` image | 1,728 B |
-| Application margin | 960,352 B (about 31%) |
-| Combined image | 2,250,912 B; exact end `0x2258a0` |
+| Factory application | 2,271,296 B used of 3,145,728 B |
+| Growth from previously installed `824b63bc...` image | 25,744 B |
+| Application margin | 874,432 B (about 28%) |
+| Combined image | 2,336,832 B; exact end `0x23a840` |
 
-The retained deployment subset is bound by `artifacts/SHA256SUMS`. The
+The retained deployment subset is bound by `artifacts/SHA256SUMS`. The current
 installed application is:
+
+```text
+offset: 0x10000
+size:   2271296 bytes
+sha256: 0711bbe572c9f1e00fee1af5c055961eac134e2649f8b03a1ef83e0670a5cd07
+flash:  exactly authorized; app-only at 0x10000; no full-chip erase
+```
+
+Its combined image is 2,336,832 bytes with SHA-256
+`274dc1a3c7349c7a87b80df7222851d77f4d2637898010dbe44a76aafc1fa8ff`.
+Its Web bundle version is
+`66178bd9a37ee7dd69af1e7b4a76d4da1a833254016bb2703a0f954bf29558bb`.
+Across 15 assets, 174,416 identity bytes compress to 49,613 deterministic gzip
+bytes; `/openapi.json` is 30,552 identity bytes and 4,928 gzip bytes.
+
+The exact authorization was
+`Flash 0711bbe572c9f1e00fee1af5c055961eac134e2649f8b03a1ef83e0670a5cd07 ohne Erase freigegeben.`
+The target was the 16-MiB ESP32-S3 at `/dev/cu.usbmodem1101`, MAC
+`34:85:18:92:23:c0`. Immediately before writing, a complete 2,245,552-byte
+application readback from `0x10000` had SHA-256
+`824b63bc532413cee22bbdc4a33153c726bcc63a0c1b8e9e90ead758c083dee8`
+and was byte-for-byte equal to the retained baseline artifact. Esptool 4.12
+wrote only the 2,271,296-byte application at `0x10000`, erased only
+`0x10000` through `0x23afff` and reported its data hash verified. No
+bootloader, partition-table, VFS or full-chip erase operation was performed. A
+separate complete 2,271,296-byte postflash readback had SHA-256
+`0711bbe572c9f1e00fee1af5c055961eac134e2649f8b03a1ef83e0670a5cd07`
+and was byte-for-byte equal to the authorized artifact. A watchdog reset left
+the download boot path and `http://192.168.36.114/` then returned HTTP 200.
+
+The previously installed application was:
+
+```text
+offset: 0x10000
+size:   2245552 bytes
+sha256: 824b63bc532413cee22bbdc4a33153c726bcc63a0c1b8e9e90ead758c083dee8
+flash:  exactly authorized; app-only at 0x10000; no full-chip erase
+```
+
+The exact authorization was
+`Flash 824b63bc532413cee22bbdc4a33153c726bcc63a0c1b8e9e90ead758c083dee8 ohne Erase freigegeben.`
+The target was the 16-MiB ESP32-S3 at `/dev/cu.usbmodem1101`, MAC
+`34:85:18:92:23:c0`.
+Immediately before writing, a complete 2,185,376-byte application readback
+matched the expected `a4d5a2f1...` baseline. Esptool 4.12 wrote only the
+2,245,552-byte application at `0x10000`, erased only `0x10000` through
+`0x234fff` and reported its data hash verified. No bootloader,
+partition-table, VFS or full-chip erase operation was performed. A separate
+complete postflash readback had SHA-256
+`824b63bc532413cee22bbdc4a33153c726bcc63a0c1b8e9e90ead758c083dee8`
+and was byte-for-byte equal to the authorized artifact. After reset, the owner
+confirmed that the new local API documentation was visible in Settings.
+
+The previously installed application was:
 
 ```text
 offset: 0x10000
@@ -153,7 +223,7 @@ sha256: a4d5a2f114c15db24ce215a88d5549e57a67e0ac8c332fb6da4e465613695af4
 flash:  exactly authorized; app-only at 0x10000; no full-chip erase
 ```
 
-The combined retained image is 2,250,912 bytes with SHA-256
+The installed image's canonical combined build is 2,250,912 bytes with SHA-256
 `37ff1676b79e3e4a1650716892aeab8195d58ac8b910062a52d07289b87844cf`.
 Its Web bundle version is
 `14e033cf0a1a19f2c3adf16c9e05d1138482ac4789e5ec4b5cf6cce9f9dd819f`.

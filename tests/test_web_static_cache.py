@@ -1,7 +1,9 @@
 import hashlib
+import json
 import struct
 import unittest
 import zlib
+from pathlib import Path
 
 from app.rest_application import RestResponse
 from app.web_application import (
@@ -22,7 +24,13 @@ from app.web_assets import (
 )
 from services.http_protocol import encode_bytes_response, parse_request
 from services.rest_security import INGRESS_ACCESS_POINT, RestSecurityPolicy
-from tools.build_web_assets import _asset_version, _source_rows
+from tools.build_web_assets import (
+    EXPECTED_VERSION_REFERENCES,
+    MAXIMUM_ASSET_BYTES,
+    MAXIMUM_OPENAPI_BYTES,
+    _asset_version,
+    _source_rows,
+)
 
 
 HOST = "192.168.4.1"
@@ -124,7 +132,79 @@ class TestWebStaticCache(unittest.TestCase):
                     )
                 )
                 offset += len(b"/assets/")
-        self.assertEqual(references, 10)
+        self.assertEqual(references, EXPECTED_VERSION_REFERENCES)
+
+    def test_documentation_assets_have_explicit_frozen_size_budgets(self):
+        assets = {route: payload for route, _, payload in ASSETS}
+        self.assertTrue({
+            "/openapi.json",
+            "/assets/api-docs.js",
+            "/assets/api-console.js",
+            "/assets/api-docs.css",
+        }.issubset(assets))
+        self.assertLessEqual(MAXIMUM_OPENAPI_BYTES, 2 * MAXIMUM_ASSET_BYTES)
+        self.assertLessEqual(
+            len(assets["/openapi.json"]), MAXIMUM_OPENAPI_BYTES
+        )
+        self.assertLessEqual(
+            len(assets["/assets/api-docs.js"]), MAXIMUM_ASSET_BYTES
+        )
+        self.assertLessEqual(
+            len(assets["/assets/api-console.js"]), MAXIMUM_ASSET_BYTES
+        )
+        self.assertLessEqual(
+            len(assets["/assets/api-docs.css"]), MAXIMUM_ASSET_BYTES
+        )
+
+    def test_openapi_is_static_revalidatable_and_station_readable(self):
+        content_type, payload = asset_for_path("/openapi.json")
+        self.assertEqual(content_type, "application/json; charset=utf-8")
+        self.assertEqual(json.loads(payload), json.loads(
+            (Path(__file__).resolve().parent.parent / "web" / "openapi.json")
+            .read_text(encoding="utf-8")
+        ))
+        self.assertIsNone(versioned_asset_path("/openapi.json"))
+
+        identity = self.app.handle(request("/openapi.json"), PEER)
+        self.assertEqual(identity.status, 200)
+        self.assertEqual(identity.body, payload)
+        self.assertEqual(identity.cache_control, "no-cache")
+        self.assertEqual(identity.headers["Vary"], "Accept-Encoding")
+        self.assertEqual(identity.headers["ETag"], etag_for_path(
+            "/openapi.json"
+        ))
+        wire = encode_bytes_response(
+            identity.status,
+            identity.body,
+            identity.content_type,
+            identity.headers,
+            identity.cache_control,
+            identity.content_encoding,
+        )
+        self.assertTrue(wire.endswith(payload))
+        self.assertIn(
+            b"Content-Type: application/json; charset=utf-8\r\n", wire
+        )
+
+        station = self.app.handle(
+            request("/openapi.json", host="10.0.0.17"),
+            "10.0.0.2",
+            "sta",
+            "10.0.0.17",
+        )
+        self.assertEqual(station.status, 200)
+        self.assertEqual(station.body, payload)
+
+        revalidated = self.app.handle(
+            request(
+                "/openapi.json",
+                (("If-None-Match", identity.headers["ETag"]),),
+            ),
+            PEER,
+        )
+        self.assertEqual(revalidated.status, 304)
+        self.assertEqual(revalidated.body, b"")
+        self.assertEqual(revalidated.cache_control, "no-cache")
 
     def test_accept_encoding_quality_selection_is_bounded(self):
         cases = (

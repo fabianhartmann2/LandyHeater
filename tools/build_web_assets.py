@@ -6,6 +6,7 @@ host the UI without a VFS upload or external dependency.
 """
 
 import hashlib
+import json
 import struct
 import zlib
 from pathlib import Path
@@ -14,11 +15,13 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = PROJECT_ROOT / "app" / "web_assets.py"
 MAXIMUM_ASSET_BYTES = 16 * 1024
+MAXIMUM_OPENAPI_BYTES = 32 * 1024
 ASSET_MANIFEST_SCHEMA = b"landy-web-assets-v2"
 ASSET_VERSION_PLACEHOLDER = b"__LANDY_ASSET_VERSION__"
-EXPECTED_VERSION_REFERENCES = 10
+EXPECTED_VERSION_REFERENCES = 13
 ASSETS = (
     ("/index.html", "text/html; charset=utf-8", "index.html"),
+    ("/openapi.json", "application/json; charset=utf-8", "openapi.json"),
     (
         "/assets/ui.css",
         "text/css; charset=utf-8",
@@ -37,6 +40,13 @@ ASSETS = (
     ("/assets/home.js", "application/javascript; charset=utf-8", "home.js"),
     ("/assets/timers.js", "application/javascript; charset=utf-8", "timers.js"),
     ("/assets/settings.js", "application/javascript; charset=utf-8", "settings.js"),
+    ("/assets/api-docs.js", "application/javascript; charset=utf-8", "api-docs.js"),
+    (
+        "/assets/api-console.js",
+        "application/javascript; charset=utf-8",
+        "api-console.js",
+    ),
+    ("/assets/api-docs.css", "text/css; charset=utf-8", "api-docs.css"),
     ("/assets/setup.js", "application/javascript; charset=utf-8", "setup.js"),
     ("/assets/diagnostics.js", "application/javascript; charset=utf-8", "diagnostics.js"),
 )
@@ -52,7 +62,29 @@ def _source_rows():
             )
         else:
             payload = (PROJECT_ROOT / "web" / relative_path).read_bytes()
-        if not payload or len(payload) > MAXIMUM_ASSET_BYTES:
+        if content_type == "application/json; charset=utf-8":
+            try:
+                document = json.loads(payload.decode("utf-8"))
+            except (UnicodeError, ValueError):
+                raise ValueError("OpenAPI document is not valid JSON") from None
+            if (
+                type(document) is not dict
+                or document.get("openapi") != "3.0.3"
+                or type(document.get("paths")) is not dict
+            ):
+                raise ValueError("OpenAPI document has an invalid root")
+            payload = json.dumps(
+                document,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=False,
+            ).encode("utf-8")
+        maximum = (
+            MAXIMUM_OPENAPI_BYTES
+            if route == "/openapi.json"
+            else MAXIMUM_ASSET_BYTES
+        )
+        if not payload or len(payload) > maximum:
             raise ValueError("web asset size is outside the frozen bound")
         rows.append((route, content_type, payload))
     if sum(

@@ -16,7 +16,10 @@ MAX_HEADER_COUNT = 24
 MAX_BODY_BYTES = 4096
 
 MAX_RESPONSE_BODY_BYTES = 8192
-MAX_STATIC_RESPONSE_BODY_BYTES = 16 * 1024
+# The OpenAPI document is the sole frozen static resource allowed above the
+# normal 16 KiB source-asset bound. Browsers negotiate its much smaller gzip
+# representation; this ceiling also keeps direct identity downloads bounded.
+MAX_STATIC_RESPONSE_BODY_BYTES = 32 * 1024
 MAX_RESPONSE_HEADER_BLOCK_BYTES = 2048
 MAX_RESPONSE_HEADER_COUNT = 24
 
