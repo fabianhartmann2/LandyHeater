@@ -21,6 +21,7 @@ from app.manual_control_gateway import (
     ManualControlConfigurationConflictError,
     ManualControlConflictError,
     ManualControlInvariantError,
+    ManualControlRestartRequiredError,
     ManualControlSessionConflictError,
     ManualControlStateConflictError,
     ManualControlUnavailableError,
@@ -582,7 +583,9 @@ class RestApplication:
             (scheduler, "next_occurrence"),
             (scheduler_gateway, "snapshot"),
             (security_policy, "validate_read"),
+            (security_policy, "authorize_control_mutation"),
             (security_policy, "authorize_mutation"),
+            (security_policy, "control_context"),
             (security_policy, "security_context"),
             (security_policy, "snapshot"),
         )
@@ -792,6 +795,18 @@ class RestApplication:
                 503, "rest_service_faulted", "REST service is unavailable"
             )
         self.__security.authorize_mutation(
+            request.headers, self.__request_ingress, self.__request_local_ip
+        )
+        self._assert_not_reentered()
+
+    def _authorize_control_mutation(self, request, allow_faulted=False):
+        if not self._accepts_json(request):
+            raise _RestProblem(406, "json_response_required", "JSON is required")
+        if self.__faulted and not allow_faulted:
+            raise _RestProblem(
+                503, "rest_service_faulted", "REST service is unavailable"
+            )
+        self.__security.authorize_control_mutation(
             request.headers, self.__request_ingress, self.__request_local_ip
         )
         self._assert_not_reentered()
@@ -1615,6 +1630,35 @@ class RestApplication:
                 },
             )
 
+        if path == API_PREFIX + "/control-context":
+            if method != "GET":
+                raise _RestProblem(405, "method_not_allowed", "Method not allowed", {"Allow": "GET"})
+            self._authorize_read(request)
+            context = self.__security.control_context(
+                request.headers, self.__request_ingress, self.__request_local_ip
+            )
+            _exact_dict(
+                "control context",
+                context,
+                ("csrf_token", "control_api_available"),
+            )
+            token = context["csrf_token"]
+            if type(token) is not str or len(token) != 64:
+                raise ValueError("security token is malformed")
+            for character in token:
+                if character not in "0123456789abcdef":
+                    raise ValueError("security token is malformed")
+            if context["control_api_available"] is not True:
+                raise ValueError("control context is unavailable")
+            return self._success(
+                200,
+                request_id,
+                {
+                    "csrf_token": token,
+                    "control_api_available": True,
+                },
+            )
+
         if path == API_PREFIX + "/status":
             if method != "GET":
                 raise _RestProblem(405, "method_not_allowed", "Method not allowed", {"Allow": "GET"})
@@ -1782,7 +1826,7 @@ class RestApplication:
         if path == API_PREFIX + "/heater/start":
             if method != "POST":
                 raise _RestProblem(405, "method_not_allowed", "Method not allowed", {"Allow": "POST"})
-            self._authorize_mutation(request)
+            self._authorize_control_mutation(request)
             generation = self._required_generation(request)
             body = self._json_object(request, _START_FIELDS)
             try:
@@ -1832,7 +1876,7 @@ class RestApplication:
         if path == API_PREFIX + "/heater/quick-start":
             if method != "POST":
                 raise _RestProblem(405, "method_not_allowed", "Method not allowed", {"Allow": "POST"})
-            self._authorize_mutation(request)
+            self._authorize_control_mutation(request)
             generation = self._required_generation(request)
             body = self._json_object(request, _QUICK_START_FIELDS)
             try:
@@ -1866,7 +1910,7 @@ class RestApplication:
             # STOP is the recovery path and therefore remains authorized even
             # when the REST mutation latch is faulted.  Host, Origin and CSRF
             # checks remain mandatory.
-            self._authorize_mutation(request, allow_faulted=True)
+            self._authorize_control_mutation(request, allow_faulted=True)
             self._empty_body(request)
             self._assert_not_reentered()
             try:
@@ -1901,7 +1945,7 @@ class RestApplication:
                     "Method not allowed",
                     {"Allow": "PATCH"},
                 )
-            self._authorize_mutation(request)
+            self._authorize_control_mutation(request)
             generation = self._required_generation(request)
             body = self._json_object(request, _SESSION_UPDATE_FIELDS)
             try:
@@ -2217,6 +2261,12 @@ class RestApplication:
                 409,
                 "heater_session_conflict",
                 "Active heater session cannot be changed",
+            ) from None
+        except ManualControlRestartRequiredError:
+            raise _RestProblem(
+                409,
+                "runtime_restart_required",
+                "Restart the controller to apply configuration changes",
             ) from None
         except ManualControlConflictError:
             raise _RestProblem(409, "control_precondition_failed", "Requested State changed") from None

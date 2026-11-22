@@ -344,6 +344,50 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn(b'networkServicesHint', settings)
         self.assertIn(b'L.applyLanguage(L.state.language)', settings)
 
+    def test_start_failures_are_localized_without_hiding_safe_start_blocks(self):
+        home = self.app.handle(
+            request(target="/assets/home.js"), PEER
+        ).body
+        self.assertIn(b'error.code==="runtime_restart_required"', home)
+        self.assertIn(b'error.code!=="heater_start_conflict"', home)
+        self.assertIn(b'actual.communication==="error"', home)
+        self.assertIn(b'actual.initialized!==true', home)
+        self.assertIn(b'actual.synchronized!==true', home)
+        self.assertIn(b'sensor.health!=="ok"', home)
+        self.assertIn(b'startMessage("restart")', home)
+        self.assertIn(b'startMessage("unreachable")', home)
+        self.assertIn(b'startMessage("notReady")', home)
+        self.assertIn(b'startMessage("blocked")', home)
+        self.assertIn(
+            "Neustart erforderlich. Starte das Steuergerät neu".encode(),
+            home,
+        )
+        self.assertIn(
+            "Heizung nicht erreichbar. Prüfe Stromversorgung".encode(),
+            home,
+        )
+        self.assertEqual(home.count(b"error=>startFailure(error"), 2)
+
+    def test_home_uses_station_capable_control_token_only_for_heater_actions(self):
+        app = self.app.handle(
+            request(target="/assets/app.js"), PEER
+        ).body
+        home = self.app.handle(
+            request(target="/assets/home.js"), PEER
+        ).body
+        settings = self.app.handle(
+            request(target="/assets/settings.js"), PEER
+        ).body
+        self.assertIn(b'controlCsrf:null', app)
+        self.assertIn(b'"/api/v1/control-context"', app)
+        self.assertIn(b'L.controlMutate=async', app)
+        self.assertEqual(home.count(b"L.controlMutate("), 5)
+        self.assertNotIn(b'L.mutate("/api/v1/heater/', home)
+        self.assertIn(b'L.mutate("/api/v1/settings"', settings)
+        self.assertIn(
+            b'error.code!=="mutation_security_unavailable"', app
+        )
+
     def test_frontend_has_no_external_dependency_or_inline_executable_code(self):
         index = self.app.handle(request(), PEER).body
         self.assertNotIn(b"http://", index)

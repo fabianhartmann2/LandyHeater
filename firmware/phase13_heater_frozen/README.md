@@ -46,6 +46,27 @@ button implicitly submitted the form and started the heater. Start and Timer
 close/cancel buttons are explicit non-submit controls, with a second cancel
 guard in both submit handlers.
 
+The installed image replaces the generic “Application Service is unavailable”
+response for rejected manual starts. A pending runtime activation is reported
+as a required controller restart. If the heater has no power or connection,
+Home displays “not reachable” and both Quick Start and configured Start show a
+localized power/connection hint. Boot synchronization, sensor readiness and
+other state conflicts remain distinct. All rejected starts remain Requested
+OFF and produce no controller start or UART output.
+
+The installed application splits persistent configuration mutations
+from operational heater control. Quick Start, configured Start, Stop and
+current-session adjustments are allowed from both the recovery AP and the
+trusted station network. Settings, Setup, timers, browser-time sync and
+diagnostic capture mutations remain AP-only. Host validation, exact
+same-origin, boot-ephemeral CSRF, revision/ETag preconditions and rate limits
+remain in force on the new control path. This corrects the preceding image's
+station-side `Mutation API unavailable` result. Because CSRF is not device
+authentication, station control assumes that the home LAN itself is trusted.
+The silent browser-time attempt remains AP-only; its expected station rejection
+is suppressed during Home startup, while a manual browser-time request remains
+rejected on station ingress.
+
 The Web UI now emits deterministic identity and precompressed gzip
 representations. The revalidated index references only full-bundle-hash asset
 URLs; the current version is immutable for one year, while an old version
@@ -53,29 +74,34 @@ prefix returns `404` rather than new bytes under an old cache key. Identity and
 gzip have separate strong ETags and `Vary: Accept-Encoding`. CSS and
 translations load together before the application core, then Home and status
 load together. Timer, Settings, Setup and Diagnostics remain on demand. Across
-all 11 assets, gzip reduces 104,093 bytes to 32,099 bytes; the gzip index is
-3,761 bytes. The cooperative HTTP receive budget remains 256 bytes while the
+all 11 assets, gzip reduces 106,593 bytes to 32,842 bytes; the gzip index is
+3,758 bytes. The cooperative HTTP receive budget remains 256 bytes while the
 reviewed send budget is 1,024 bytes, below the 1,440-byte TCP MSS. Client and
 backlog limits are unchanged.
 
 `BUILD_INFO.md` records inputs, both source ledgers, two byte-identical builds,
-artifact checks and target evidence. The installed 2,181,024-byte application
-has SHA-256
-`67393e2b052d88139e9a8533b8f8b2cc73cd4c8a0ef14fa41168473d7478313d`.
-That exact hash was authorized, written app-only at `0x10000` without a
-full-chip erase and confirmed byte-for-byte by a complete independent
-application readback. Immediately before the write, the previously installed
-2,171,728-byte application with SHA-256
-`a25e32266e93d921db3b8cc5dd311ffb955b976ccc55af7221859f0344c29d76`
-was also confirmed by a complete readback. After a normal boot the station was
-online at `192.168.36.114`, Requested state remained OFF and the control path
-remained unfaulted. Settings reported schema 3 with both network-service
-switches enabled while stored and runtime generation remained 7. Bonjour
-browse and resolve found `Landy Heater._http._tcp`, `heater.local:80`, TXT
-`path=/` and address `192.168.36.114`. The Web UI served bundle version
-`728dc6163ddf88c828ead9be62c56f762d69cbf64685e431da52c416abfddbc1`.
-Only the visible automatic captive-portal presentation on a freshly joined
-phone remains to be observed for this revision.
+artifact checks and target evidence. The installed application is 2,185,376
+bytes with SHA-256
+`a4d5a2f114c15db24ce215a88d5549e57a67e0ac8c332fb6da4e465613695af4`.
+It was exactly authorized, written app-only without a full-chip erase and
+confirmed byte-for-byte by a complete readback. Its Web bundle version is
+`14e033cf0a1a19f2c3adf16c9e05d1138482ac4789e5ec4b5cf6cce9f9dd819f`.
+
+Immediately before that write, the complete 2,183,648-byte application
+readback confirmed the previously installed SHA-256
+`e73a28ed5e08db193446c6936f9808e39f194e99e7f7d9394d500d5975220fc6`.
+Esptool 4.12 erased only `0x10000` through `0x225fff`; bootloader, partition
+table and VFS were not written. After a manual reset the station was online at
+`192.168.36.114`, Requested state remained OFF and the control path remained
+unfaulted. Stored and runtime generation both reported 11,
+`restart_required` was false, the Scheduler was armed and its one preserved
+timer remained present. The station control context returned HTTP 200 with a
+valid boot-ephemeral CSRF token, while the persistent mutation context remained
+station-blocked with HTTP 503 `mutation_security_unavailable`. The live root
+and `app.js` served the final Web bundle and its separate control path. Heater
+communication and all three sensors were missing as expected while the heater
+hardware was disconnected. No heater start or other mutation was used during
+this deployment gate.
 
 Three staged cold Home paths measured 4.157, 4.228 and 4.519 seconds
 (median 4.228 seconds); three normal cached reopens measured 0.848, 0.866 and

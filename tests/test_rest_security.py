@@ -52,20 +52,25 @@ class TestRestSecurityPolicy(unittest.TestCase):
         }
         self.assertTrue(value.authorize_mutation(mutation_headers))
 
-    def test_station_listener_remains_read_only_with_correct_token(self):
+    def test_station_listener_exposes_control_but_not_persistent_mutation(self):
         value = policy("sta")
         value.start()
         self.assertTrue(value.validate_read({"host": "heater.local"}))
         with self.assertRaises(RestSecurityUnavailable):
             value.security_context({"host": "heater.local"})
+        context = value.control_context({"host": "heater.local"})
+        self.assertTrue(context["control_api_available"])
+        self.assertEqual(len(context["csrf_token"]), 64)
+        headers = {
+            "host": "heater.local",
+            "origin": "http://heater.local",
+            "x-landy-csrf": context["csrf_token"],
+        }
+        self.assertTrue(value.authorize_control_mutation(headers))
         with self.assertRaises(RestSecurityUnavailable):
-            value.authorize_mutation({
-                "host": "heater.local",
-                "origin": "http://heater.local",
-                "x-landy-csrf": "0" * 64,
-            })
+            value.authorize_mutation(headers)
 
-    def test_one_policy_routes_ap_mutations_but_keeps_station_read_only(self):
+    def test_one_policy_routes_ap_mutations_and_station_control(self):
         value = policy("ap")
         value.start()
         token = value.security_context(
@@ -82,6 +87,12 @@ class TestRestSecurityPolicy(unittest.TestCase):
         )
         with self.assertRaises(RestSecurityUnavailable):
             value.authorize_mutation(headers, "sta", "10.0.0.17")
+        control = value.control_context(headers, "sta", "10.0.0.17")
+        self.assertEqual(control["csrf_token"], token)
+        self.assertTrue(control["control_api_available"])
+        self.assertTrue(value.authorize_control_mutation(
+            headers, "sta", "10.0.0.17"
+        ))
         self.assertTrue(value.authorize_mutation(
             {
                 "host": "192.168.4.1",
@@ -91,6 +102,33 @@ class TestRestSecurityPolicy(unittest.TestCase):
             "ap",
             "192.168.4.1",
         ))
+
+    def test_station_control_requires_same_origin_host_and_token(self):
+        value = policy("sta")
+        value.start()
+        token = value.control_context({"host": "heater.local"})[
+            "csrf_token"
+        ]
+        base = {
+            "host": "heater.local",
+            "origin": "http://heater.local",
+            "x-landy-csrf": token,
+        }
+        for key in ("host", "origin", "x-landy-csrf"):
+            candidate = dict(base)
+            del candidate[key]
+            with self.assertRaises(RestSecurityDenied):
+                value.authorize_control_mutation(candidate)
+        for key, invalid in (
+            ("host", "evil.invalid"),
+            ("origin", "http://evil.invalid"),
+            ("origin", "null"),
+            ("x-landy-csrf", "f" * 64),
+        ):
+            candidate = dict(base)
+            candidate[key] = invalid
+            with self.assertRaises(RestSecurityDenied):
+                value.authorize_control_mutation(candidate)
 
     def test_host_origin_and_token_are_all_mandatory_for_mutation(self):
         value = policy()

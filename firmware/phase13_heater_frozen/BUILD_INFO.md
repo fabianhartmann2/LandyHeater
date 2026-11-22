@@ -1,13 +1,13 @@
 # Phase 13 temperature-control frozen firmware build record
 
-Build date: 2026-11-21. Status: **exact 51-file frozen source closure plus two
-native user-module sources, focused lifecycle/configuration/discovery tests,
-two byte-identical canonical-path builds and offline image gates passed. The
-`67393e2b...` application was exactly authorized, written app-only at
-`0x10000` without a full-chip erase and confirmed byte-for-byte by an
-independent complete application readback. Normal boot, live schema migration,
-station HTTP and Bonjour target gates passed; only fresh-phone automatic
-captive-portal presentation remains to be observed.**
+Build date: 2026-11-22. Status: **exact 51-file frozen source closure plus two
+native user-module sources, focused station-control, start-safety and Web
+tests, two byte-identical canonical-path builds and offline image gates passed.
+The retained `a4d5a2f1...` application was exactly authorized, written
+app-only at `0x10000` without a full-chip erase and confirmed byte-for-byte by
+an independent complete application readback. After a manual reset, normal
+boot, requested-OFF safety, station HTTP, the live Web bundle and the separated
+station-control/persistent-mutation boundary passed read-only target gates.**
 
 This candidate retains periodic
 external-temperature reports for roof-tent and cabin control, signed negative
@@ -37,6 +37,35 @@ The candidate retains the deterministic gzip/cache Web path. The cooperative
 send budget is 1,024 bytes; the 256-byte receive budget,
 two-client/two-backlog limits and one-action-per-step contract remain
 unchanged.
+
+This candidate also makes rejected manual starts understandable without
+weakening the start gate. A pending runtime activation returns HTTP `409` with
+`runtime_restart_required`. When the heater is disconnected, the Home view
+shows it as not reachable instead of off, and Quick Start or configured Start
+shows a localized power/connection hint. Boot synchronization, unavailable
+temperature sensors and other state conflicts retain separate messages.
+Every rejected start remains Requested OFF and produces no controller start or
+UART output.
+
+The installed application separates the persistent AP-only mutation context
+from an operational heater-control context. The recovery AP and trusted station
+network can obtain the latter and use only configured Start, Quick Start, Stop
+and current-session adjustments. Settings, Setup, timers, browser-time sync
+and diagnostic capture mutations remain AP-only. Both mutation paths retain
+Host validation, exact same-origin checks, a boot-ephemeral CSRF token,
+revision/ETag preconditions and route rate limits. Stop is deliberately
+available wherever Start is available. This fixes the preceding image's
+station-side `Mutation API unavailable` result without making persistent
+configuration writable from station ingress.
+
+The automatic browser-time attempt remains a persistent AP-only mutation. On
+station ingress its expected `mutation_security_unavailable` result is now
+silent, so a normal Home load no longer emits a misleading technical toast.
+An explicit user-triggered browser-time sync still reports its AP-only failure.
+
+This boundary assumes the home network is trusted. CSRF prevents a foreign Web
+origin from driving a browser session, but it does not authenticate or exclude
+a malicious client already present on the same LAN.
 
 The private frozen `board_config.py` differs from the safe repository profile
 in exactly two values: `UART_PINS_APPROVED=True` and
@@ -69,9 +98,9 @@ loaded. The repository-root `main.py` remains passive and is excluded.
 | --- | --- |
 | `manifest.py` | `44a9d350dfa2ba63f77571772c53c06f4457f2232f735332381dedb2cdcacb5b` |
 | `FROZEN_MODULES.txt` | `45c437fcdde6dbafd5f40812cbc728695b9ae86f1b71e26167d12a1b2ed88771` |
-| `CURRENT_FROZEN_SOURCES.sha256` | `4829f442e06552795cc5c9a7f5a8b4dd70d9ed5e575448e2b48faa7951c09ede` |
+| `CURRENT_FROZEN_SOURCES.sha256` | `e1b7aa3787e3d9b04b655be5a7c7c54beac4c52e484f383721d4e67daf21ced0` |
 | `NATIVE_SOURCES.sha256` | `da5570143e9612bb354e552d205181f0cc56e8277abe5c6cf43414f0fa5e2d50` |
-| `artifacts/SHA256SUMS` | `bc42c9fffc92f8f4b2351567c06eed10234d62ff46767bfd29c5a5db4363ad7e` |
+| `artifacts/SHA256SUMS` | `bd36c9da447468c7a70eff84819d643d3b21b46bc8dcad7255f1d22299353df8` |
 
 The closure excludes credentials, persistent data, acceptance tools and tests.
 The VFS copy of `main.py` cannot override the private frozen entry point because
@@ -86,15 +115,14 @@ table, application, combined image, UF2, final and combined configurations,
 four flash-argument files, flasher JSON, frozen C, ELF and map. The dependency
 lock matched the retained DFR0975-U lock byte-for-byte.
 
-The feature-focused configuration, REST, captive DNS, discovery, Bonjour,
-product-runtime and Web matrix passed 214 tests. The current 51-file frozen
-closure, two-file native ledger and retained artifact ledger pass exactly.
-All 51 frozen modules compile for `xtensawin`; the changed JavaScript passes
-syntax checking. Both retained ESP32-S3 images have valid checksums and
-validation hashes, and `git diff --check` passes. The complete repository
-suite ran 1,341 tests: 1,339 passed; only the two deliberately immutable
-historical Phase-11 and early Phase-13 source ledgers reported their expected
-mismatch against current sources. Those ledgers remain historical evidence
+The focused station-security, REST, composition, product-runtime and Web matrix
+passed all 127 tests. The current 51-file frozen closure, two-file native
+ledger and retained artifact ledger match exactly. All 51 frozen modules
+compile for `xtensawin`; the changed JavaScript passes syntax checking. Both
+retained ESP32-S3 images have valid checksums and validation hashes, and
+`git diff --check` passes. The complete repository suite ran 1,347 tests: 1,345
+passed; only the two deliberately immutable historical Phase-11 and early
+Phase-13 source-ledger mismatches remain. Those ledgers are historical evidence
 rather than being rewritten.
 
 ## Image, layout and retained artifacts
@@ -110,24 +138,87 @@ is no OTA partition.
 | --- | ---: |
 | Bootloader | 19,232 B; unchanged |
 | Partition table | 3,072 B; unchanged |
-| Factory application | 2,181,024 B used of 3,145,728 B |
-| Growth from prior installed `a25e3226...` image | 9,296 B |
-| Application margin | 964,704 B (about 31%) |
-| Combined image | 2,246,560 B; exact end `0x2247a0` |
+| Factory application | 2,185,376 B used of 3,145,728 B |
+| Growth from previously installed `e73a28ed...` image | 1,728 B |
+| Application margin | 960,352 B (about 31%) |
+| Combined image | 2,250,912 B; exact end `0x2258a0` |
 
 The retained deployment subset is bound by `artifacts/SHA256SUMS`. The
 installed application is:
 
 ```text
 offset: 0x10000
-size:   2181024 bytes
-sha256: 67393e2b052d88139e9a8533b8f8b2cc73cd4c8a0ef14fa41168473d7478313d
+size:   2185376 bytes
+sha256: a4d5a2f114c15db24ce215a88d5549e57a67e0ac8c332fb6da4e465613695af4
 flash:  exactly authorized; app-only at 0x10000; no full-chip erase
 ```
 
-The combined retained image is 2,246,560 bytes with SHA-256
-`89f9af87e6cc19f6ee59b12ef8c0370a0d1f2d3f83eeb111418d65da4aec6518`.
+The combined retained image is 2,250,912 bytes with SHA-256
+`37ff1676b79e3e4a1650716892aeab8195d58ac8b910062a52d07289b87844cf`.
+Its Web bundle version is
+`14e033cf0a1a19f2c3adf16c9e05d1138482ac4789e5ec4b5cf6cce9f9dd819f`.
 The exact authorization was
+`Flash a4d5a2f114c15db24ce215a88d5549e57a67e0ac8c332fb6da4e465613695af4 ohne Erase freigegeben.`
+The target was the 16-MiB ESP32-S3 at `/dev/cu.usbmodem1101`, MAC
+`34:85:18:92:23:c0`. A complete 2,183,648-byte preflash application readback
+had SHA-256
+`e73a28ed5e08db193446c6936f9808e39f194e99e7f7d9394d500d5975220fc6`,
+confirming the expected installed baseline. Esptool 4.12 then wrote only the
+2,185,376-byte application at `0x10000`, erased only `0x10000` through
+`0x225fff` and reported its data hash verified. No full-chip erase, bootloader,
+partition-table or VFS write occurred. A separate complete postflash readback
+had SHA-256
+`a4d5a2f114c15db24ce215a88d5549e57a67e0ac8c332fb6da4e465613695af4`
+and compared byte-for-byte equal to the retained application.
+
+After a manual reset, `http://192.168.36.114/` returned online. Requested
+state remained OFF with request revision 0, no active session, no pending
+transition and `control_faulted=false`. Stored and runtime generation both
+reported 11, `restart_required=false`, the Scheduler was armed and its one
+preserved timer remained present. Station DHCP and mDNS were ready. Heater
+communication and all three sensors reported missing/error as expected with
+the heater hardware disconnected. The station-side `/api/v1/control-context`
+returned HTTP 200, `control_api_available=true` and a valid boot-ephemeral
+64-hex CSRF token. The persistent `/api/v1/security-context` remained blocked
+on station ingress with HTTP 503 `mutation_security_unavailable`. The root and
+versioned `app.js` served Web bundle
+`14e033cf0a1a19f2c3adf16c9e05d1138482ac4789e5ec4b5cf6cce9f9dd819f`
+with the separate control client and silent automatic-time guard. No heater
+start or other mutation was sent during this deployment gate.
+
+The previously installed application was 2,183,648 bytes with
+SHA-256
+`e73a28ed5e08db193446c6936f9808e39f194e99e7f7d9394d500d5975220fc6`.
+Its canonical combined image was 2,249,184 bytes with SHA-256
+`a0db2949d16292ba00ae7d238ab1373042f5d45f4694458c4218186f1def187f`,
+and its served Web bundle version is
+`f34244d58c7bee06a733582902b7388980294667728e5594134d9ec0f971bef6`.
+The exact authorization was
+`Flash e73a28ed5e08db193446c6936f9808e39f194e99e7f7d9394d500d5975220fc6 ohne Erase freigegeben.`
+A complete 2,181,024-byte preflash readback from `0x10000` matched the
+installed `67393e2b...` baseline. Esptool 4.12 wrote only the 2,183,648-byte
+application at `0x10000`, erased only `0x10000` through `0x225fff` and
+reported its data hash verified. No full-chip erase, bootloader,
+partition-table or VFS write was performed. A separate complete postflash
+readback had SHA-256
+`e73a28ed5e08db193446c6936f9808e39f194e99e7f7d9394d500d5975220fc6`
+and compared byte-for-byte equal to the authorized application file.
+
+After a normal boot, USB emitted `LANDY_HEATER_PRODUCT_AUTOSTART_V1` and
+`http://192.168.36.114/` returned online. Requested state remained OFF,
+`control_faulted` was false, stored and runtime generation both reported 9,
+and `restart_required` was false. The Scheduler was armed and the preserved
+timer remained present. Heater communication and all three sensors reported
+missing/error as expected with the heater hardware disconnected. The served
+Web bundle was
+`f34244d58c7bee06a733582902b7388980294667728e5594134d9ec0f971bef6`;
+the live `home.js` was byte-identical to the source. `heater.local` resolved to
+`192.168.36.114`. No manual start mutation was used for this deployment gate.
+
+The previously installed application was 2,181,024 bytes with
+SHA-256
+`67393e2b052d88139e9a8533b8f8b2cc73cd4c8a0ef14fa41168473d7478313d`.
+Its exact authorization was
 `Flash 67393e2b052d88139e9a8533b8f8b2cc73cd4c8a0ef14fa41168473d7478313d ohne Erase freigegeben.`
 Immediately before the write, a complete 2,171,728-byte readback matched the
 installed `a25e3226...` baseline. Esptool 4.12 then wrote only the application
@@ -135,11 +226,11 @@ at `0x10000` and reported its data hash verified; no full-chip erase,
 bootloader write, partition-table write or VFS write was performed. A separate
 complete 2,181,024-byte postflash readback had SHA-256
 `67393e2b052d88139e9a8533b8f8b2cc73cd4c8a0ef14fa41168473d7478313d`
-and compared byte-for-byte equal to the retained application. The retained
+and compared byte-for-byte equal to its authorized application file. The
 bootloader and partition table remain byte-identical to the accepted Phase-11
 artifacts.
 
-After a normal boot, `http://192.168.36.114/` was reachable, Requested state
+After that installed image's normal boot, `http://192.168.36.114/` was reachable, Requested state
 was OFF, `control_faulted` was false and the station was online. Settings
 reported schema 3 with `captive_portal_enabled` and `bonjour_http_enabled`
 both true; stored and runtime generation remained 7, confirming the direct

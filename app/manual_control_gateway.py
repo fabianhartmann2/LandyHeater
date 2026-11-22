@@ -40,6 +40,12 @@ class ManualControlUnavailableError(ManualControlError):
     pass
 
 
+class ManualControlRestartRequiredError(ManualControlUnavailableError):
+    """A stored configuration change must be activated before starting."""
+
+    pass
+
+
 class ManualControlInvariantError(ManualControlError):
     pass
 
@@ -281,7 +287,7 @@ class ManualControlGateway:
                 "runtime restart gate is malformed"
             )
         if restart_required:
-            raise ManualControlUnavailableError(
+            raise ManualControlRestartRequiredError(
                 "configured runtime restart is required"
             )
         snapshot = _require_exact_snapshot(

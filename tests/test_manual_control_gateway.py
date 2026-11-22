@@ -9,6 +9,7 @@ from app.manual_control_gateway import (
     ManualControlConflictError,
     ManualControlGateway,
     ManualControlInvariantError,
+    ManualControlRestartRequiredError,
     ManualControlSessionConflictError,
     ManualControlStateConflictError,
     ManualControlUnavailableError,
@@ -294,12 +295,19 @@ class TestManualControlGateway(unittest.TestCase):
         with self.assertRaises(ManualControlUnavailableError):
             gateway.request_start(7, 0, "power", None, 5, 30)
         self.assertFalse(controller.requested_on)
+        self.assertFalse(any(call[0] == "start" for call in controller.calls))
 
         config.timer_start_allowed = True
         runtime.restart = True
-        with self.assertRaises(ManualControlUnavailableError):
+        with self.assertRaises(ManualControlRestartRequiredError):
             gateway.request_start(7, 0, "power", None, 5, 30)
         self.assertFalse(controller.requested_on)
+        self.assertFalse(any(call[0] == "start" for call in controller.calls))
+
+        with self.assertRaises(ManualControlRestartRequiredError):
+            gateway.request_quick_start(7, 0)
+        self.assertFalse(controller.requested_on)
+        self.assertFalse(any(call[0] == "start" for call in controller.calls))
 
     def test_controller_unavailable_and_nonboolean_fail_closed(self):
         gateway, controller, _, _, _, _ = build_gateway()

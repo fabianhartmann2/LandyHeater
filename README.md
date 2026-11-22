@@ -188,6 +188,45 @@ Heimnetz als `Landy Heater._http._tcp` gefunden und zu `heater.local:80` mit
 automatische Portalöffnung bei einem frischen Handy-Beitritt. Vorabstand,
 Deployment und Zielnachweise sind in
 `captures/2026-11-21-dfr0975u-network-services-preflash.md` festgehalten.
+Der nachfolgende Startfehler-Stand verbessert die bisher missverständliche
+Rückmeldung bei abgewiesenen Startversuchen: Eine ausstehende
+Laufzeitaktivierung liefert HTTP `409` mit `runtime_restart_required`; die
+Weboberfläche zeigt startbezogen lokalisierte Meldungen für Neustart, nicht
+erreichbare oder nicht bereite Heizung, nicht verfügbaren Sensor und sonstige
+Zustandskonflikte. Home zeigt bei einem Kommunikationsfehler „nicht erreichbar“
+statt „aus“. Abgewiesene Starts erzeugen weder Requested ON noch UART-Ausgabe.
+Die 2.183.648-Byte-Anwendung mit SHA-256
+`e73a28ed5e08db193446c6936f9808e39f194e99e7f7d9394d500d5975220fc6`
+wurde exakt freigegeben, ohne Full Erase app-only geschrieben und vollständig
+bytegleich zurückgelesen. Normalstart, Requested OFF, Station-Webserver,
+Web-Bundle und Bonjour-Auflösung bestanden; gespeicherte und laufende
+Generation waren beide 9 und `restart_required` war false.
+
+Dabei zeigte der reale Heimnetzgebrauch eine weitere, getrennte Grenze: Der
+Stationslistener konnte keinen AP-only Mutation-Context ausgeben, weshalb
+Quick Start dort bereits vor dem Steueraufruf mit `Mutation API unavailable`
+scheiterte. Die danach exakt freigegebene und installierte Fassung
+trennt deshalb dauerhafte Konfiguration von laufender Heizungsbedienung. Quick
+Start, konfigurierter Start, Stop und Anpassungen der laufenden Sitzung sind
+über Geräte-AP und vertrauenswürdiges Heimnetz erlaubt. Einstellungen, Setup,
+Timer, Browser-Zeitabgleich und Diagnose-Captures bleiben AP-only. Hostprüfung,
+exakte Same-Origin-Prüfung, bootflüchtiges CSRF-Token, Revision/ETag und Rate
+Limits bleiben erhalten. Das Heimnetz muss vertrauenswürdig sein, weil CSRF
+vor fremden Webursprüngen, aber nicht vor einem bösartigen LAN-Client schützt.
+Der stille automatische Browser-Zeitabgleich bleibt AP-only, blendet die im
+Heimnetz erwartete Ablehnung aber ohne technischen Toast aus. Ein manuell
+ausgelöster Zeitabgleich bleibt im Heimnetz weiterhin gesperrt.
+Zwei saubere Builds waren 15/15 bytegleich. Die 2.185.376-Byte-Anwendung hat
+SHA-256 `a4d5a2f114c15db24ce215a88d5549e57a67e0ac8c332fb6da4e465613695af4`;
+ihr Web-Bundle hat
+`14e033cf0a1a19f2c3adf16c9e05d1138482ac4789e5ec4b5cf6cce9f9dd819f`.
+Esptool schrieb sie ohne Full Erase nur an `0x10000`; die vollständige
+Rücklesung war bytegleich. Nach manuellem RST blieb Requested OFF, der
+Steuerpfad fehlerfrei und die Station unter `192.168.36.114` online.
+`/api/v1/control-context` bestand im Heimnetz mit HTTP 200, während der
+persistente `/api/v1/security-context` dort weiterhin mit HTTP 503 gesperrt
+blieb. Kein Heizungsstart und keine andere Mutation wurden ausgelöst.
+
 **Phase 10.1 – Portal- und Heimnetz-Erreichbarkeit hat zwei reale Zielbefunde
 geliefert und liegt als portal-korrigierter Kandidat vor:** Der erste
 Wildcard-HTTP-Ansatz scheiterte an einer im ESP32-MicroPython-Port fehlenden
@@ -271,12 +310,12 @@ aufgezeichnet und als verbindliche Regressionstests übernommen.
 | 5 | DS3231 + Scheduler / Multiple Timers / Runtime | Softwareumfang abgeschlossen; reales I2C-/DS3231M-Lese-/Schreibgate bestanden, aber Batteriepuffer mit der alten Zelle durch erneut gesetztes OSF widerlegt. Bis zur Ersatz-RTC ist ein ausdrücklich flüchtiger Handy-Zeitabgleich implementiert und auf dem DFR0975-U über die echte AP/Web-UI-Kette bestanden: Timer bleiben nach jedem Neustart bis zu einem neuen Abgleich gesperrt; die vertrauenswürdige Offline-RTC bleibt offen |
 | 6 | Configuration Storage | Softwareumfang abgeschlossen: versionierte Konfiguration, getrenntes Scheduler-Sicherheitsledger, A/B-Flashspeicher, explizite Recovery und USB-only-Zieltest; der Produkt-Autostart lädt und prüft beide Stores vor jeder Laufzeitaktivierung und hat das unprovisionierte Fail-closed-Gate bestanden |
 | 7 | Wi-Fi AP + Client + mDNS | Softwareumfang abgeschlossen: Schema v2, WPA2-AP, mehrere STA-Profile, begrenzte Reconnect-/Backoff-Logik, Direct-IP-Fallback, mDNS-Status, verriegelte MicroPython-Hülle sowie reale ESP32-Kapazitäts-, Funk- und Handy-DHCP-Tests; der Produkt-Autostart integriert den geschützten Recovery-AP und dessen Zielabnahme ist bestanden; Heimnetz/mDNS bleibt im integrierten Autostart noch offen |
-| **8** | **REST API** | **Zielabnahme bestanden: versionierte `/api/v1`, AP-only-Mutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt** |
+| **8** | **REST API** | **Zielabnahme der ursprünglichen Grenze bestanden: versionierte `/api/v1`, AP-only-Konfigurationsmutationen, generationsgebundene Konfiguration, begrenztes JSON/HTTP, Rate Limits und kooperativer Socketadapter; auf dem DFR0975-U genau ein Produktlistener auf Port 80, ein realer vollständiger HTTP-200-Status, alle zehn >=32-KiB-GC-Heap-Gates, unveränderte Produktspeicherung und vollständiger Cleanup bestätigt. Die installierte Fassung ergänzt einen getrennten CSRF-geschützten AP-/Stationspfad ausschließlich für Start, Quick Start, Stop und Sitzungsanpassungen; persistente Mutationen bleiben AP-only. Der lesende Zieltest bestätigte den Stations-Control-Context mit HTTP 200 und den weiterhin gesperrten persistenten Context mit HTTP 503.** |
 | **9** | **Web UI** | **Abgeschlossen: eingebettete responsive Offline-UI, Deutsch/Englisch, Home/Timer/Einstellungen, ein gemeinsamer Port-80-Listener und sicher begrenztes Session-PATCH; reproduzierbarer DFR0975-U-A/B-Build, statische Artefaktprüfung, autorisierter App-Flash, vollständige Rückleseprüfung sowie realer 9-UI-/4-API-Handygate mit Heap- und Cleanup-Nachweis bestanden; die integrierte Autostart-Auslieferung des Setup-Assistenten über Captive Portal ist ebenfalls zielseitig bestätigt** |
 | **10** | **Setup Assistant** | **Funktional zielseitig abgenommen, formaler Every-route-Wire-Gate offen: 9-Schritt-UI, atomarer write-only WLAN-/Konfigurationsabschluss, explizite Passwort-/Open-Auswahl und schrittweise Browservalidierung implementiert; reale Station-DHCP- und AP-Passwort-Neuanmeldung sowie dauerhafte Timer-Erstellung, -Bearbeitung und -Löschung bestanden. Die Phase-13-Ergänzung zeigt ROM-ID, Temperatur, Health und Messwertalter live vor der Rollenzuweisung und erlaubt ein ausdrückliches, zuordnungserhaltendes Überspringen. Die installierte Fassung bestand Flash, vollständige Rücklesung, verbundenen UI-Start, Tabs, Setup-Öffnung und den Skip-Pfad ohne angeschlossene Sensoren. Der gzip-/Bundle-Cache-Latenzstand erlaubt nur zweiwegige Startüberlappung innerhalb des Zwei-Client-Limits und bestand sein Zielgate mit 4,228 Sekunden Median kalt sowie 0,866 Sekunden Median beim Wiederaufruf. Die reale Drei-Sensor-Livezuweisung bleibt offen.** |
 | **11** | **Events / Diagnostics / Capture Export** | **Software- und Zielabnahme bestanden: 200er Ereignisring, begrenztes Live-Protokoll, benannte RAM-Captures, kleine Cursor-/Exportseiten, JSON/NDJSON-Export und lazy geladene zweisekündige Diagnose-UI; reproduzierbarer A/B-Build, Offline-Artefaktgate, autorisierter App-only-Flash, vollständige Rücklesung sowie realer Handyablauf mit Capture/Export und vollständigem Cleanup bestätigt. Hardwarezugriffe bleiben entkoppelt; elektrische Abnahme folgt in Phase 13.** |
 | 12 | Hardening / Watchdog / Recovery / Failure Tests | Viele Failure-/OOM-/Wrap-Tests vorgezogen; Watchdog und Gesamtphase nicht abgeschlossen |
-| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; Produkt-Autostart wurde exakt geflasht, vollständig rückgelesen und mit geschütztem AP, automatischem Captive Portal und Setup-Assistent zielseitig abgenommen. Ein realer Power-1-End-to-End-Lauf sowie je ein mindestens siebenminütiger Dachzelt- und Kabinen-Temperaturlauf mit Livewerten, `TEMP_MONITORING`, UI-Stopp und bestätigtem OFF sind bestanden. Der Cancel-Fix ist Bestandteil der am 2026-11-21 bytegleich verifizierten Board-Firmware; sein ausdrücklicher nicht heizender Zieltest bleibt offen. Der ETag-/Lazy-Load-/512-Byte-Latenzstand wurde exakt freigegeben, app-only geschrieben, vollständig bytegleich rückgelesen und bestand automatisierte HTTP-/304-/GC-Heap-/OFF-Gates sowie den realen Handytest. Der zweite gzip-/Bundle-Cache-/1.024-Byte-Stand wurde ebenfalls exakt freigegeben, app-only geschrieben und vollständig bytegleich rückgelesen; Gzip, Versionscache, Altversionsschutz, Requested OFF, Browser-Render und GC-Heap bestanden auf dem Ziel, mit 4,228 Sekunden Median kalt und 0,866 Sekunden Median beim Wiederaufruf trotz schwachem WLAN. Der Netzwerkdienst-Stand mit getrennten Settings-Schaltern für Captive Portal und Bonjour-HTTP-Ankündigung wurde exakt freigegeben, app-only ohne Erase geschrieben und vollständig bytegleich rückgelesen. Normalstart, Schema-v3-Migration ohne Generationsänderung, Requested OFF, fehlerfreier Steuerpfad, Station-Webserver sowie Bonjour-Browse und -Auflösung bestanden auf dem Ziel; offen ist nur noch die beobachtete automatische Portalöffnung bei einem frischen Handy-Beitritt. Offen bleiben außerdem ein längerer interner/DMA-Heap- und Heater-Fairness-Soak, die formale Drei-Sensor-Livezuweisung im Setup, der Sensorfehler-Shutdown, höhere Leistungsstufen/Endurance, automatischer Heater-Start und der Ersatz-RTC-Test. |
+| 13 | Hardware Integration & Testing | Board-/Flash-/Safe-Boot-Vorarbeiten abgeschlossen; DS18B20- und Web-UI-Sensorgates bestanden; Heater-UART RX, direkte INIT-/STATUS-Diagnose, konfigurierte OFF-Synchronisierung sowie ein realer siebenminütiger Power-1-Aktivzyklus mit kontrolliertem SHUTDOWN bestanden; der dauerhaft verbundene Pegelwandler ist mit dokumentiertem Restrisiko akzeptiert; Produkt-Autostart wurde exakt geflasht, vollständig rückgelesen und mit geschütztem AP, automatischem Captive Portal und Setup-Assistent zielseitig abgenommen. Ein realer Power-1-End-to-End-Lauf sowie je ein mindestens siebenminütiger Dachzelt- und Kabinen-Temperaturlauf mit Livewerten, `TEMP_MONITORING`, UI-Stopp und bestätigtem OFF sind bestanden. Der Cancel-Fix ist Bestandteil der am 2026-11-21 bytegleich verifizierten Board-Firmware; sein ausdrücklicher nicht heizender Zieltest bleibt offen. Der ETag-/Lazy-Load-/512-Byte-Latenzstand wurde exakt freigegeben, app-only geschrieben, vollständig bytegleich rückgelesen und bestand automatisierte HTTP-/304-/GC-Heap-/OFF-Gates sowie den realen Handytest. Der zweite gzip-/Bundle-Cache-/1.024-Byte-Stand wurde ebenfalls exakt freigegeben, app-only geschrieben und vollständig bytegleich rückgelesen; Gzip, Versionscache, Altversionsschutz, Requested OFF, Browser-Render und GC-Heap bestanden auf dem Ziel, mit 4,228 Sekunden Median kalt und 0,866 Sekunden Median beim Wiederaufruf trotz schwachem WLAN. Der Netzwerkdienst-Stand mit getrennten Settings-Schaltern für Captive Portal und Bonjour-HTTP-Ankündigung wurde exakt freigegeben, app-only ohne Erase geschrieben und vollständig bytegleich rückgelesen. Normalstart, Schema-v3-Migration ohne Generationsänderung, Requested OFF, fehlerfreier Steuerpfad, Station-Webserver sowie Bonjour-Browse und -Auflösung bestanden auf dem Ziel. Der danach installierte Startfehler-Stand `e73a28ed...` wurde ebenfalls exakt freigegeben, app-only geschrieben und vollständig bytegleich rückgelesen; Normalstart, Requested OFF, Station-HTTP, Web-Bundle und Bonjour-Auflösung bestanden. Der 15/15 reproduzierbare Stationssteuerungs-Stand `a4d5a2f1...` wurde exakt freigegeben, app-only ohne Full Erase geschrieben und vollständig bytegleich rückgelesen. Nach manuellem RST blieben Requested OFF und Steuerpfad sicher; Station-HTTP, finales Web-Bundle, der neue Stations-Control-Context und der weiterhin AP-only persistente Mutation-Context bestanden ihre lesenden Zielgates. Kein Heizungsstart wurde ausgelöst. Offen bleiben ein realer Quick-Start-Handytest, ein längerer interner/DMA-Heap- und Heater-Fairness-Soak, die formale Drei-Sensor-Livezuweisung im Setup, der Sensorfehler-Shutdown, höhere Leistungsstufen/Endurance, automatischer Heater-Start und der Ersatz-RTC-Test. |
 
 Vorgezogene Arbeiten aus Phase 11 oder 12 ändern die funktionale
 Phasenzuordnung nicht. Eine Phase gilt außerdem nicht allein wegen vorhandener
@@ -1200,7 +1239,8 @@ Bestätigt beziehungsweise vorgesehen sind:
   getrennte Produkt-Autostart-Kandidat öffnet die beiden UART-Freigaben und
   aktiviert WLAN erst nach erfolgreichem Laden der vertrauenswürdigen
   Produktionseinstellungen; 1-Wire und die Direct-TX-Topologieentscheidung
-  bleiben erfasst. Der Kandidat ist noch ungeflasht
+  bleiben erfasst. Diese Produkt-Autostart-Fassung ist inzwischen installiert
+  und über die nachfolgenden app-only Deployments fortgeschrieben
 - geeigneter 5-V-↔-3,3-V-Pegelwandler für die Autoterm-UART
 - drei bestätigte DS18B20-Sensoren mit dauerhaft gespeicherter Zuordnung
 - DS3231M-RTC mit bestandenem Buszugriff, aber ausgefallenem Batteriepuffer

@@ -16,6 +16,7 @@ from app.manual_control_gateway import (
     ManualControlConfigurationConflictError,
     ManualControlConflictError,
     ManualControlInvariantError,
+    ManualControlRestartRequiredError,
     ManualControlSessionConflictError,
     ManualControlStateConflictError,
     ManualControlUnavailableError,
@@ -712,6 +713,13 @@ class TestRestReadRoutes(unittest.TestCase):
         self.assertNotIn(TOKEN, repr(diagnostics.body))
         self.assertNotIn("csrf_token", repr(diagnostics.body))
 
+        control = self.fixture.app.handle(
+            make_request(target="/api/v1/control-context")
+        )
+        self.assertEqual(control.status, 200)
+        self.assertEqual(control.body["csrf_token"], TOKEN)
+        self.assertTrue(control.body["control_api_available"])
+
     def test_phase11_event_and_protocol_pages_are_bounded_reads(self):
         details = {
             "field_{:02d}_xxxxxxxx".format(index): "v" * 96
@@ -833,7 +841,7 @@ class TestRestReadRoutes(unittest.TestCase):
         ))
         self.assertEqual(response.status, 405)
 
-    def test_station_listener_is_read_only_and_has_no_token_endpoint(self):
+    def test_station_listener_allows_only_operational_heater_control(self):
         fixture = Fixture("sta")
         status = fixture.app.handle(make_request())
         self.assertEqual(status.status, 200)
@@ -842,15 +850,90 @@ class TestRestReadRoutes(unittest.TestCase):
         )
         self.assertEqual(context.status, 503)
         self.assertEqual(error_code(context), "mutation_security_unavailable")
+        control = fixture.app.handle(
+            make_request(target="/api/v1/control-context")
+        )
+        self.assertEqual(control.status, 200)
+        self.assertEqual(control.body["csrf_token"], TOKEN)
+        self.assertTrue(control.body["control_api_available"])
+
         start = fixture.app.handle(json_request(
-            "POST",
-            "/api/v1/heater/start",
+            "POST", "/api/v1/heater/start",
             b'{"expected_request_revision":3,"mode":"power",'
             b'"target_temperature":null,"power_level":5,"runtime_minutes":30}',
             fixture.mutation_headers(7),
         ))
-        self.assertEqual(start.status, 503)
-        self.assertEqual(fixture.manual.calls, [])
+        self.assertEqual(start.status, 202)
+        self.assertEqual(fixture.manual.calls[-1][0], "start")
+
+        rejected = fixture.app.handle(json_request(
+            "PATCH", "/api/v1/settings", b'{}',
+            fixture.mutation_headers(7),
+        ))
+        self.assertEqual(rejected.status, 503)
+        self.assertEqual(
+            error_code(rejected), "mutation_security_unavailable"
+        )
+
+    def test_all_manual_heater_controls_are_available_on_station_ingress(self):
+        cases = (
+            (
+                "POST", "/api/v1/heater/start",
+                b'{"expected_request_revision":3,"mode":"power",'
+                b'"target_temperature":null,"power_level":5,'
+                b'"runtime_minutes":30}', True, "start",
+            ),
+            (
+                "POST", "/api/v1/heater/quick-start",
+                b'{"expected_request_revision":3}', True, "quick_start",
+            ),
+            ("POST", "/api/v1/heater/stop", None, False, "stop"),
+            (
+                "PATCH", "/api/v1/heater/session",
+                b'{"expected_request_revision":3,'
+                b'"target_temperature":21,"extend_minutes":0}',
+                True, "session_update",
+            ),
+        )
+        for method, path, body, needs_generation, operation in cases:
+            with self.subTest(path=path):
+                fixture = Fixture("sta")
+                headers = fixture.mutation_headers(
+                    7 if needs_generation else None
+                )
+                if body is None:
+                    response = fixture.app.handle(
+                        make_request(method, path, headers)
+                    )
+                else:
+                    response = fixture.app.handle(
+                        json_request(method, path, body, headers)
+                    )
+                self.assertIn(response.status, (200, 202))
+                self.assertEqual(fixture.manual.calls[-1][0], operation)
+
+    def test_station_persistent_and_diagnostic_mutations_remain_blocked(self):
+        cases = (
+            ("PATCH", "/api/v1/settings"),
+            ("PUT", "/api/v1/setup"),
+            ("POST", "/api/v1/timers"),
+            ("PUT", "/api/v1/time/browser-sync"),
+            ("POST", "/api/v1/capture"),
+        )
+        for method, path in cases:
+            with self.subTest(path=path):
+                fixture = Fixture("sta")
+                response = fixture.app.handle(json_request(
+                    method,
+                    path,
+                    b"{}",
+                    fixture.mutation_headers(7),
+                ))
+                self.assertEqual(response.status, 503)
+                self.assertEqual(
+                    error_code(response), "mutation_security_unavailable"
+                )
+                self.assertEqual(fixture.manual.calls, [])
 
     def test_host_origin_and_accept_are_enforced_on_reads(self):
         hostile = self.fixture.app.handle(make_request(
@@ -1254,6 +1337,7 @@ class TestRestManualMutations(unittest.TestCase):
         cases = (
             (ManualControlStateConflictError("private"), 409, "heater_start_conflict"),
             (ManualControlConflictError("private"), 409, "control_precondition_failed"),
+            (ManualControlRestartRequiredError("private"), 409, "runtime_restart_required"),
             (ManualControlUnavailableError("private"), 503, "application_unavailable"),
             (ManualControlInvariantError("private"), 503, "application_invariant_failed"),
         )
@@ -1269,6 +1353,33 @@ class TestRestManualMutations(unittest.TestCase):
                 ))
                 self.assertEqual(response.status, status)
                 self.assertEqual(error_code(response), code)
+                self.assertNotIn("private", repr(response.body))
+
+    def test_restart_required_has_specific_safe_code_for_both_start_routes(self):
+        for operation, target, body in (
+            ("start", "/api/v1/heater/start", self.start_body),
+            (
+                "quick_start",
+                "/api/v1/heater/quick-start",
+                b'{"expected_request_revision":3}',
+            ),
+        ):
+            with self.subTest(operation=operation):
+                fixture = Fixture()
+                fixture.manual.failures[operation] = (
+                    ManualControlRestartRequiredError("private")
+                )
+                response = fixture.app.handle(json_request(
+                    "POST",
+                    target,
+                    body,
+                    fixture.mutation_headers(7),
+                ))
+                self.assertEqual(response.status, 409)
+                self.assertEqual(
+                    error_code(response), "runtime_restart_required"
+                )
+                self.assertFalse(fixture.controller.requested_on)
                 self.assertNotIn("private", repr(response.body))
 
     def test_configuration_race_during_start_is_a_412_not_requested_state_409(self):

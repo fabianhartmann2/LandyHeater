@@ -2,9 +2,10 @@
 
 This service performs no random or network operation at import or
 construction time.  The owner explicitly calls :meth:`start` with an injected
-hardware random provider before accepting HTTP traffic.  Mutation authority
-is available only on a listener that was physically bound to the AP ingress;
-an optional station listener remains read-only regardless of headers.
+hardware random provider before accepting HTTP traffic.  Persistent mutation
+authority is available only on a listener physically bound to the AP ingress.
+Operational heater control is also available on the station listener, while
+retaining the same Host, same-origin and boot-ephemeral CSRF checks.
 """
 
 
@@ -279,6 +280,24 @@ class RestSecurityPolicy:
             "mutation_api_available": True,
         }
 
+    def control_context(self, headers, ingress=None, local_ip=None):
+        ingress = self._effective_ingress(ingress)
+        self.validate_read(headers, ingress, local_ip)
+        if not (
+            self.__started
+            and not self.__faulted
+            and self.__token is not None
+        ):
+            raise RestSecurityUnavailable("control API is unavailable")
+        characters = bytearray(TOKEN_HEX_LENGTH)
+        for index, byte in enumerate(self.__token):
+            characters[index * 2] = ord(_HEX[byte >> 4])
+            characters[index * 2 + 1] = ord(_HEX[byte & 0x0F])
+        return {
+            "csrf_token": bytes(characters).decode("ascii"),
+            "control_api_available": True,
+        }
+
     def authorize_mutation(self, headers, ingress=None, local_ip=None):
         ingress = self._effective_ingress(ingress)
         host = self._validated_host(headers, local_ip)
@@ -290,6 +309,22 @@ class RestSecurityPolicy:
             and ingress == INGRESS_ACCESS_POINT
         ):
             raise RestSecurityUnavailable("mutation API is unavailable")
+        if not self._token_matches(headers.get(CSRF_HEADER)):
+            raise RestSecurityDenied("CSRF token is invalid")
+        return True
+
+    def authorize_control_mutation(
+        self, headers, ingress=None, local_ip=None
+    ):
+        ingress = self._effective_ingress(ingress)
+        host = self._validated_host(headers, local_ip)
+        self._origin_matches(headers, host, True)
+        if not (
+            self.__started
+            and not self.__faulted
+            and self.__token is not None
+        ):
+            raise RestSecurityUnavailable("control API is unavailable")
         if not self._token_matches(headers.get(CSRF_HEADER)):
             raise RestSecurityDenied("CSRF token is invalid")
         return True
