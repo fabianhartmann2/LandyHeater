@@ -1230,3 +1230,17 @@ The bounded state and migration boundary are recorded in
 `captures/2026-08-30-phase8-single-listener-project-state.md` and
 `DFR0975U_MIGRATION.md`; the successful target evidence is in
 `captures/2026-09-01-dfr0975u-phase8-full-rest-gate.md`.
+
+## 35. Planned BLE and iOS control
+
+The proposed, not-yet-implemented BLE/iOS extension is specified in
+[`BLE_IOS_ARCHITECTURE.md`](BLE_IOS_ARCHITECTURE.md). It preserves the single
+manual-control authority by injecting the same `ManualControlGateway` into REST
+and BLE, supports multiple independently revocable app keys, and keeps phone
+administration plus dynamic pairing QR codes in the AP Web UI.
+
+BLE bonding is not a heater authorization boundary. A registered application
+key, fresh challenge, canonical signed command and existing Requested-State
+fences are required before any BLE start can reach the manual gateway. Pairing
+and recovery are explicitly confirmed through the protected AP-only Web UI;
+they require no hardware button or additional GPIO.

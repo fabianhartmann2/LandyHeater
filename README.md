@@ -3,6 +3,11 @@
 Migration der vorhandenen Autoterm/Planar-Steuerung von Raspberry Pi und
 Node-RED auf einen ESP32 mit MicroPython.
 
+Die geplante, noch nicht implementierte Mehrgeräte-Steuerung über Bluetooth
+Low Energy und eine native iOS-App ist in
+[`BLE_IOS_ARCHITECTURE.md`](BLE_IOS_ARCHITECTURE.md) beschrieben. Telefon- und
+QR-Code-Verwaltung bleiben dabei vollständig in der lokalen Web-App.
+
 ## Aktueller Stand
 
 Dieses Paket folgt weiterhin dem ursprünglich festgelegten Phasenplan 0–13.
@@ -1066,6 +1071,7 @@ bestätigt.
 landy-heater/
 ├── REQUIREMENTS.md
 ├── ARCHITECTURE.md
+├── BLE_IOS_ARCHITECTURE.md
 ├── PROTOCOL.md
 ├── README.md
 ├── FIREBEETLE_BRINGUP.md
