@@ -86,7 +86,9 @@ class ProductRuntime:
         for owner, methods in (
             (config_manager, ("status",)),
             (configured_runtime, ("restart_required",)),
-            (sensor_runtime, ("start", "step", "deinit", "snapshot")),
+            (sensor_runtime, (
+                "start", "step", "step_active_configuration", "deinit", "snapshot",
+            )),
             (heater_runtime, ("start", "step", "deinit", "snapshot")),
             (network_runtime, ("restart_required",)),
         ):
@@ -403,6 +405,9 @@ class ProductRuntime:
         if restart_required:
             self._restart_required = True
             self._configured.scheduler.disarm()
+            # Sampling can keep using its already active configuration. Do
+            # not let the restart gate turn otherwise healthy sensors stale.
+            self._sensor.step_active_configuration()
         else:
             self._sensor.step()
 

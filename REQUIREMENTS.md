@@ -430,7 +430,11 @@ The UI should provide a simple time extension such as `+15 min`.
 
 Changing the complete operating mode while running is not required in version 1.
 
-Power-level changes during an active Power session shall only be implemented if the protocol behavior is confirmed safe.
+The Power-mode control may request a level of 1–9 in a confirmed running
+session. It must keep the same mode, session and deadline, give Stop and
+expiry priority, and show the new configured level only after a valid heater
+readback. The protocol candidate is based on published Planar 2D observations;
+release to the installed heater requires separate supervised target acceptance.
 
 ## 24. Stop behavior
 
@@ -761,6 +765,11 @@ change and/or an exact `+15 min` extension. It is subject to the Phase-8
 mutation boundary, the current configuration generation and the exact
 Requested-State revision. It may act only on a confirmed, non-expired session,
 must respect the configured maximum runtime and must not perform protocol I/O.
+
+The later Power-mode extension adds a standalone `power_level` field to the
+same endpoint, with the same fences. The HTTP handler only stages the request
+(`202`); the heater controller owns the bounded serial exchange and reports
+its result in `heater.power_update`.
 
 ## 28. Web interface
 

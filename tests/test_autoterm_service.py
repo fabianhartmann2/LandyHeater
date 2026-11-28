@@ -9,6 +9,7 @@ import protocol.autoterm_service as autoterm_service_module
 from app.heater_controller import PHASE_ERROR, HeaterController
 from protocol.autoterm_protocol import (
     CMD_SETTINGS,
+    CMD_STATUS,
     CONTROL_MODE_CABIN_TEMPERATURE,
     CONTROL_MODE_POWER,
     CONTROL_MODE_ROOF_TENT_TEMPERATURE,
@@ -34,6 +35,7 @@ REAL_OFF_STATUS = bytes.fromhex(
     "AA 04 13 00 0F 00 01 00 1E 7F 00 80 01 2F "
     "00 00 00 00 00 00 00 00 00 60 6D A0"
 )
+POWER_SETTINGS_PAYLOAD = bytes.fromhex("FF FF 04 10 01 09")
 
 
 class RecordingTransport:
@@ -205,6 +207,10 @@ class TestAutotermProtocolServiceBoundaries(unittest.TestCase):
         self.assertFalse(service.closed)
         with self.assertRaises(AutotermProtocolTxDisabledError):
             service.request_initialization()
+        with self.assertRaises(AutotermProtocolTxDisabledError):
+            service.request_settings()
+        with self.assertRaises(AutotermProtocolTxDisabledError):
+            service.request_set_power_settings(POWER_SETTINGS_PAYLOAD, 4)
         self.assertEqual(transport.sent, [])
 
     def test_module_has_no_hardware_or_transport_factory_dependency(self):
@@ -377,6 +383,27 @@ class TestAutotermProtocolServiceOutbound(unittest.TestCase):
                 self.assertEqual(len(self.transport.sent), before + 1)
                 self.assertEqual(self.transport.sent[-1], expected)
 
+    def test_settings_read_then_power_change_send_only_settings_commands(self):
+        self.assertIs(self.service.request_settings(), True)
+        self.assertIs(
+            self.service.request_set_power_settings(POWER_SETTINGS_PAYLOAD, 4),
+            True,
+        )
+        self.assertEqual(
+            self.transport.sent,
+            [
+                bytes.fromhex("AA 03 00 00 02 9D BD"),
+                bytes.fromhex("AA 03 06 00 02 FF FF 04 10 01 04 EC DD"),
+            ],
+        )
+
+    def test_invalid_settings_fail_without_transmitting(self):
+        with self.assertRaises(ValueError):
+            self.service.request_set_power_settings(b"", 4)
+        with self.assertRaises(ValueError):
+            self.service.request_set_power_settings(POWER_SETTINGS_PAYLOAD, 0)
+        self.assertEqual(self.transport.sent, [])
+
     def test_start_boundaries_for_all_application_modes(self):
         cases = (
             (CONTROL_MODE_POWER, None, 1),
@@ -431,6 +458,32 @@ class TestAutotermProtocolServiceInbound(unittest.TestCase):
         self.assertEqual(frames, [parse_frame(REAL_INIT), parse_frame(REAL_OFF_STATUS)])
         self.assertEqual(self.transport.poll_calls, [123])
         self.assertEqual(self.transport.sent, [])
+
+    def test_settings_control_metadata_requires_exact_heater_response_shape(self):
+        valid = bytes.fromhex("AA 04 06 00 02 FF FF 04 10 01 09 F3 AD")
+        forged_crc = valid[:-1] + b"\x00"
+        malformed = (
+            forged_crc,
+            build_frame(CMD_SETTINGS, POWER_SETTINGS_PAYLOAD),
+            build_frame(
+                CMD_SETTINGS, POWER_SETTINGS_PAYLOAD[:5], device=DEVICE_HEATER
+            ),
+            build_frame(
+                CMD_SETTINGS, POWER_SETTINGS_PAYLOAD,
+                device=DEVICE_HEATER, reserved=1,
+            ),
+        )
+        canonical = self.service.validate_inbound_frame({"raw": valid})
+        self.assertEqual(canonical["settings"], {"mode": 4, "power_level": 9})
+        self.assertEqual(canonical["payload"], POWER_SETTINGS_PAYLOAD)
+        for raw in malformed:
+            with self.subTest(raw=raw):
+                frame = self.service.validate_inbound_frame({
+                    "raw": raw,
+                    "settings": {"mode": 4, "power_level": 9},
+                })
+                self.assertEqual(frame["raw"], raw)
+                self.assertNotIn("settings", frame)
 
     def test_bytes_like_input_is_copied_to_immutable_raw(self):
         for raw in (REAL_INIT, bytearray(REAL_INIT), memoryview(REAL_INIT)):
@@ -565,6 +618,55 @@ class TestAutotermProtocolServiceIntegration(unittest.TestCase):
         )
         self.assertEqual(canonical, parse_frame(REAL_OFF_STATUS))
         self.assertEqual(transport.status()["tx_blocked"], 0)
+
+    def test_live_power_update_sends_exact_read_write_status_read_frames(self):
+        transport = RecordingTransport()
+        service = authorized_service(transport)
+        controller = HeaterController(service)
+
+        def receive(raw, now_ms):
+            transport.poll_batches.append([raw])
+            self.assertTrue(controller.handle_frame(
+                service.poll_inbound(now_ms)[0], now_ms
+            ))
+
+        running = bytearray(REAL_OFF_STATUS[5:-2])
+        running[9] = 4
+        running = build_frame(CMD_STATUS, running, device=DEVICE_HEATER)
+        initial = build_frame(
+            CMD_SETTINGS, POWER_SETTINGS_PAYLOAD, device=DEVICE_HEATER
+        )
+        lowered = build_frame(
+            CMD_SETTINGS, POWER_SETTINGS_PAYLOAD[:5] + b"\x04", device=DEVICE_HEATER
+        )
+        controller.request_start(CONTROL_MODE_POWER, power_level=9)
+        self.assertEqual(controller.step(0), ["initialization"])
+        receive(REAL_INIT, 10)
+        self.assertEqual(controller.step(10), ["status"])
+        receive(REAL_OFF_STATUS, 20)
+        self.assertEqual(controller.step(220), ["start"])
+        self.assertEqual(controller.step(1220), ["status"])
+        receive(running, 1230)
+        transport.sent.clear()
+
+        controller.request_power_update(controller.request_revision, 4, 1231)
+        self.assertEqual(controller.step(1232), ["power_settings_get"])
+        receive(initial, 1240)
+        self.assertEqual(controller.step(1240), ["power_settings_set"])
+        receive(lowered, 1250)
+        self.assertEqual(controller.step(1250), ["status"])
+        receive(running, 1260)
+        self.assertEqual(controller.step(1260), ["power_settings_verify"])
+        receive(lowered, 1270)
+        self.assertEqual(transport.sent, [
+            bytes.fromhex("AA 03 00 00 02 9D BD"),
+            bytes.fromhex("AA 03 06 00 02 FF FF 04 10 01 04 EC DD"),
+            build_status_request(),
+            bytes.fromhex("AA 03 00 00 02 9D BD"),
+        ])
+        self.assertEqual(controller.public_snapshot()["power_update"], {
+            "state": "applied", "power_level": 4, "reason": None,
+        })
 
     def test_rx_fault_is_visible_and_recovers_only_after_explicit_reset(self):
         uart = ScriptedUART((None, None, REAL_INIT))

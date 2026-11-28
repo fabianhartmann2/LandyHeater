@@ -1,18 +1,22 @@
 import unittest
 
 from protocol.autoterm_protocol import (
+    CMD_SETTINGS,
     CONTROL_MODE_CABIN_TEMPERATURE,
     CONTROL_MODE_POWER,
     CONTROL_MODE_ROOF_TENT_TEMPERATURE,
     build_external_temperature,
     build_frame,
     build_init_request,
+    build_set_power_settings,
+    build_settings_request,
     build_shutdown_request,
     build_start_for_mode,
     build_start_power,
     build_start_temperature,
     build_status_request,
     encode_external_temperature,
+    parse_frame,
     protocol_mode_for_control_mode,
 )
 
@@ -22,6 +26,7 @@ class TestAutotermFrames(unittest.TestCase):
         vectors = (
             (build_init_request, (), "AA 03 00 00 04 9F 3D"),
             (build_status_request, (), "AA 03 00 00 0F 58 7C"),
+            (build_settings_request, (), "AA 03 00 00 02 9D BD"),
             (build_shutdown_request, (), "AA 03 00 00 03 5D 7C"),
             (
                 build_external_temperature,
@@ -52,6 +57,47 @@ class TestAutotermFrames(unittest.TestCase):
 
         build_start_power(1)
         build_start_power(9)
+
+    def test_power_settings_preserve_all_other_fields_from_readback(self):
+        payload = bytearray.fromhex("FF FF 04 10 01 09")
+        raw = build_set_power_settings(payload, 4)
+        self.assertEqual(
+            raw, bytes.fromhex("AA 03 06 00 02 FF FF 04 10 01 04 EC DD")
+        )
+        self.assertEqual(bytes(payload), bytes.fromhex("FF FF 04 10 01 09"))
+        # Uninterpreted settings must not be replaced by START defaults.
+        other_payload = bytes.fromhex("01 00 04 14 02 00")
+        frame = parse_frame(build_set_power_settings(other_payload, 9))
+        self.assertEqual(frame["command"], CMD_SETTINGS)
+        self.assertEqual(frame["payload"], bytes.fromhex("01 00 04 14 02 09"))
+
+    def test_power_settings_reject_invalid_payload_and_levels(self):
+        payload = bytes.fromhex("FF FF 04 10 01 09")
+        for level in (0, 10, 3.5, True):
+            with self.subTest(level=level), self.assertRaises(ValueError):
+                build_set_power_settings(payload, level)
+        for baseline in (
+            None, False, 6, [0xFF, 0xFF, 4, 0x10, 1, 9],
+            payload[:5], payload + b"\x00",
+            bytes.fromhex("FF FF 02 10 01 09"),
+            bytes.fromhex("FF FF 04 10 01 0A"),
+        ):
+            with self.subTest(baseline=baseline), self.assertRaises(ValueError):
+                build_set_power_settings(baseline, 4)
+
+    def test_published_planar_settings_exchange_has_valid_crc(self):
+        tx, rx = (
+            parse_frame(bytes.fromhex(frame))
+            for frame in (
+                "AA 03 06 00 02 FF FF 01 10 01 03 E2 9C",
+                "AA 04 06 00 02 FF FF 01 10 01 03 38 2D",
+            )
+        )
+        self.assertTrue(tx["crc_valid"])
+        self.assertTrue(rx["crc_valid"])
+        self.assertNotIn("settings", tx)
+        self.assertEqual(rx["settings"], {"mode": 1, "power_level": 3})
+        self.assertEqual(tx["payload"], rx["payload"])
 
     def test_target_temperature_range(self):
         for value in (4, 31, 20.5, True):

@@ -83,6 +83,23 @@ Verfügbar sind:
 Der Browser sammelt den Export aus begrenzten Seiten. Der Server erzeugt nie
 eine unbeschränkt große Antwort.
 
+### Spätere Erweiterung: Heizungsmetriken und Zeitangaben für Hinweise
+
+Unter der Systemübersicht zeigt die Web-App die Versorgungsspannung, die
+Glühkerzen- und Lüfter-Rohwerte, das Zustandsbyte und das Alter der letzten
+Heizungsantwort. Die Werte stammen aus der vorhandenen STATUS-Abfrage; es
+gibt dafür keine zusätzlichen seriellen Befehle oder Browser-Abfragen. Für
+die Rohwerte ist keine physikalische Einheit bestätigt. Fehlende bzw. alte
+Werte werden entsprechend gekennzeichnet.
+
+`GET /api/v1/status` behält `warnings` als Liste der Hinweis-Codes und
+liefert unter `warning_details` zu jedem aktiven Code den Zeitpunkt der
+ersten Beobachtung (`since_unix`, sofern die Geräteuhr gültig war) und das
+monotone Alter in Sekunden (`age_seconds`). Die Beobachtung läuft auch ohne
+geöffnete Web-App ungefähr einmal pro Sekunde und bleibt nur bis zur
+Auflösung des Hinweises bzw. zum Neustart im RAM. Diese Ergänzung war nicht
+Teil der unten dokumentierten Zielabnahme.
+
 ## Abnahmegrenze
 
 Hostseitig werden Ringüberlauf, Cursorlücken, Kopiertrennung, Redaction,

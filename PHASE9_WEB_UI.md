@@ -35,18 +35,25 @@ schreibgeschützt. Diese Änderungen gehören zum Setup-Assistenten in Phase 10.
 
 ## Neue API-Erweiterung
 
-`PATCH /api/v1/heater/session` erlaubt ausschließlich:
+`PATCH /api/v1/heater/session` erlaubte bei der ursprünglichen Phase-9-Abnahme:
 
 - eine Zieltemperatur von 5–30 °C in einer bestätigten laufenden
   Temperatursession;
 - eine Laufzeitverlängerung um exakt 15 Minuten innerhalb des globalen
   Maximums.
 
-Die Änderung benötigt dieselben Host-, Origin-, CSRF-, Konfigurations- und
-Requested-State-Revisionsgrenzen wie andere Mutationen. Sie ändert nur
-Requested State und die bestätigte Session. Sie sendet keinen UART-Befehl,
-wechselt keinen Modus und erlaubt keine Leistungsänderung während einer
-Power-Session.
+Diese Änderungen benötigen dieselben Host-, Origin-, CSRF-, Konfigurations- und
+Requested-State-Revisionsgrenzen wie andere Mutationen. Sie ändern nur
+Requested State und die bestätigte Session, ohne einen direkten UART-Befehl
+zu senden oder den Modus zu wechseln.
+
+Die nachträglich ergänzte Aktion **Leistung ändern** ist nur in einer
+bestätigten, stabil laufenden Power-Sitzung verfügbar. Der gleiche Endpunkt
+nimmt eine einzelne Leistungsstufe (1–9) an, ohne Temperatur, Modus oder
+Restlaufzeit zu ändern. Die Web-App unterscheidet eine vorgemerkte Änderung
+von einer durch Rücklesen bestätigten Sollstufe; das ist keine Messung der
+tatsächlichen Heizleistung. Diese Ergänzung war nicht Teil der unten
+beschriebenen Hardware-Abnahme.
 
 ## UI-/API-Abnahmegrenze
 

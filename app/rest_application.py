@@ -59,6 +59,7 @@ API_PREFIX = "/api/v1"
 MAX_TIMER_PAGE_SIZE = 8
 MAX_HTTP_TARGET_BYTES = 192
 MAX_WARNINGS = 16
+_WARNING_SAMPLE_INTERVAL_MS = 1000
 MAX_REQUEST_ID = 0x7FFFFFFF
 MAX_SETUP_SENSORS = 16
 
@@ -157,8 +158,13 @@ def _require_integer(name, value, minimum=0, maximum=None):
     return value
 
 
-def _exact_dict(name, value, fields):
-    if type(value) is not dict or frozenset(value) != frozenset(fields):
+def _exact_dict(name, value, fields, optional_fields=()):
+    if type(value) is not dict:
+        raise ValueError("{} has an invalid shape".format(name))
+    keys = frozenset(value)
+    if optional_fields:
+        keys = keys.difference(optional_fields)
+    if keys != frozenset(fields):
         raise ValueError("{} has an invalid shape".format(name))
     return value
 
@@ -526,6 +532,10 @@ class RestApplication:
         "__ticks_ms",
         "__ticks_diff",
         "__mem_free",
+        "__warning_sample_ms",
+        "__warning_poll_ms",
+        "__warning_elapsed_ms",
+        "__active_warnings",
         "__operation_active",
         "__operation_reentered",
         "__faulted",
@@ -657,6 +667,10 @@ class RestApplication:
         self.__ticks_ms = ticks_ms
         self.__ticks_diff = ticks_diff
         self.__mem_free = mem_free
+        self.__warning_sample_ms = None
+        self.__warning_poll_ms = None
+        self.__warning_elapsed_ms = 0
+        self.__active_warnings = {}
         self.__operation_active = False
         self.__operation_reentered = False
         self.__faulted = False
@@ -812,7 +826,7 @@ class RestApplication:
         self._assert_not_reentered()
 
     @staticmethod
-    def _json_object(request, fields):
+    def _json_object(request, fields, optional_fields=()):
         content_type = request.header("content-type")
         if type(content_type) is not str or content_type.lower() not in (
             _JSON_CONTENT_TYPES
@@ -826,11 +840,12 @@ class RestApplication:
             value = decode_json_bytes(request.body)
         except (StrictJSONDecodeError, StrictJSONLimitError):
             raise _RestProblem(400, "invalid_json", "Invalid JSON body") from None
-        if type(value) is not dict or frozenset(value) != frozenset(fields):
+        try:
+            return _exact_dict("request body", value, fields, optional_fields)
+        except ValueError:
             raise _RestProblem(
                 422, "invalid_request_shape", "Request fields are invalid"
-            )
-        return value
+            ) from None
 
     @staticmethod
     def _empty_body(request):
@@ -857,6 +872,7 @@ class RestApplication:
                 "active_sensor",
                 "counters",
             ),
+            ("power_update",),
         )
         requested = _exact_dict(
             "controller requested state",
@@ -921,12 +937,35 @@ class RestApplication:
                 "event_errors",
             ),
         )
+        power_update = value.get("power_update")
+        if power_update is not None:
+            _exact_dict(
+                "controller power update",
+                power_update,
+                ("state", "power_level", "reason"),
+            )
+            state = power_update["state"]
+            reason = power_update["reason"]
+            if state not in ("pending", "applied", "failed"):
+                raise ValueError("controller power update state is invalid")
+            if state == "failed":
+                if (
+                    type(reason) is not str
+                    or not 1 <= len(reason) <= 48
+                    or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789_"
+                           for c in reason)
+                ):
+                    raise ValueError("controller power update reason is invalid")
+            elif reason is not None:
+                raise ValueError("controller power update reason is invalid")
+            _require_integer("power level", power_update["power_level"], 1, 9)
         return {
             "phase": value["phase"],
             "request_revision": value["request_revision"],
             "requested": dict(requested),
             "actual": dict(actual),
             "session": None if session is None else dict(session),
+            "power_update": None if power_update is None else dict(power_update),
             "control_transition_pending": value[
                 "control_transition_pending"
             ],
@@ -1072,6 +1111,93 @@ class RestApplication:
             },
         }
 
+    @staticmethod
+    def _warning_codes(config, restart, controller, temperatures, clock, scheduler):
+        warnings = []
+        if config.get("faulted") is True:
+            warnings.append("configuration_fault")
+        if restart:
+            warnings.append("runtime_restart_required")
+        if controller["control_faulted"]:
+            warnings.append("heater_control_fault")
+        if controller["sensor_stop_latched"]:
+            warnings.append("sensor_stop_latched")
+        if not clock["valid"]:
+            warnings.append("clock_invalid")
+        if scheduler.get("faulted") is True:
+            warnings.append("scheduler_fault")
+        for role in ("roof_tent", "cabin", "outside"):
+            if temperatures[role]["health"] != "ok":
+                warnings.append("sensor_{}_{}".format(
+                    role, temperatures[role]["health"]
+                ))
+        return warnings[:MAX_WARNINGS]
+
+    def _record_warning_observation(self, warnings, clock, now_ms):
+        # Accumulate bounded intervals, rather than subtracting a possibly
+        # old tick from the current one after the device's tick counter wraps.
+        previous = self.__active_warnings
+        elapsed_ms = self.__warning_elapsed_ms
+        if self.__warning_sample_ms is not None:
+            delta = self.__ticks_diff(now_ms, self.__warning_sample_ms)
+            if type(delta) is not int or delta < 0:
+                previous = {}
+                elapsed_ms = 0
+            else:
+                elapsed_ms += delta
+        since_unix = None
+        seconds = clock.get("utc_seconds")
+        if clock.get("valid") is True and type(seconds) is int and seconds >= 0:
+            since_unix = seconds + _SECONDS_1970_TO_2000
+        active = {}
+        for code in warnings:
+            entry = previous.get(code)
+            active[code] = (elapsed_ms, since_unix) if entry is None else entry
+        self.__active_warnings = active
+        self.__warning_elapsed_ms = elapsed_ms
+        self.__warning_sample_ms = now_ms
+        self.__warning_poll_ms = now_ms
+
+    def _warning_details(self):
+        return {
+            code: {
+                "since_unix": entry[1],
+                "age_seconds": (self.__warning_elapsed_ms - entry[0]) // 1000,
+            }
+            for code, entry in self.__active_warnings.items()
+        }
+
+    def step_warning_observation(self):
+        """Sample active notices once per second even without a browser."""
+
+        # Sample the current tick *after* the scheduler/heater have stepped.
+        # Their clock snapshots may use a newer tick than the loop entry.
+        now_ms = self.__ticks_ms()
+        _require_integer("ticks_ms", now_ms)
+        if self.__warning_poll_ms is not None:
+            delta = self.__ticks_diff(now_ms, self.__warning_poll_ms)
+            if type(delta) is int and 0 <= delta < _WARNING_SAMPLE_INTERVAL_MS:
+                return False
+        self.__warning_poll_ms = now_ms
+        try:
+            config = self.__config_manager.public_status()
+            restart = self.__configured_runtime.restart_required(
+                self.__config_manager
+            )
+            controller = self.__controller.public_snapshot()
+            temperatures = self.__temperature_manager.snapshot(now_ms)["sensors"]
+            clock = self.__time_service.snapshot(now_ms)
+            scheduler = self.__scheduler.public_snapshot()
+            warnings = self._warning_codes(
+                config, restart, controller, temperatures, clock, scheduler
+            )
+            self._record_warning_observation(warnings, clock, now_ms)
+        except Exception:
+            # Observation is informational. An unavailable snapshot must not
+            # disable the existing event/protocol diagnostics or invent dates.
+            return False
+        return True
+
     def _status_data(self, now_ms):
         config = self.__config_manager.public_status()
         runtime = self.__configured_runtime.snapshot()
@@ -1119,26 +1245,10 @@ class RestApplication:
             next_occurrence = dict(next_occurrence)
         network = self._network_public()
 
-        warnings = []
-        if config.get("faulted") is True:
-            warnings.append("configuration_fault")
-        if restart:
-            warnings.append("runtime_restart_required")
-        if controller["control_faulted"]:
-            warnings.append("heater_control_fault")
-        if controller["sensor_stop_latched"]:
-            warnings.append("sensor_stop_latched")
-        if not clock["valid"]:
-            warnings.append("clock_invalid")
-        if scheduler.get("faulted") is True:
-            warnings.append("scheduler_fault")
-        for role in ("roof_tent", "cabin", "outside"):
-            if temperatures[role]["health"] != "ok":
-                warnings.append("sensor_{}_{}".format(
-                    role, temperatures[role]["health"]
-                ))
-        if len(warnings) > MAX_WARNINGS:
-            warnings = warnings[:MAX_WARNINGS]
+        warnings = self._warning_codes(
+            config, restart, controller, temperatures, clock, scheduler
+        )
+        self._record_warning_observation(warnings, clock, now_ms)
 
         runtime_generation = runtime.get("configuration_generation")
         stored_setup_complete = config.get("setup_complete")
@@ -1160,6 +1270,7 @@ class RestApplication:
                 "requested": controller["requested"],
                 "actual": controller["actual"],
                 "session": controller["session"],
+                "power_update": controller["power_update"],
                 "remaining_seconds": self._remaining_seconds(
                     controller["session"], now_ms
                 ),
@@ -1184,6 +1295,7 @@ class RestApplication:
             },
             "network": network,
             "warnings": warnings,
+            "warning_details": self._warning_details(),
         }
 
     def _diagnostics_data(self, now_ms):
@@ -1253,10 +1365,15 @@ class RestApplication:
         }
 
     def _diagnostics_live_data(self, now_ms):
-        status = self._status_data(now_ms)
-        actual = status["heater"]["actual"]
-        network = status["network"]["state"]
+        actual = self._controller_public()["actual"]
+        network = self._network_public().get("state", {})
         station = network.get("station", {})
+        last_status = actual.get("last_status_ms")
+        status_age_ms = None
+        if type(last_status) is int:
+            age_ms = self.__ticks_diff(now_ms, last_status)
+            if type(age_ms) is int and age_ms >= 0:
+                status_age_ms = age_ms
         heap = None
         if self.__mem_free is not None:
             heap = self.__mem_free()
@@ -1270,7 +1387,12 @@ class RestApplication:
                     "actual": {
                         "communication": actual.get("communication"),
                         "heater_state": actual.get("heater_state"),
-                        "last_status_ms": actual.get("last_status_ms"),
+                        "heater_state_raw": actual.get("heater_state_raw"),
+                        "last_status_ms": last_status,
+                        "status_age_ms": status_age_ms,
+                        "voltage": actual.get("voltage"),
+                        "glow_plug_raw": actual.get("glow_plug_raw"),
+                        "fan_raw": actual.get("fan_raw"),
                     }
                 },
                 "network": {
@@ -1947,7 +2069,9 @@ class RestApplication:
                 )
             self._authorize_control_mutation(request)
             generation = self._required_generation(request)
-            body = self._json_object(request, _SESSION_UPDATE_FIELDS)
+            body = self._json_object(
+                request, _SESSION_UPDATE_FIELDS, ("power_level",)
+            )
             try:
                 _require_integer(
                     "expected_request_revision",
@@ -1955,11 +2079,16 @@ class RestApplication:
                 )
                 target = body["target_temperature"]
                 extension = body["extend_minutes"]
+                power = body.get("power_level")
                 if target is not None:
                     _require_integer("target_temperature", target, 5, 30)
                 if type(extension) is not int or extension not in (0, 15):
                     raise ValueError("invalid extension")
-                if target is None and extension == 0:
+                if power is not None:
+                    _require_integer("power_level", power, 1, 9)
+                    if target is not None or extension != 0:
+                        raise ValueError("power update must be standalone")
+                elif target is None and extension == 0:
                     raise ValueError("empty session update")
             except ValueError:
                 raise _RestProblem(
@@ -1968,19 +2097,26 @@ class RestApplication:
                     "Request validation failed",
                 ) from None
             self._assert_not_reentered()
-            changed = self.__manual_gateway.request_session_update(
-                generation,
-                body["expected_request_revision"],
-                target_temperature=target,
-                extend_minutes=extension,
-            )
+            if power is None:
+                changed = self.__manual_gateway.request_session_update(
+                    generation,
+                    body["expected_request_revision"],
+                    target_temperature=target,
+                    extend_minutes=extension,
+                )
+            else:
+                changed = self.__manual_gateway.request_session_update(
+                    generation,
+                    body["expected_request_revision"],
+                    power_level=power,
+                )
             if type(changed) is not bool:
                 raise ManualControlInvariantError(
                     "session update result is malformed"
                 )
             self.__mutations += 1
             return self._success(
-                200,
+                202 if power is not None and changed else 200,
                 request_id,
                 {"updated": changed, "heater": self._controller_public()},
                 {"ETag": _config_etag(self._current_generation())},

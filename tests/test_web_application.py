@@ -395,7 +395,8 @@ class TestPhase9WebApplication(unittest.TestCase):
         self.assertIn(b'controlCsrf:null', app)
         self.assertIn(b'"/api/v1/control-context"', app)
         self.assertIn(b'L.controlMutate=async', app)
-        self.assertEqual(home.count(b"L.controlMutate("), 5)
+        self.assertEqual(home.count(b"L.controlMutate("), 6)
+        self.assertIn(b"extend_minutes:0,power_level:value", home)
         self.assertNotIn(b'L.mutate("/api/v1/heater/', home)
         self.assertIn(b'L.mutate("/api/v1/settings"', settings)
         self.assertIn(

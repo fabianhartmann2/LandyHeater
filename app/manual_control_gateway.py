@@ -1,11 +1,12 @@
 """Synchronous user-control boundary for the local REST application.
 
-The gateway changes Requested State only.  It never imports the heater
-protocol, calls ``controller.step()`` or performs hardware I/O.  A start is
-accepted only against one exact persisted configuration generation, one exact
-Requested-State revision and freshly synchronized controller truth.  Stop is
-always routed through :class:`SchedulerControllerGateway` so an active timer
-occurrence is durably marked as a manual override.
+The gateway changes Requested State or stages a controller-owned power
+update.  It never imports the heater protocol, calls ``controller.step()`` or
+performs hardware I/O.  A start is accepted only against one exact persisted
+configuration generation, one exact Requested-State revision and freshly
+synchronized controller truth.  Stop is always routed through
+:class:`SchedulerControllerGateway` so an active timer occurrence is durably
+marked as a manual override.
 """
 
 import time as _time
@@ -598,8 +599,9 @@ class ManualControlGateway:
         expected_requested_revision,
         target_temperature=None,
         extend_minutes=0,
+        power_level=None,
     ):
-        """Apply one fenced active-session update through Requested State."""
+        """Apply a fenced session update, or stage a verified power update."""
 
         self._begin_operation()
         primary_error = None
@@ -620,23 +622,50 @@ class ManualControlGateway:
                 raise ManualControlSessionConflictError(
                     "active Requested State changed"
                 )
+            request_power_update = None
+            if power_level is not None:
+                if (
+                    type(power_level) is not int
+                    or not 1 <= power_level <= 9
+                    or target_temperature is not None
+                    or type(extend_minutes) is not int
+                    or extend_minutes != 0
+                ):
+                    raise ValueError("invalid power session update")
+                request_power_update = getattr(
+                    self.__controller, "request_power_update", None
+                )
+                if not callable(request_power_update):
+                    raise ManualControlUnavailableError(
+                        "active power changes are not available"
+                    )
             now_ms = self._now()
             self._confirm_configuration_authority(
                 expected_configuration_generation
             )
-            changed = self.__controller.update_active_session(
-                expected_requested_revision,
-                target_temperature=target_temperature,
-                extend_minutes=extend_minutes,
-                now_ms=now_ms,
-            )
+            if request_power_update is not None:
+                if self.__operation_reentered:
+                    raise ManualControlInvariantError(
+                        "power update lost its state association"
+                    )
+                changed = request_power_update(
+                    expected_requested_revision, power_level, now_ms=now_ms
+                )
+            else:
+                changed = self.__controller.update_active_session(
+                    expected_requested_revision,
+                    target_temperature=target_temperature,
+                    extend_minutes=extend_minutes,
+                    now_ms=now_ms,
+                )
             if type(changed) is not bool:
                 raise ManualControlInvariantError(
                     "session update returned a non-boolean"
                 )
             expected_revision = (
                 expected_requested_revision + 1
-                if changed else expected_requested_revision
+                if changed and request_power_update is None
+                else expected_requested_revision
             )
             if (
                 self.__controller.request_revision != expected_revision
@@ -645,9 +674,12 @@ class ManualControlGateway:
                 raise ManualControlInvariantError(
                     "session update readback differs"
                 )
-            self._confirm_configuration_authority(
-                expected_configuration_generation
-            )
+            # Power requests only queue work here. The controller/runtime
+            # owns the staged request and cancels it on restart or stop.
+            if request_power_update is None:
+                self._confirm_configuration_authority(
+                    expected_configuration_generation
+                )
             return changed
         except ManualControlError as error:
             primary_error = error

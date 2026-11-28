@@ -1,10 +1,9 @@
 """Hardware-independent Autoterm / Planar protocol primitives.
 
-Only behaviour supported by the reference Node-RED flow is interpreted.
-Unknown bytes and commands are retained in parsed frames rather than being
-guessed.  Incoming CRC validity is reported globally; real INIT and STATUS
-captures confirm their CRC representation, and safety consumers enforce it
-for those known commands without discarding unobserved response types.
+Interpreted fields are documented in PROTOCOL.md.  Unknown bytes and commands
+are retained in parsed frames rather than guessed.  Incoming CRC validity is
+reported globally; state-changing consumers must independently check shape,
+CRC and request context before accepting a response.
 """
 
 import math
@@ -31,6 +30,7 @@ CMD_TEMPERATURE = 0x11
 
 HEATER_MODE_TEMPERATURE = 0x02
 HEATER_MODE_POWER = 0x04
+SETTINGS_PAYLOAD_LENGTH = 6
 
 CONTROL_MODE_POWER = "power"
 CONTROL_MODE_ROOF_TENT_TEMPERATURE = "roof_tent_temperature"
@@ -152,6 +152,31 @@ def build_status_request():
     """Build the controller-to-heater status request."""
 
     return build_frame(CMD_STATUS)
+
+
+def build_settings_request():
+    """Build GET SETTINGS: command 0x02 with an empty payload."""
+
+    return build_frame(CMD_SETTINGS)
+
+
+def build_set_power_settings(settings_payload, power_level):
+    """Build a narrow SET SETTINGS update from a Power-mode read-back."""
+
+    _require_integer("power_level", power_level, 1, 9)
+    if not isinstance(settings_payload, (bytes, bytearray, memoryview)):
+        raise ValueError("settings payload must be bytes-like")
+    if len(settings_payload) != SETTINGS_PAYLOAD_LENGTH:
+        raise ValueError("settings payload must contain exactly six bytes")
+    settings_payload = bytes(settings_payload)
+    if len(settings_payload) != SETTINGS_PAYLOAD_LENGTH:
+        raise ValueError("settings payload must contain exactly six bytes")
+    if settings_payload[2] != HEATER_MODE_POWER:
+        raise ValueError("settings payload must already be in Power mode")
+    _require_integer("reported power level", settings_payload[5], 0, 9)
+    return build_frame(
+        CMD_SETTINGS, settings_payload[:5] + bytes((power_level,))
+    )
 
 
 def build_shutdown_request():
@@ -321,6 +346,17 @@ def parse_frame(raw):
 
     if command == CMD_STATUS and raw[1] == DEVICE_HEATER:
         frame["status"] = parse_status_fields(raw)
+    elif (
+        command == CMD_SETTINGS
+        and raw[1] == DEVICE_HEATER
+        and raw[3] == RESERVED_DEFAULT
+        and payload_length == SETTINGS_PAYLOAD_LENGTH
+        and frame["crc_valid"]
+    ):
+        frame["settings"] = {
+            "mode": frame["payload"][2],
+            "power_level": frame["payload"][5],
+        }
 
     return frame
 

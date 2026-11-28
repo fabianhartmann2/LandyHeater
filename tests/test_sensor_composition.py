@@ -1,10 +1,13 @@
 import unittest
 
+from app.configuration_bootstrap import build_configured_runtime
 from app.sensor_composition import (
     SensorRuntimeError,
     build_configured_sensor_runtime,
 )
 from app.temperature_manager import TemperatureManager
+from services.config_manager import default_configuration
+from tests.test_configuration_bootstrap import provisioned_manager
 
 
 ASSIGNMENTS = {
@@ -269,6 +272,63 @@ class TestConfiguredSensorRuntime(unittest.TestCase):
         self.assertTrue(adapter.closed)
         self.assertTrue(runtime.faulted)
         self.assertFalse(runtime.started)
+
+    def test_pending_settings_keep_all_three_active_bindings_and_thresholds(self):
+        configuration = default_configuration()
+        configuration["sensors"]["assignments"] = dict(ASSIGNMENTS)
+        config = provisioned_manager(configuration)
+        configured = build_configured_runtime(config)
+        manager = configured.temperature_manager
+        factory_calls = []
+        now_ms = 500
+
+        def factory(shared_manager):
+            adapter = RecordingAdapter(shared_manager)
+            factory_calls.append(adapter)
+            return adapter
+
+        runtime = build_configured_sensor_runtime(
+            config, configured, adapter_factory=factory, ticks_ms=lambda: now_ms,
+        )
+        self.assertFalse(runtime.step_active_configuration())
+        self.assertEqual(factory_calls, [])
+        self.assertTrue(runtime.start())
+        self.assertTrue(runtime.step())
+
+        next_configuration = config.snapshot()["configuration"]
+        next_sensors = next_configuration["sensors"]
+        next_sensors["assignments"]["roof_tent"] = ASSIGNMENTS["cabin"]
+        next_sensors["assignments"]["cabin"] = ASSIGNMENTS["roof_tent"]
+        next_sensors["stale_after_ms"] = 20000
+        next_sensors["failed_after_ms"] = 200000
+        self.assertTrue(config.commit(next_configuration, config.generation))
+        self.assertTrue(runtime.restart_required())
+
+        # The earlier sample alone would be failed by now, not merely stale.
+        now_ms += manager.failed_after_ms + 1000
+        before = manager.snapshot(now_ms)["sensors"]
+        self.assertTrue(all(reading["health"] == "failed" for reading in before.values()))
+        self.assertTrue(runtime.step_active_configuration())
+        snapshot = manager.snapshot(now_ms)
+        self.assertEqual(snapshot["assignments"], ASSIGNMENTS)
+        self.assertEqual(snapshot["stale_after_ms"], 30000)
+        self.assertEqual(snapshot["failed_after_ms"], 300000)
+        self.assertEqual(
+            {role: reading["value_c"] for role, reading in snapshot["sensors"].items()},
+            {"roof_tent": 11.25, "cabin": 19.5, "outside": 7.0},
+        )
+        self.assertTrue(all(reading["health"] == "ok" for reading in snapshot["sensors"].values()))
+        self.assertEqual(len(factory_calls), 1)
+        self.assertFalse(factory_calls[0].closed)
+        self.assertFalse(runtime.faulted)
+        self.assertTrue(runtime.snapshot()["restart_required"])
+
+        reloaded = build_configured_runtime(config).temperature_manager
+        self.assertEqual(reloaded.assignments, next_sensors["assignments"])
+        self.assertEqual(reloaded.stale_after_ms, 20000)
+        self.assertEqual(reloaded.failed_after_ms, 200000)
+        runtime.deinit()
+        self.assertFalse(runtime.step_active_configuration())
 
     def test_adapter_failure_is_redacted_and_cleanup_is_confirmed(self):
         adapter = FakeAdapter((OSError("driver secret"),))

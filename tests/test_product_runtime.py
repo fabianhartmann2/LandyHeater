@@ -65,6 +65,12 @@ class Controller:
         return False
 
 
+class Sensor(Owner):
+    def step_active_configuration(self):
+        self.calls.append("step_active_configuration")
+        return False
+
+
 class Protocol:
     def validate_inbound_frame(self, frame):
         return frame
@@ -196,7 +202,7 @@ class Fixture:
     def __init__(self, rest_start=True, bonjour_enabled=False):
         self.manager = type("Manager", (), {"status": lambda self: {}})()
         self.configured = Configured()
-        self.sensor = Owner("sensor")
+        self.sensor = Sensor("sensor")
         self.heater = Heater()
         self.network = Network()
         self.network_runtime = NetworkRuntime(self.network)
@@ -356,7 +362,7 @@ class TestProductRuntime(unittest.TestCase):
         self.assertFalse(state["bonjour_available"])
         self.assertFalse(state["bonjour_http_advertised"])
 
-    def test_configuration_change_disarms_and_keeps_web_for_safe_restart(self):
+    def test_configuration_change_disarms_but_keeps_active_sensors_and_web(self):
         fixture = Fixture()
         fixture.runtime.start()
         fixture.configured.restart = True
@@ -364,6 +370,7 @@ class TestProductRuntime(unittest.TestCase):
 
         fixture.runtime.step()
         self.assertEqual(fixture.sensor.calls.count("step"), sensor_steps)
+        self.assertEqual(fixture.sensor.calls[-1], "step_active_configuration")
         self.assertEqual(fixture.gateway.calls, [])
         self.assertEqual(fixture.heater.calls[-1], "step")
         self.assertEqual(fixture.discovery.calls[-1], "step")

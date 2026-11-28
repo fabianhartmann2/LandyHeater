@@ -10,10 +10,12 @@ import time as _time
 
 from protocol.autoterm_protocol import (
     CMD_INIT,
+    CMD_SETTINGS,
     CMD_STATUS,
     DEFAULT_EXTERNAL_TEMPERATURE_INTERVAL_MS,
     DEVICE_HEATER,
     FRAME_START,
+    HEATER_MODE_POWER,
 )
 
 from .application_state import (
@@ -65,6 +67,10 @@ DEFAULT_INVALID_FRAME_THRESHOLD = 3
 
 _INIT_RX_PAYLOAD_LENGTH = 5
 _STATUS_RX_PAYLOAD_LENGTH = 19
+_SETTINGS_RX_PAYLOAD_LENGTH = 6
+_POWER_UPDATE_TIMEOUT_MS = 5000
+_POWER_REPLY_TIMEOUT_MS = 1000
+_POWER_MIN_REPLY_WINDOW_MS = 200
 _CONTROL_START = "start"
 _CONTROL_SHUTDOWN = "shutdown"
 
@@ -279,6 +285,8 @@ class HeaterController:
         self._response_wait_started_ms = None
         self._control_attempt = None
         self._control_fault = None
+        self._power_update = None
+        self._power_quiet_until_ms = None
         self._restart_blocked = False
         self._communication_fault_active = False
         self._request_revision = 0
@@ -1000,6 +1008,7 @@ class HeaterController:
             source=source,
             maximum_runtime_minutes=self.maximum_runtime_minutes,
         )
+        self._power_update = None
         self._request_revision = next_revision
         self._request_not_after_ms = not_after_ms
         self._request_requested_at_ms = now_ms
@@ -1015,7 +1024,221 @@ class HeaterController:
         self._request_requested_at_ms = None
         if changed:
             self._request_revision += 1
+        self._finish_power_update("failed", "cancelled", None)
         return changed
+
+    def _power_update_pending(self):
+        return (
+            self._power_update is not None
+            and self._power_update["state"] == "pending"
+        )
+
+    def _power_session_is_running(self, now_ms):
+        session = self._session
+        return (
+            self._phase in (PHASE_READY, PHASE_WAIT_STATUS)
+            and self._actual.communication == COMMUNICATION_OK
+            and self._actual.initialized
+            and self._actual.synchronized
+            and self._actual.heater_state == HEATER_STATE_RUNNING
+            and self._requested.on
+            and self._requested.mode == CONTROL_MODE_POWER
+            and session is not None
+            and session.mode == CONTROL_MODE_POWER
+            and session.confirmed_active
+            and not session.expired
+            and not self._due(now_ms, session.expires_at_ms)
+            and session.target == self._requested.power_level
+            and session.runtime_minutes == self._requested.runtime_minutes
+            and self._control_attempt is None
+            and self._control_fault is None
+            and not self._restart_blocked
+        )
+
+    def request_power_update(
+        self, expected_request_revision, power_level, now_ms
+    ):
+        """Stage one same-mode GET / SET / GET, with no synchronous UART I/O."""
+
+        _require_ticks(expected_request_revision)
+        _require_ticks(now_ms)
+        if type(power_level) is not int or not 1 <= power_level <= 9:
+            raise ValueError("power_level must be an integer from 1 to 9")
+        if expected_request_revision != self._request_revision:
+            raise RuntimeError("Requested State revision changed")
+        if (
+            self._power_update_pending()
+            or not self._power_session_is_running(now_ms)
+        ):
+            raise RuntimeError("power session is not safely adjustable")
+        if (
+            not callable(getattr(self._protocol, "request_settings", None))
+            or not callable(getattr(self._protocol, "request_set_power_settings", None))
+        ):
+            raise RuntimeError("settings operations are not available")
+        if self._power_quiet_until_ms is not None:
+            if not self._due(now_ms, self._power_quiet_until_ms):
+                raise RuntimeError("previous settings response may still be in flight")
+            self._power_quiet_until_ms = None
+        if power_level == self._requested.power_level and (
+            self._power_update is None or self._power_update["state"] != "failed"
+        ):
+            return False
+        self._power_update = {
+            "state": "pending",
+            "power_level": power_level,
+            "reason": None,
+            "stage": "get",
+            "revision": expected_request_revision,
+            "session_id": self._session.session_id,
+            "deadline": self._ticks_add(now_ms, _POWER_UPDATE_TIMEOUT_MS),
+            "cancel_quiet_until": self._ticks_add(
+                now_ms, _POWER_UPDATE_TIMEOUT_MS + _POWER_REPLY_TIMEOUT_MS
+            ),
+            "reply_deadline": None,
+            "baseline": None,
+            "expected_payload": None,
+            "sent": False,
+        }
+        return True
+
+    def _public_power_update(self):
+        update = self._power_update
+        if update is None:
+            return None
+        return {
+            "state": update["state"],
+            "power_level": update["power_level"],
+            "reason": update["reason"],
+        }
+
+    def _finish_power_update(self, state, reason, now_ms):
+        if not self._power_update_pending():
+            return
+        update = self._power_update
+        if state == "failed" and update["sent"]:
+            # Ignore late replies to the aborted transaction before accepting
+            # another request. SETTINGS frames carry no transaction ID.
+            if now_ms is None:
+                self._power_quiet_until_ms = update["cancel_quiet_until"]
+            else:
+                self._power_quiet_until_ms = self._ticks_add(
+                    now_ms, _POWER_UPDATE_TIMEOUT_MS
+                )
+        update["state"] = state
+        update["reason"] = reason
+        update["baseline"] = None
+        update["expected_payload"] = None
+
+    def _power_update_is_current(self, now_ms):
+        update = self._power_update
+        return (
+            self._power_session_is_running(now_ms)
+            and self._session.session_id == update["session_id"]
+            and self._request_revision == update["revision"]
+        )
+
+    def _check_power_update(self, now_ms):
+        if not self._power_update_pending():
+            return False
+        update = self._power_update
+        if not self._power_update_is_current(now_ms):
+            self._finish_power_update("failed", "cancelled", now_ms)
+            return False
+        if self._due(now_ms, update["deadline"]) or self._due(
+            now_ms, update["reply_deadline"]
+        ):
+            self._finish_power_update("failed", "timeout", now_ms)
+            return False
+        return True
+
+    def _request_next_power_step(self, now_ms):
+        if (
+            not self._check_power_update(now_ms)
+            or self._expected_command is not None
+            or not self._control_status_is_fresh(now_ms)
+        ):
+            return None
+        update = self._power_update
+        stage = update["stage"]
+        if stage not in ("get", "set", "verify"):
+            return None
+        # Do not overlap SETTINGS with the regular STATUS exchange or delay
+        # the heartbeat. If STATUS is nearly due, wait for its next reply
+        # before transmitting; once sent, time out no later than that poll.
+        reply_window_ms = min(
+            self.response_timeout_ms,
+            _POWER_REPLY_TIMEOUT_MS,
+            self._ticks_diff(self._next_request_due_ms, now_ms),
+        )
+        minimum_window_ms = min(
+            _POWER_MIN_REPLY_WINDOW_MS, max(1, self.heartbeat_ms // 2)
+        )
+        if reply_window_ms < minimum_window_ms:
+            return None
+        update["stage"] = "wait_" + stage
+        update["reply_deadline"] = self._ticks_add(
+            now_ms, reply_window_ms
+        )
+        update["sent"] = True
+        if stage == "set":
+            sent = self._call_protocol(
+                "request_set_power_settings", now_ms,
+                update["baseline"], update["power_level"]
+            )
+        else:
+            sent = self._call_protocol("request_settings", now_ms)
+        return "power_settings_" + stage + ("" if sent else "_error")
+
+    def _handle_power_settings(self, frame, now_ms):
+        if not self._check_power_update(now_ms):
+            self.ignored_frames += 1
+            return False
+        update = self._power_update
+        stage = update["stage"]
+        if stage not in ("wait_get", "wait_set", "wait_verify"):
+            self.ignored_frames += 1
+            return False
+        if not self._known_frame_is_consistent(
+            frame, CMD_SETTINGS, _SETTINGS_RX_PAYLOAD_LENGTH
+        ):
+            self._finish_power_update("failed", "invalid_reply", now_ms)
+            return False
+        payload = frame["payload"]
+        if payload[2] != HEATER_MODE_POWER or payload[5] > 9:
+            self._finish_power_update("failed", "incompatible_settings", now_ms)
+            return False
+        update["reply_deadline"] = None
+        if stage == "wait_get" and payload[5] != update["power_level"]:
+            update["baseline"] = payload
+            update["expected_payload"] = payload[:5] + bytes((update["power_level"],))
+            update["stage"] = "set"
+            return True
+        if stage != "wait_get" and payload != update["expected_payload"]:
+            self._finish_power_update("failed", "settings_mismatch", now_ms)
+            return False
+        if stage == "wait_set":
+            update["stage"] = "verify"
+            # Put a STATUS exchange between the SET reply and the readback.
+            # It refreshes RUNNING truth and keeps buffered SET replies from
+            # being interpreted as the next GET response.
+            if self._expected_command is None:
+                self._next_request_due_ms = now_ms
+            return True
+
+        # An initial GET can already match (e.g. after a previous unconfirmed
+        # write). Otherwise require an independent GET after the SET reply.
+        # Do not promote readback on an old RUNNING status: it says nothing
+        # about whether this is still the same active session.
+        if not self._control_status_is_fresh(now_ms):
+            self._finish_power_update("failed", "stale_status", now_ms)
+            return False
+        power_level = update["power_level"]
+        self._requested.confirm_power_level(power_level)
+        self._session.target = power_level
+        self._request_revision += 1
+        self._finish_power_update("applied", None, now_ms)
+        return True
 
     def update_active_session(
         self,
@@ -1048,6 +1271,7 @@ class HeaterController:
         session = self._session
         if (
             not self._requested.on
+            or self._power_update_pending()
             or session is None
             or session.expired
             or not session.confirmed_active
@@ -1168,6 +1392,7 @@ class HeaterController:
         self._pending_control_due_ms = self._ticks_add(now_ms, delay)
 
     def _mark_communication_error(self, now_ms, reason=None):
+        self._finish_power_update("failed", "communication_error", now_ms)
         was_error = self._actual.communication == COMMUNICATION_ERROR
         if not was_error:
             self.communication_failures += 1
@@ -1528,9 +1753,9 @@ class HeaterController:
     def handle_frame(self, frame, now_ms):
         """Consume one dictionary produced by ``parse_frame``.
 
-        Only structurally complete, CRC-valid, real-shape heater INIT and
-        STATUS responses may affect state.  Other raw data remains available
-        to the protocol diagnostics layer.
+        Structurally complete, CRC-valid heater INIT and STATUS responses
+        drive synchronization. A matching SETTINGS response can advance only
+        an already pending active Power transaction.
         """
 
         _require_ticks(now_ms)
@@ -1552,6 +1777,8 @@ class HeaterController:
             return False
 
         command = frame.get("command")
+        if command == CMD_SETTINGS:
+            return self._handle_power_settings(frame, now_ms)
         if command not in (CMD_INIT, CMD_STATUS):
             self.ignored_frames += 1
             return False
@@ -1618,6 +1845,7 @@ class HeaterController:
         else:
             self._phase = PHASE_WAIT_STATUS
             self._pending_control_due_ms = None
+        self._check_power_update(now_ms)
         return True
 
     def _start_session(self, now_ms, session_spec=None):
@@ -2073,6 +2301,7 @@ class HeaterController:
         self._ensure_active_session(now_ms)
         self._check_control_confirmation(now_ms)
         self._complete_sensor_stop_if_off(now_ms)
+        self._check_power_update(now_ms)
 
         if self._due(now_ms, self._pending_control_due_ms):
             if not self._control_status_is_fresh(now_ms):
@@ -2091,6 +2320,10 @@ class HeaterController:
         )
         if synchronization_due:
             operations.append(self._request_synchronization(now_ms))
+            return operations
+        operation = self._request_next_power_step(now_ms)
+        if operation is not None:
+            operations.append(operation)
             return operations
         if self._temperature_report_due(now_ms):
             operation = self._request_external_temperature(now_ms)
@@ -2137,6 +2370,7 @@ class HeaterController:
             ),
             "control_attempt": control_attempt,
             "control_fault": control_fault,
+            "power_update": self._public_power_update(),
             "active_sensor": active_sensor,
             "sensor_alert": sensor_alert,
             "sensor_stop_latch": sensor_stop_latch,
@@ -2196,6 +2430,7 @@ class HeaterController:
             "session": session,
             "control_transition_pending": self._control_attempt is not None,
             "control_faulted": self._control_fault is not None,
+            "power_update": self._public_power_update(),
             "restart_blocked": self._restart_blocked,
             "sensor_stop_latched": self._sensor_stop_latch is not None,
             "active_sensor": active_sensor,

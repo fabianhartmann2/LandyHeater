@@ -1,5 +1,58 @@
 # Phase 13 temperature-control frozen firmware build record
 
+## Current installation — 2026-11-28
+
+The running sensor bus now keeps sampling with the boot-time configuration
+while a saved configuration awaits reboot. Pending assignments and thresholds
+still require a restart; the Scheduler and heater starts remain gated.
+This build also adds current-session power adjustment, Home notice timestamps
+or relative age when the clock is not set, and read-only heater metrics in
+Diagnostics.
+
+Two clean canonical-path builds produced 15 byte-identical outputs with the
+same pinned toolchain and dependency lock listed below. All 51 frozen modules
+compiled for `xtensawin`. Bootloader, partition table, SDK configuration and
+flash metadata are unchanged. The 3-MiB application slot has 851,168 bytes
+(about 27%) free.
+
+The full host suite passed 1,389 of 1,391 Python tests and all four JavaScript
+tests. The two pre-existing failures compare the historical Phase-11 and
+early Phase-13 source ledgers with newer live sources. The ledger and artifact
+checks for this installation passed.
+
+| Tracked output | Size | SHA-256 |
+| --- | ---: | --- |
+| `artifacts/micropython.bin` | 2,294,560 B | `467d8d0e3057d2c1a4cd47051054c0e3be2197cdf021e75f3f70459d15ca965f` |
+| `artifacts/firmware.bin` | 2,360,096 B | `d43ad6ec44768a82b29f8a39366df3bcb27619ea6dbcceec7a5c735555b39aae` |
+| `CURRENT_FROZEN_SOURCES.sha256` | 51 entries | `3292f93370f56e6b3cfbc780a6a13f1c1402ae8f654a636355a705b60f33ebc7` |
+| `artifacts/SHA256SUMS` | 8 entries | `98e8ceaa12c87d47b8b2e4a8f07278f0393197f308ef65dab0306692e8f78fff` |
+
+The Web bundle is
+`89a06ffde11d0c35365fd07f65f01d90f2f65ded57bae2da7641512e58d3bf14`:
+15 assets, 187,477 identity bytes and 53,316 gzip bytes.
+
+A complete preflash readback matched the previous, retained
+`0711bbe572c9f1e00fee1af5c055961eac134e2649f8b03a1ef83e0670a5cd07` application.
+After exact authorization, Esptool 4.12 wrote only the new application at
+`0x10000`; it erased only the necessary sectors `0x10000`–`0x240fff`.
+Bootloader, partition table and persistent data were not written. A complete,
+separate postflash readback matched the new, authorized file byte-for-byte,
+and a watchdog reset booted the application.
+
+The station Web index served the new bundle; read-only Status and Diagnostics
+requests succeeded. The board reported Requested OFF and actual OFF, fresh
+roof-tent and cabin readings, and a missing outside sensor. Diagnostics
+reported current heater status age, voltage, glow-plug and fan readings. The
+deployment checks were read-only. The pending-restart sensor case passed on the
+host; a settings save without reboot has not yet been tested on the device.
+
+In the subsequent live check on 2026-11-28, the owner changed the running
+heater from level 9 to level 3 in the Web UI. The read-only Status API then
+reported `running`, a confirmed active power-mode session at level 3, and a
+power update of `applied` for level 3.
+
+## Previous installation — 2026-11-22
+
 Build date: 2026-11-22. Status: **the exact 51-file frozen source closure plus
 two native user-module sources now contains the local OpenAPI explorer, safe
 browser tester and per-operation cURL examples. Contract, Web, cache,
@@ -90,7 +143,7 @@ remains selected. The nonexistent GPIO12 gate and I2C approval remain closed;
 the Wi-Fi gate is opened only by the product factory after trusted storage has
 loaded. The repository-root `main.py` remains passive and is excluded.
 
-## Pinned inputs
+### Pinned inputs
 
 - repository baseline before product autostart: `fee7faf`;
 - 51 exact frozen project-source files bound by
@@ -122,7 +175,7 @@ The closure excludes credentials, persistent data, acceptance tools and tests.
 The VFS copy of `main.py` cannot override the private frozen entry point because
 that entry point moves `.frozen` to the front before importing product modules.
 
-## Reproducibility proof
+### Reproducibility proof
 
 Two clean builds used the same canonical source and output path. The complete
 first build directory was moved aside before that exact output path was
@@ -141,7 +194,7 @@ passed; only the two deliberately immutable historical Phase-11 and early
 Phase-13 source-ledger mismatches remain. Those ledgers are historical evidence
 rather than being rewritten.
 
-## Image, layout and retained artifacts
+### Image, layout and retained artifacts
 
 Esptool identifies the application and bootloader as valid ESP32-S3 images
 with valid checksums and validation hashes, 16-MiB flash headers, 80-MHz DIO
@@ -159,8 +212,8 @@ is no OTA partition.
 | Application margin | 874,432 B (about 28%) |
 | Combined image | 2,336,832 B; exact end `0x23a840` |
 
-The retained deployment subset is bound by `artifacts/SHA256SUMS`. The current
-installed application is:
+The deployment subset was bound by the artifact ledger recorded above. The
+application installed on 2026-11-22 was:
 
 ```text
 offset: 0x10000

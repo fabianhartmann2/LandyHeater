@@ -496,13 +496,38 @@ class TestOpenAPIDocument(unittest.TestCase):
                     self.document, schema
                 )
                 expected = set(REQUEST_FIELDS[key])
-                self.assertEqual(set(properties), expected)
+                optional = (
+                    {"power_level"}
+                    if key == ("/api/v1/heater/session", "patch") else set()
+                )
+                self.assertEqual(set(properties), expected | optional)
                 self.assertIs(additional, False)
                 if key == ("/api/v1/settings", "patch"):
                     self.assertEqual(required, set())
                     self.assertEqual(minimum, 1)
                 else:
                     self.assertEqual(required, expected)
+
+    def test_power_update_request_and_outcome_are_documented(self):
+        operation = self.operations[("/api/v1/heater/session", "patch")][1]
+        request = operation["requestBody"]["content"]["application/json"]
+        self.assertEqual(request["examples"]["power"]["value"], {
+            "expected_request_revision": 0,
+            "target_temperature": None,
+            "extend_minutes": 0,
+            "power_level": 4,
+        })
+        schema = _resolve(self.document, request["schema"])
+        self.assertEqual(schema["properties"]["power_level"]["minimum"], 1)
+        self.assertEqual(schema["properties"]["power_level"]["maximum"], 9)
+        self.assertNotIn("power_level", schema["required"])
+        self.assertIn("202", operation["responses"])
+        schemas = self.document["components"]["schemas"]
+        self.assertIn("power_update", schemas["HeaterStatus"]["required"])
+        self.assertEqual(
+            schemas["PowerUpdateStatus"]["properties"]["state"]["enum"],
+            ["pending", "applied", "failed"],
+        )
 
     def test_ingress_csrf_origin_and_generation_fences_match_runtime(self):
         schemes = self.document["components"]["securitySchemes"]

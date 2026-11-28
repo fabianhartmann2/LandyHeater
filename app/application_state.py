@@ -183,6 +183,14 @@ class RequestedHeaterState:
         self._runtime_minutes = runtime_minutes
         return None
 
+    def confirm_power_level(self, power_level):
+        """Update only the power intent after a verified heater readback."""
+
+        if not self._on or self._mode != CONTROL_MODE_POWER:
+            raise RuntimeError("Requested State is not an active power session")
+        _require_integer("power_level", power_level, 1, 9)
+        self._power_level = power_level
+
     def snapshot(self):
         return {
             "on": self._on,

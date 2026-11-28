@@ -1,14 +1,21 @@
 # Autoterm / Planar Heater Control Protocol
 
-**Version:** 0.3  
+**Version:** 0.4
+
 **Status:** Reverse-engineered, partly validated by real RX capture, intentionally incomplete  
 **Primary sources:** Working Node-RED flow `20220918_NodeRed_Flow.json` and
 the real captures in `captures/2026-08-09-heater-off-status.md` and
-`captures/2026-08-09-heater-init-response.md`
+`captures/2026-08-09-heater-init-response.md`. The independent Planar 2D
+capture and analysis [Hacking the Autoterm Air / Planar 2D][planar-2d-settings]
+documents Get/Set Settings (`0x02`).
+
+[planar-2d-settings]: https://helloworld.schlussdienst.net/blog/hacking-autoterm-planar-2d
 
 ## 1. Scope and confidence model
 
-This document describes the serial protocol behavior that is demonstrably used by the working Node-RED heater controller.
+This document describes the serial protocol behavior used by the working
+Node-RED heater controller and identifies extensions supported by separate
+evidence.
 
 It is not claimed to be an official Autoterm protocol specification.
 
@@ -16,6 +23,8 @@ Confidence labels:
 
 - **VERIFIED** — explicitly present in the working Node-RED flow or observed
   in a real heater capture; capture-specific verification is labelled as such
+- **EXTERNAL OBSERVATION** — documented reverse-engineering on another
+  heater/panel combination, not verified on the installed Landy Heater
 - **DERIVED** — strongly inferred from the implementation
 - **UNKNOWN** — not established by the current source
 
@@ -670,6 +679,64 @@ Exact semantics of offsets 0, 1 and possibly 4 are not independently verified.
 
 **Confidence:** frame construction VERIFIED; some semantics DERIVED/UNKNOWN.
 
+### 19.1 Get/Set Settings — command `0x02`
+
+The [Planar 2D / PU-27 analysis][planar-2d-settings] documents command `0x02`
+for reading the current settings and for changing them, including while the
+heater is running. The command is separate from Start (`0x01`); the payload
+shape used to write settings is the same as Start's six-byte payload.
+
+| Direction / operation | Sender | Payload | Meaning |
+| --- | --- | --- | --- |
+| Read request | `0x03` | Empty | Ask for current settings |
+| Write request | `0x03` | Six bytes | Supply updated settings |
+| Settings response | `0x04` | Six bytes | Report settings; the published write example echoes the settings bytes |
+
+The observed header uses reserved byte `0x00` and the ordinary trailing
+high-byte-first CRC. The write payload has these offsets, counted from zero:
+
+| Offset | Field in the external analysis |
+| --- | --- |
+| 0, 1 | Prefix bytes; the published example uses `FF FF` |
+| 2 | Mode: `01` heater temperature, `02` panel temperature, `03` external temperature, `04` Power |
+| 3 | Temperature setpoint; not the Power-mode setpoint |
+| 4 | Ventilation setting: `01` on, `02` off in the external analysis |
+| 5 | Configured power level in Power mode (`00`–`09` externally; Landy accepts new values `01`–`09`) |
+
+The published trace sets an internal-sensor temperature target of 16 °C. It
+demonstrates the six-byte settings request/response and CRC, not a captured
+Landy power change:
+
+```text
+TX  AA 03 06 00 02 FF FF 01 10 01 03 E2 9C
+RX  AA 04 06 00 02 FF FF 01 10 01 03 38 2D
+```
+
+For Landy live power changes, read the settings first (`AA 03 00 00 02 9D BD`).
+Require a valid six-byte Power-mode response, preserve the first five payload
+bytes verbatim, and replace only offset 5. This avoids copying Start defaults
+into fields whose exact interpretation may differ across heater versions. For
+example, a reported payload of `FF FF 04 10 01 09` and a new level of 4 produce
+the **derived** write frame `AA 03 06 00 02 FF FF 04 10 01 04 EC DD`.
+
+The live change must not start, stop, switch mode, or reset the running session
+or its deadline. Read the baseline, write at most once, accept the matching
+write reply, refresh `STATUS`, then issue a distinct read request and confirm
+all six returned bytes. If the baseline already reports the desired level,
+skip the write. The reply format has no transaction identifier; accept it only
+when awaiting a response for that phase (up to one second per SETTINGS reply,
+ending no later than the next normal STATUS poll, and five seconds for the
+whole operation in the product controller). Reject
+malformed and CRC-invalid replies, and do not retry a possibly applied write
+automatically. Stop, expiration and communication failure cancel pending work.
+A returned power level is the heater's **configured setpoint**, not a
+measurement of combustion output. Verify separately on the target that the
+heater remains running and responds to the change.
+
+**Confidence:** EXTERNAL OBSERVATION for the `0x02` operation and example;
+DERIVED for the Landy Power-mode write vector and read-back transaction.
+Neither this source nor host tests constitute live-heater acceptance.
+
 ## 20. Start — Temperature mode
 
 The application has two distinct user modes:
@@ -862,7 +929,9 @@ Recognized command values:
 - `0x0F`
 - `0x11`
 
-Only Initialization and Status currently have meaningful receive-side handling.
+In the reference Node-RED flow, only Initialization and Status have meaningful
+receive-side handling. The Landy live Power path separately interprets strict
+Settings responses as described in §19.1.
 
 **Confidence:** VERIFIED.
 
@@ -880,6 +949,9 @@ commands `0x0F` and `0x04` that RX uses:
 - the same CRC algorithm as TX
 - a trailing two-byte CRC
 - high-byte-first serialization
+
+The external Settings response in §19.1 validates with that same CRC framing;
+it is not an RX capture from the installed heater.
 
 The ESP32 should still:
 
@@ -906,7 +978,8 @@ Where `payload_length = frame[2]`.
 The 26-byte real status response has `frame[2] = 19`; the 12-byte real
 initialization response has `frame[2] = 5`. This rule is therefore VERIFIED for
 commands `0x0F` and `0x04`. It remains DERIVED for other RX commands until
-captured.
+captured on the target; §19.1 adds external evidence for a six-byte Settings
+response.
 
 ## 28. Recommended parser behavior
 
@@ -955,8 +1028,7 @@ Application-level Roof Tent/Cabin mode identifiers should be defined independent
 
 ## 30. Open protocol questions
 
-The Node-RED source and the real status/initialization captures still do not
-establish:
+The available sources still do not establish for the installed heater:
 
 ### Framing
 
@@ -999,6 +1071,13 @@ establish:
 22. negative-temperature target confirmation on the real heater
 23. whether `ceil()` is required
 24. whether state 6 should receive external-temperature reports
+
+### Live settings
+
+25. whether the installed heater returns the six-byte Settings payload in
+    both OFF and RUNNING, and distinguishes request/reply ordering as expected
+26. whether a change to the reported Power level is accepted and retained,
+    and actually changes output without an unexpected mode or state transition
 
 ## 31. Protocol-capture strategy for future versions
 
@@ -1050,6 +1129,12 @@ Before real hardware integration, the MicroPython implementation must reproduce 
 The CRC test vectors in this document are mandatory regression tests.
 
 ## 33. Version history
+
+### 0.4
+
+Documented Get/Set Settings and the proposed Landy live Power transaction
+from externally observed Planar 2D frames. Added derived vector and separate
+read-back requirements; real target acceptance remains open.
 
 ### 0.3
 

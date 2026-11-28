@@ -195,3 +195,19 @@ board profile.
     session target PATCH remains application-state only and is not accepted as
     a physical target change until a safe Autoterm command is confirmed.
     Sensor-failure shutdown remains a separate bounded safety gate.
+
+## Live Power-level change — target acceptance open
+
+The source candidate implements the [Settings exchange](PROTOCOL.md#191-getset-settings--command-0x02)
+for a single level change between 1 and 9 in a confirmed `RUNNING` Power
+session. It preserves every other setting, sends no new START, and confirms
+the new setpoint by reading it back. It keeps the same session and deadline.
+Manual Stop and session expiry cancel pending work and retain their current
+shutdown policy. A timeout or mismatch is reported as unconfirmed, not as a
+verified change or automatic retry.
+
+The existing Power-1 acceptance did not exercise this operation. A separate
+supervised target run must verify the settings reply, continued `RUNNING`,
+unchanged session deadline, and the heater's response to a lower level before
+counting the feature as verified on the installed heater. Source changes and
+host tests do not change the flashed application.

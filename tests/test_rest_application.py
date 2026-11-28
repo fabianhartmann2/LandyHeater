@@ -26,7 +26,7 @@ from services.config_manager import (
     ConfigurationStateError,
 )
 from services.http_protocol import parse_request
-from services.rest_security import RestSecurityPolicy
+from services.rest_security import INGRESS_STATION, RestSecurityPolicy
 from services.rest_rate_limiter import RestRateLimiter
 from services.diagnostics_hub import DiagnosticsHub
 from services.http_protocol import encode_json_response
@@ -370,6 +370,7 @@ class FakeManualGateway:
         self.start_changed = True
         self.quick_changed = True
         self.stop_changed = True
+        self.power_changed = True
 
     def _raise(self, name):
         failure = self.failures.get(name)
@@ -413,7 +414,16 @@ class FakeManualGateway:
         revision,
         target_temperature=None,
         extend_minutes=0,
+        power_level=None,
     ):
+        if power_level is not None:
+            self.calls.append(("power_update", generation, revision, power_level))
+            self._raise("power_update")
+            if self.power_changed:
+                self.controller.value["power_update"] = {
+                    "state": "pending", "power_level": power_level, "reason": None,
+                }
+            return self.power_changed
         self.calls.append((
             "session_update",
             generation,
@@ -618,7 +628,8 @@ class Clock:
 
 
 class Fixture:
-    def __init__(self, ingress="ap", rate_limiter=None, sensor_runtime=None):
+    def __init__(self, ingress="ap", rate_limiter=None, sensor_runtime=None,
+                 ticks_diff=lambda newer, older: newer - older):
         self.config_manager = FakeConfigManager()
         self.runtime = FakeRuntime()
         self.controller = FakeController()
@@ -650,7 +661,7 @@ class Fixture:
             self.security,
             network_manager=self.network,
             ticks_ms=self.clock,
-            ticks_diff=lambda newer, older: newer - older,
+            ticks_diff=ticks_diff,
             mem_free=lambda: 54321,
             rate_limiter=rate_limiter,
             diagnostics_hub=self.diagnostics,
@@ -679,6 +690,7 @@ class TestRestReadRoutes(unittest.TestCase):
         self.assertEqual(response.body["configuration"]["stored_generation"], 7)
         self.assertEqual(response.body["heater"]["request_revision"], 3)
         self.assertEqual(response.body["heater"]["remaining_seconds"], None)
+        self.assertIsNone(response.body["heater"]["power_update"])
         self.assertEqual(response.body["temperatures"]["cabin"]["value_c"], 19)
         self.assertEqual(self.fixture.clock.calls, 1)
         rendered = repr(response.body)
@@ -698,6 +710,98 @@ class TestRestReadRoutes(unittest.TestCase):
             response.body["heater"]["actual"]["heater_state"], "off"
         )
         self.assertEqual(response.body["heater"]["remaining_seconds"], 52)
+
+    def test_notice_since_tracks_first_device_observation_until_it_clears(self):
+        fixture = self.fixture
+        raw_clock = fixture.time.snapshot
+        fixture.time.snapshot = lambda now: dict(raw_clock(now), utc_seconds=now // 1000)
+        fixture.controller.value["control_faulted"] = True
+        self.assertTrue(fixture.app.step_warning_observation())
+        fixture.clock.value = 10020
+        self.assertFalse(fixture.app.step_warning_observation())
+
+        fixture.clock.value = 13000
+        body = fixture.app.handle(make_request()).body
+        self.assertEqual(body["warnings"], ["heater_control_fault"])
+        details = body["warning_details"]["heater_control_fault"]
+        self.assertEqual(details, {"since_unix": 946684810, "age_seconds": 3})
+
+        fixture.controller.value["control_faulted"] = False
+        fixture.clock.value = 15000
+        self.assertTrue(fixture.app.step_warning_observation())
+        self.assertEqual(fixture.app.handle(make_request()).body["warning_details"], {})
+        fixture.controller.value["control_faulted"] = True
+        fixture.clock.value = 18000
+        details = fixture.app.handle(make_request()).body["warning_details"]
+        self.assertEqual(details["heater_control_fault"],
+                         {"since_unix": 946684818, "age_seconds": 0})
+
+    def test_notice_without_valid_wall_clock_uses_wrap_safe_age(self):
+        def ticks_diff(newer, older):
+            return (newer - older + 4096) % 8192 - 4096
+
+        fixture = Fixture(ticks_diff=ticks_diff)
+        raw_clock = fixture.time.snapshot
+        fixture.time.snapshot = lambda now: dict(raw_clock(now), valid=False)
+        fixture.clock.value = 7800
+        fixture.controller.value["control_faulted"] = True
+        self.assertTrue(fixture.app.step_warning_observation())
+        fixture.clock.value = 1700
+        details = fixture.app.handle(make_request()).body["warning_details"]
+        self.assertEqual(details["clock_invalid"], {"since_unix": None, "age_seconds": 2})
+        fixture.time.snapshot = raw_clock
+        fixture.clock.value = 3100
+        details = fixture.app.handle(make_request()).body["warning_details"]
+        self.assertNotIn("clock_invalid", details)
+        self.assertEqual(details["heater_control_fault"],
+                         {"since_unix": None, "age_seconds": 3})
+
+    def test_diagnostics_live_includes_status_metrics_and_wrap_safe_age(self):
+        def ticks_diff(newer, older):
+            return (newer - older + 4096) % 8192 - 4096
+
+        fixture = Fixture(ticks_diff=ticks_diff)
+        fixture.clock.value = 100
+        actual = fixture.controller.value["actual"]
+        actual.update(last_status_ms=8092, voltage=12.4, glow_plug_raw=0, fan_raw=47)
+        request = make_request(target="/api/v1/diagnostics?event_after=0&protocol_after=0")
+        response = fixture.app.handle(request)
+        self.assertEqual(response.status, 200)
+        metrics = response.body["live"]["status"]["heater"]["actual"]
+        self.assertEqual(metrics["status_age_ms"], 200)
+        self.assertEqual(metrics["voltage"], 12.4)
+        self.assertEqual(metrics["glow_plug_raw"], 0)
+        self.assertEqual(metrics["fan_raw"], 47)
+        self.assertEqual(metrics["heater_state_raw"], actual["heater_state_raw"])
+
+        actual["last_status_ms"] = None
+        response = fixture.app.handle(request)
+        self.assertEqual(response.status, 200)
+        self.assertIsNone(response.body["live"]["status"]["heater"]["actual"]["status_age_ms"])
+
+    def test_status_reports_bounded_power_change_result_separate_from_settings(self):
+        for state, reason in (("pending", None), ("applied", None),
+                              ("failed", "settings_readback_mismatch")):
+            with self.subTest(state=state):
+                fixture = Fixture()
+                fixture.controller.value = controller_snapshot(9, True)
+                power_update = {"state": state, "power_level": 4, "reason": reason}
+                fixture.controller.value["power_update"] = power_update
+
+                response = fixture.app.handle(make_request())
+
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.body["heater"]["power_update"], power_update)
+                self.assertNotIn("power_level", response.body["heater"]["actual"])
+
+    def test_status_rejects_unexpected_power_change_result_fields(self):
+        self.fixture.controller.value["power_update"] = {
+            "state": "failed", "power_level": 4, "reason": "timeout",
+            "payload": "must_not_disclose",
+        }
+        response = self.fixture.app.handle(make_request())
+        self.assertEqual(response.status, 503)
+        self.assertNotIn("must_not_disclose", repr(response.body))
 
     def test_security_context_returns_token_only_on_ap_route(self):
         response = self.fixture.app.handle(
@@ -1465,6 +1569,91 @@ class TestRestManualMutations(unittest.TestCase):
         self.assertEqual(conflict.status, 409)
         self.assertEqual(error_code(conflict), "heater_session_conflict")
         self.assertNotIn("private", repr(conflict.body))
+
+    def test_active_power_patch_returns_accepted_not_applied(self):
+        self.fixture.controller.value = controller_snapshot(3, True)
+        response = self.fixture.app.handle(json_request(
+            "PATCH",
+            "/api/v1/heater/session",
+            b'{"expected_request_revision":3,"target_temperature":null,'
+            b'"extend_minutes":0,"power_level":4}',
+            self.fixture.mutation_headers(7),
+        ))
+        self.assertEqual(response.status, 202)
+        self.assertTrue(response.body["updated"])
+        self.assertEqual(response.headers["ETag"], '"config-7"')
+        self.assertEqual(self.fixture.manual.calls, [("power_update", 7, 3, 4)])
+        heater = response.body["heater"]
+        self.assertEqual(heater["request_revision"], 3)
+        self.assertEqual(heater["requested"]["power_level"], 5)
+        self.assertEqual(heater["session"]["target"], 5)
+        self.assertEqual(heater["power_update"], {
+            "state": "pending", "power_level": 4, "reason": None,
+        })
+
+    def test_power_patch_requires_standalone_bounded_value_and_exact_shape(self):
+        base = (
+            b'{"expected_request_revision":3,"target_temperature":null,'
+            b'"extend_minutes":0,"power_level":4}'
+        )
+        for malformed, status in (
+            (base.replace(b'":4', b'":true'), 422),
+            (base.replace(b'":4', b'":0'), 422),
+            (base.replace(b'":4', b'":10'), 422),
+            (base.replace(b'":4', b'":4.0'), 400),
+            (base.replace(b'":4', b'":null'), 422),
+            (base.replace(b'":null', b'":23'), 422),
+            (base.replace(b'":0,', b'":15,'), 422),
+            (base.replace(b'"extend_minutes":0,', b''), 422),
+            (base.replace(b'":4}', b'":4,"unknown":1}'), 422),
+        ):
+            with self.subTest(malformed=malformed):
+                fixture = Fixture()
+                response = fixture.app.handle(json_request(
+                    "PATCH", "/api/v1/heater/session", malformed,
+                    fixture.mutation_headers(7),
+                ))
+                self.assertEqual(response.status, status)
+                self.assertEqual(fixture.manual.calls, [])
+
+    def test_null_power_field_is_ignored_for_valid_legacy_patch(self):
+        response = self.fixture.app.handle(json_request(
+            "PATCH", "/api/v1/heater/session",
+            b'{"expected_request_revision":3,"target_temperature":null,'
+            b'"extend_minutes":15,"power_level":null}',
+            self.fixture.mutation_headers(7),
+        ))
+        self.assertEqual(response.status, 200)
+        self.assertEqual(self.fixture.manual.calls, [
+            ("session_update", 7, 3, None, 15)
+        ])
+
+    def test_power_patch_preserves_control_fences_and_idempotent_noop(self):
+        body = (
+            b'{"expected_request_revision":3,"target_temperature":null,'
+            b'"extend_minutes":0,"power_level":5}'
+        )
+        for headers, status in ((None, 403),
+                                (self.fixture.mutation_headers(), 428),
+                                (self.fixture.mutation_headers(6), 412)):
+            with self.subTest(status=status):
+                response = self.fixture.app.handle(json_request(
+                    "PATCH", "/api/v1/heater/session", body, headers,
+                ))
+                self.assertEqual(response.status, status)
+                self.assertEqual(self.fixture.manual.calls, [])
+
+        fixture = Fixture(ingress=INGRESS_STATION)
+        fixture.controller.value = controller_snapshot(3, True)
+        fixture.manual.power_changed = False
+        response = fixture.app.handle(json_request(
+            "PATCH", "/api/v1/heater/session", body,
+            fixture.mutation_headers(7),
+        ))
+        self.assertEqual(response.status, 200)
+        self.assertFalse(response.body["updated"])
+        self.assertIsNone(response.body["heater"]["power_update"])
+        self.assertEqual(fixture.manual.calls, [("power_update", 7, 3, 5)])
 
     def test_stop_failure_after_requested_off_reports_committed_truth(self):
         self.fixture.controller.value = controller_snapshot(3, True)

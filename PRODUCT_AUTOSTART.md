@@ -35,10 +35,12 @@ and diagnostics failures are marked degraded but do not stop heater
 supervision.
 
 A successful configuration mutation creates a restart fence immediately:
-timers are disarmed, no further sensor/Scheduler step uses the old generation,
-the heater controller continues so a running heater can shut down, and the UI
-stays available. The user must then reset the board so all generation-bound
-owners are rebuilt from the committed configuration.
+timers are disarmed, new heater starts remain blocked, and the heater
+controller continues so a running heater can shut down. The UI and the
+already-open sensor bus remain available. Sensor sampling uses only the
+assignments and health thresholds from the running configuration; pending
+settings are not applied until the user resets the board. Genuine sensor
+faults and stale measurements continue to use the same health rules.
 
 Shutdown never abandons the UART while the controller still requests heat or
 the heater is not confirmed `off`. It repeatedly requests/advances controlled

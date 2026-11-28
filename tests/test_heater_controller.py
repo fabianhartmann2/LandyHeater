@@ -25,6 +25,7 @@ from app.temperature_manager import (
     TemperatureManager,
 )
 from protocol.autoterm_protocol import (
+    CMD_SETTINGS,
     CMD_STATUS,
     CONTROL_MODE_POWER,
     CONTROL_MODE_ROOF_TENT_TEMPERATURE,
@@ -89,6 +90,12 @@ class RecordingProtocolPort:
     def request_external_temperature(self, temperature):
         return self._record("external_temperature", temperature)
 
+    def request_settings(self):
+        return self._record("settings_get")
+
+    def request_set_power_settings(self, baseline, level):
+        return self._record("settings_set", (baseline, level))
+
 
 def status_frame(state, voltage=126, glow=7, fan=55):
     payload = bytearray(19)
@@ -104,6 +111,167 @@ def synchronize(controller, frame, start_at=0):
     controller.handle_frame(parse_frame(REAL_INIT), start_at + 10)
     controller.step(start_at + 10)
     controller.handle_frame(frame, start_at + 20)
+
+
+class TestLivePowerUpdate(unittest.TestCase):
+    BASELINE = b"\x01\x00\x04\x10\x02\x09"
+    LOWER = BASELINE[:5] + b"\x04"
+
+    @staticmethod
+    def settings(payload, sender=DEVICE_HEATER):
+        return parse_frame(build_frame(CMD_SETTINGS, payload, device=sender))
+
+    def setUp(self):
+        self.port = RecordingProtocolPort()
+        self.controller = HeaterController(self.port)
+        self.controller.request_start(
+            CONTROL_MODE_POWER, power_level=9, runtime_minutes=1
+        )
+        synchronize(self.controller, parse_frame(REAL_OFF_STATUS))
+        self.assertEqual(self.controller.step(220), ["start"])
+        self.assertEqual(self.controller.step(1220), ["status"])
+        self.assertTrue(self.controller.handle_frame(status_frame(4), 1230))
+        self.revision = self.controller.request_revision
+        self.before = self.controller.snapshot()["session"]
+        self.port.calls.clear()
+
+    def stage(self):
+        self.assertTrue(self.controller.request_power_update(self.revision, 4, 1231))
+        self.assertEqual(self.port.calls, [])
+        self.assertEqual(self.controller.request_revision, self.revision)
+        self.assertEqual(self.controller.step(1232), ["power_settings_get"])
+
+    def reach_verify(self):
+        self.stage()
+        self.assertTrue(self.controller.handle_frame(self.settings(self.BASELINE), 1240))
+        self.assertEqual(self.controller.step(1240), ["power_settings_set"])
+        self.assertTrue(self.controller.handle_frame(self.settings(self.LOWER), 1250))
+        self.assertFalse(self.controller.handle_frame(self.settings(self.LOWER), 1250))
+        self.assertEqual(self.controller.step(1250), ["status"])
+        self.assertTrue(self.controller.handle_frame(status_frame(4), 1260))
+        self.assertEqual(self.controller.step(1260), ["power_settings_verify"])
+
+    def test_set_preserves_baseline_and_commits_only_after_fresh_readback(self):
+        self.reach_verify()
+        status = self.controller.public_snapshot()
+        self.assertEqual(status["power_update"], {
+            "state": "pending", "power_level": 4, "reason": None,
+        })
+        self.assertEqual(status["requested"]["power_level"], 9)
+        self.assertEqual(status["session"], self.before)
+
+        self.assertTrue(self.controller.handle_frame(self.settings(self.LOWER), 1270))
+        status = self.controller.public_snapshot()
+        self.assertEqual(status["power_update"], {
+            "state": "applied", "power_level": 4, "reason": None,
+        })
+        self.assertEqual(status["request_revision"], self.revision + 1)
+        self.assertEqual(status["requested"]["power_level"], 4)
+        expected_session = dict(self.before, target=4)
+        self.assertEqual(status["session"], expected_session)
+        self.assertEqual(self.port.calls, [
+            ("settings_get", None), ("settings_set", (self.BASELINE, 4)),
+            ("status", None), ("settings_get", None),
+        ])
+
+    def test_lost_readback_times_out_without_retry_or_optimistic_change(self):
+        self.reach_verify()
+        self.assertEqual(self.controller.step(2260), ["status"])
+        self.assertFalse(self.controller.handle_frame(self.settings(self.LOWER), 2260))
+        status = self.controller.public_snapshot()
+        self.assertEqual(status["power_update"]["reason"], "timeout")
+        self.assertEqual(status["requested"]["power_level"], 9)
+        self.assertEqual(status["request_revision"], self.revision)
+        self.assertEqual(self.port.calls.count(("settings_set", (self.BASELINE, 4))), 1)
+        with self.assertRaisesRegex(RuntimeError, "still be in flight"):
+            self.controller.request_power_update(self.revision, 4, 2261)
+
+    def test_mismatched_readback_never_promotes_power_level(self):
+        self.reach_verify()
+        changed_ventilation = self.LOWER[:4] + b"\x01\x04"
+        self.assertFalse(self.controller.handle_frame(self.settings(changed_ventilation), 1270))
+        status = self.controller.public_snapshot()
+        self.assertEqual(status["power_update"]["reason"], "settings_mismatch")
+        self.assertEqual(status["requested"]["power_level"], 9)
+        self.assertEqual(status["session"], self.before)
+
+    def test_only_valid_heater_power_settings_allow_write(self):
+        self.stage()
+        self.assertFalse(self.controller.handle_frame(self.settings(self.BASELINE, 3), 1240))
+        unrelated_mode = self.BASELINE[:2] + b"\x02" + self.BASELINE[3:]
+        self.assertFalse(self.controller.handle_frame(self.settings(unrelated_mode), 1240))
+        self.assertEqual(self.controller.step(1240), [])
+        self.assertEqual(self.port.calls, [("settings_get", None)])
+        self.assertEqual(self.controller.public_snapshot()["power_update"]["reason"],
+                         "incompatible_settings")
+
+    def test_stop_cancels_a_staged_write_and_does_not_wait_for_settings(self):
+        self.stage()
+        self.assertTrue(self.controller.handle_frame(self.settings(self.BASELINE), 1240))
+        self.assertTrue(self.controller.request_stop())
+        self.assertEqual(self.controller.step(1430), ["shutdown"])
+        self.assertEqual(self.port.calls, [("settings_get", None), ("shutdown", None)])
+        self.assertFalse(self.controller.handle_frame(self.settings(self.LOWER), 1440))
+        self.assertEqual(self.controller.public_snapshot()["power_update"]["reason"], "cancelled")
+
+    def test_already_matching_actual_settings_skip_the_write(self):
+        self.stage()
+        self.assertTrue(self.controller.handle_frame(self.settings(self.LOWER), 1240))
+        self.assertEqual(self.controller.step(1240), [])
+        self.assertEqual(self.port.calls, [("settings_get", None)])
+        self.assertEqual(self.controller.public_snapshot()["session"]["target"], 4)
+
+    def test_rejects_invalid_stale_or_overlapping_changes(self):
+        with self.assertRaises(ValueError):
+            self.controller.request_power_update(self.revision, True, 1231)
+        with self.assertRaisesRegex(RuntimeError, "revision changed"):
+            self.controller.request_power_update(self.revision - 1, 4, 1231)
+        self.assertFalse(self.controller.request_power_update(self.revision, 9, 1231))
+        self.stage()
+        with self.assertRaisesRegex(RuntimeError, "not safely adjustable"):
+            self.controller.request_power_update(self.revision, 3, 1233)
+        with self.assertRaisesRegex(RuntimeError, "not safely adjustable"):
+            self.controller.update_active_session(self.revision, extend_minutes=15, now_ms=1233)
+
+    def test_waits_for_fresh_status_when_next_heartbeat_is_near(self):
+        self.assertTrue(self.controller.request_power_update(self.revision, 4, 2130))
+        self.assertEqual(self.controller.step(2130), [])
+        self.assertEqual(self.controller.step(2230), ["status"])
+        self.assertEqual(self.controller.step(2231), [])
+        self.assertTrue(self.controller.handle_frame(status_frame(4), 2240))
+        self.assertEqual(self.controller.step(2240), ["power_settings_get"])
+
+    def test_expiry_preempts_pending_write(self):
+        self.assertEqual(self.controller.step(60180), ["status"])
+        self.assertTrue(self.controller.handle_frame(status_frame(4), 60190))
+        self.assertTrue(self.controller.request_power_update(self.revision, 4, 60191))
+        self.assertEqual(self.controller.step(60191), ["power_settings_get"])
+        self.assertTrue(self.controller.handle_frame(self.settings(self.BASELINE), 60219))
+        self.assertEqual(self.controller.step(60220), ["shutdown"])
+        self.assertEqual([operation for operation, _ in self.port.calls],
+                         ["status", "settings_get", "shutdown"])
+
+    def test_bad_crc_and_a_failed_send_are_not_retried(self):
+        self.stage()
+        raw = bytearray(self.settings(self.BASELINE)["raw"])
+        raw[-1] ^= 1
+        self.assertFalse(self.controller.handle_frame(parse_frame(bytes(raw)), 1240))
+        self.assertEqual(self.controller.public_snapshot()["power_update"]["reason"],
+                         "invalid_reply")
+        self.assertEqual(self.controller.step(1241), [])
+        self.assertEqual(self.port.calls, [("settings_get", None)])
+
+        self.assertEqual(self.controller.step(6240), ["status"])
+        self.assertTrue(self.controller.handle_frame(status_frame(4), 6250))
+        self.assertTrue(self.controller.request_power_update(self.revision, 4, 6251))
+        self.assertEqual(self.controller.step(6251), ["power_settings_get"])
+        self.assertTrue(self.controller.handle_frame(self.settings(self.BASELINE), 6260))
+        self.port.return_false_on = "settings_set"
+        self.assertEqual(self.controller.step(6260), ["power_settings_set_error"])
+        self.assertEqual(self.controller.public_snapshot()["power_update"]["reason"],
+                         "communication_error")
+        self.assertEqual(self.controller.step(7250), ["initialization"])
+        self.assertEqual(self.port.calls.count(("settings_set", (self.BASELINE, 4))), 1)
 
 
 class TestHeaterControllerSynchronization(unittest.TestCase):

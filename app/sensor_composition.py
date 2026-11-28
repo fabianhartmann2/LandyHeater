@@ -230,9 +230,23 @@ class ConfiguredSensorRuntime:
         return True
 
     def step(self):
+        """Advance the configured owner when its generation is current."""
+
+        return self._step(allow_pending_restart=False)
+
+    def step_active_configuration(self):
+        """Keep the open bus sampling while new settings await a restart.
+
+        The adapter keeps its boot-bound TemperatureManager and thresholds.
+        This path cannot open the bus or apply the pending configuration.
+        """
+
+        return self._step(allow_pending_restart=True)
+
+    def _step(self, allow_pending_restart):
         if self._closed or not self._started:
             return False
-        if self.restart_required():
+        if self.restart_required() and not allow_pending_restart:
             self._faulted = True
             self._last_error = "sensor_configuration_changed"
             self._cleanup_adapter()

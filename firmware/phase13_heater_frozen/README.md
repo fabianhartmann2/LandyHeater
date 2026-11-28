@@ -6,8 +6,16 @@ It includes the accepted sensor, heater, REST/Web, discovery, diagnostics,
 Scheduler and volatile browser-time paths, plus a private frozen `main.py`
 that starts the product after every reset.
 
-The current installed application extends the local OpenAPI 3.0.3 description
-at `/openapi.json` with per-operation cURL examples
+The 2026-11-28 installation keeps active sensor readings fresh while saved
+settings await reboot. It also includes Home notice timestamps, heater metrics
+in Diagnostics and adjustment of the power level during a running power-mode
+session. The 2,294,560-byte application has SHA-256
+`467d8d0e3057d2c1a4cd47051054c0e3be2197cdf021e75f3f70459d15ca965f`
+and was verified by a complete readback after an app-only flash.
+See [the current build and flash record](BUILD_INFO.md#current-installation--2026-11-28).
+
+The local OpenAPI 3.0.3 description
+at `/openapi.json` includes per-operation cURL examples
 and an explicitly gated browser tester in Settings. It documents
 all 24 semantic REST operations plus the three deprecated timer-segment
 aliases, including AP-only versus AP-and-station
@@ -89,14 +97,13 @@ prefix returns `404` rather than new bytes under an old cache key. Identity and
 gzip have separate strong ETags and `Vary: Accept-Encoding`. CSS and
 translations load together before the application core, then Home and status
 load together. Timer, Settings, Setup and Diagnostics remain on demand. Across
-all 15 installed assets, gzip reduces 174,416 bytes to 49,613 bytes. The
+all 15 installed assets, gzip reduces 187,477 bytes to 53,316 bytes. The
 cooperative HTTP receive budget remains 256 bytes while the
 reviewed send budget is 1,024 bytes, below the 1,440-byte TCP MSS. Client and
 backlog limits are unchanged.
 
-`BUILD_INFO.md` records inputs, both source ledgers, two byte-identical builds,
-artifact checks and target evidence. The installed application is 2,271,296
-bytes with SHA-256
+`BUILD_INFO.md` also records the previous builds. The 2026-11-22 application
+was 2,271,296 bytes with SHA-256
 `0711bbe572c9f1e00fee1af5c055961eac134e2649f8b03a1ef83e0670a5cd07`.
 Its 15-asset Web bundle version is
 `66178bd9a37ee7dd69af1e7b4a76d4da1a833254016bb2703a0f954bf29558bb`;

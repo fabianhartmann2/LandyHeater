@@ -1,5 +1,6 @@
 .bottom-nav{grid-template-columns:repeat(4,1fr)}
 .diagnostic-grid{display:grid;gap:1rem}
+.diagnostic-system-stack{display:grid;gap:1rem;align-content:start;min-width:0}
 .diagnostic-wide{min-width:0}
 .diagnostic-list{display:grid;gap:.55rem;margin:1rem 0 0;padding:0;list-style:none}
 .diagnostic-list li{display:grid;grid-template-columns:auto 1fr;gap:.35rem .7rem;padding:.7rem;border-radius:12px;background:var(--surface-2);font-size:.8rem}

@@ -90,6 +90,8 @@ class ConfiguredRestRuntime:
         result = self._diagnostics_hub.step(now_ms)
         if type(result) is not int or result < 0:
             raise RuntimeError("diagnostics step result is malformed")
+        if now_ms is not None:
+            self._application.step_warning_observation()
         return result
 
     def handle(self, request, peer_ip, ingress=None, local_ip=None):

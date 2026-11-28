@@ -185,6 +185,14 @@ class FakeController:
         self._revision += 1
         return True
 
+    def request_power_update(self, expected_request_revision, power_level, now_ms):
+        self.calls.append((
+            "power_update", expected_request_revision, power_level, now_ms
+        ))
+        if expected_request_revision != self._revision or not self._on:
+            raise RuntimeError("active session changed")
+        return power_level != self._power
+
     def force_on(self, source="manual", increment=True):
         self._on = True
         self._source = source
@@ -429,6 +437,65 @@ class TestManualControlGateway(unittest.TestCase):
                 revision + 1,
                 target_temperature=22,
             )
+
+    def test_power_update_is_staged_without_requested_state_mutation(self):
+        gateway, controller, scheduler, _, _, ticks = build_gateway()
+        controller.force_on()
+        revision = controller.request_revision
+
+        self.assertTrue(gateway.request_session_update(7, revision, power_level=4))
+        self.assertEqual(controller.calls, [("power_update", revision, 4, 1000)])
+        self.assertEqual(controller.request_revision, revision)
+        self.assertEqual(controller._power, 5)
+        self.assertEqual(controller._runtime, 30)
+        self.assertEqual(scheduler.calls, 0)
+        self.assertEqual(ticks, [1000])
+
+        self.assertFalse(gateway.request_session_update(7, revision, power_level=5))
+        self.assertEqual(controller.request_revision, revision)
+
+    def test_power_update_enforces_generation_revision_and_exclusive_bounds(self):
+        gateway, controller, _, config, runtime, _ = build_gateway()
+        with self.assertRaises(ManualControlSessionConflictError):
+            gateway.request_session_update(7, 0, power_level=4)
+        controller.force_on()
+        revision = controller.request_revision
+        with self.assertRaises(ManualControlSessionConflictError):
+            gateway.request_session_update(7, revision - 1, power_level=4)
+        for invalid in (
+            {"power_level": 0},
+            {"power_level": 10},
+            {"power_level": True},
+            {"power_level": 4, "extend_minutes": 15},
+            {"power_level": 4, "target_temperature": 23},
+        ):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ManualControlSessionConflictError):
+                    gateway.request_session_update(7, revision, **invalid)
+        config.generation += 1
+        with self.assertRaises(ManualControlConfigurationConflictError):
+            gateway.request_session_update(7, revision, power_level=4)
+        config.generation -= 1
+        runtime.restart = True
+        with self.assertRaises(ManualControlRestartRequiredError):
+            gateway.request_session_update(7, revision, power_level=4)
+        self.assertEqual(controller.calls, [])
+
+    def test_power_update_is_not_staged_after_reentrant_authority_callback(self):
+        gateway, controller, _, _, runtime, _ = build_gateway()
+        controller.force_on()
+        revision = controller.request_revision
+
+        def reenter():
+            runtime.on_restart = None
+            with self.assertRaises(ManualControlInvariantError):
+                gateway.request_session_update(7, revision, power_level=4)
+
+        runtime.on_restart = reenter
+        with self.assertRaises(ManualControlInvariantError):
+            gateway.request_session_update(7, revision, power_level=4)
+        self.assertEqual(controller.calls, [])
+        self.assertTrue(gateway.faulted)
 
     def test_stop_error_preserves_authoritative_off_truth(self):
         gateway, controller, scheduler, _, _, _ = build_gateway()

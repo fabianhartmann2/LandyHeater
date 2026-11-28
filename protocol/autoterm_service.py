@@ -13,6 +13,8 @@ from .autoterm_protocol import (
     CONTROL_MODE_POWER,
     build_external_temperature,
     build_init_request,
+    build_set_power_settings,
+    build_settings_request,
     build_shutdown_request,
     build_start_for_mode,
     build_status_request,
@@ -235,6 +237,18 @@ class AutotermProtocolService:
         """Request exactly one canonical STATUS transmission."""
 
         return self._send_once(build_status_request())
+
+    def request_settings(self):
+        """Request the current heater settings, without changing them."""
+
+        return self._send_once(build_settings_request())
+
+    def request_set_power_settings(self, settings_payload, power_level):
+        """Send one validated Power-mode settings update, not a START."""
+
+        return self._send_once(
+            build_set_power_settings(settings_payload, power_level)
+        )
 
     def request_start(
         self,
